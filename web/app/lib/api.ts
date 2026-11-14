@@ -145,26 +145,33 @@ export const webApi = {
     apiFetch<Record<string, unknown>>(`/plots/${plotId}/analysis-payload`, {}, token),
   listPlotDevices: (plotId: string) =>
     apiFetch<{ devices: DeviceRecord[] }>(`/plots/${plotId}/devices`),
-  registerDevice: (payload: {
-    device_id: string;
-    farm_id: string;
-    plot_id: string;
-    name?: string;
-  }) =>
-    apiFetch<{ status: string; device: DeviceRecord }>("/devices/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-  getDeviceReadings: (deviceId: string, limit = 60) =>
-    apiFetch<{ device: DeviceRecord | null; readings: DeviceReadingRecord[] }>(
-      `/devices/${encodeURIComponent(deviceId)}/readings?limit=${limit}`
+  claimPlotDevice: (
+    plotId: string,
+    payload: { serial_number: string; name?: string },
+    token: string
+  ) =>
+    apiFetch<{ status: string; device: DeviceRecord }>(
+      `/plots/${plotId}/devices`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token
     ),
-  postDeviceReading: (
-    deviceId: string,
+  unclaimPlotDevice: (plotId: string, serialNumber: string, token: string) =>
+    apiFetch<{ removed: boolean }>(
+      `/plots/${plotId}/devices/${encodeURIComponent(serialNumber)}`,
+      { method: "DELETE" },
+      token
+    ),
+  getDeviceReadings: (serialNumber: string, limit = 60) =>
+    apiFetch<{ device: DeviceRecord | null; readings: DeviceReadingRecord[] }>(
+      `/devices/${encodeURIComponent(serialNumber)}/readings?limit=${limit}`
+    ),
+  ingestDeviceReading: (
+    serialNumber: string,
     payload: { soil_moisture: number; humidity: number; temperature: number }
   ) =>
-    apiFetch<{ ok: boolean; reading: DeviceReadingRecord }>(
-      `/devices/${encodeURIComponent(deviceId)}/readings`,
-      { method: "POST", body: JSON.stringify(payload) }
-    ),
+    apiFetch<{ ok: boolean; reading: DeviceReadingRecord }>("/devices/ingest", {
+      method: "POST",
+      headers: { "X-NASA-Board-SN": serialNumber },
+      body: JSON.stringify(payload),
+    }),
 };

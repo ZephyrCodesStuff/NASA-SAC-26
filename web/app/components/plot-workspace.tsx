@@ -90,11 +90,11 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const [isOwner, setIsOwner] = useState(false);
   const [analysisData, setAnalysisData] = useState<Record<string, unknown> | null>(null);
 
-  // Soil & utility overrides editor
+  // Soil & utility overrides editor (empty string = no override, use NASA / baseline)
   const [editingOverrides, setEditingOverrides] = useState(false);
-  const [phInput, setPhInput] = useState("6.8");
-  const [elecPrice, setElecPrice] = useState("0.24");
-  const [waterPrice, setWaterPrice] = useState("0.45");
+  const [phInput, setPhInput] = useState("");
+  const [elecPrice, setElecPrice] = useState("");
+  const [waterPrice, setWaterPrice] = useState("");
   const [savingOverrides, setSavingOverrides] = useState(false);
 
   // P&L inline cost inputs (€/ha)
@@ -124,9 +124,17 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
       setAnalysisData(analysisRes);
 
       const ov = (plotRes.plot.soil_override || {}) as Record<string, unknown>;
-      if (ov.ph !== undefined) setPhInput(String(ov.ph));
-      if (ov.electricity_price_eur_kwh !== undefined) setElecPrice(String(ov.electricity_price_eur_kwh));
-      if (ov.water_price_eur_m3 !== undefined) setWaterPrice(String(ov.water_price_eur_m3));
+      setPhInput(ov.ph !== undefined && ov.ph !== null ? String(ov.ph) : "");
+      setElecPrice(
+        ov.electricity_price_eur_kwh !== undefined && ov.electricity_price_eur_kwh !== null
+          ? String(ov.electricity_price_eur_kwh)
+          : ""
+      );
+      setWaterPrice(
+        ov.water_price_eur_m3 !== undefined && ov.water_price_eur_m3 !== null
+          ? String(ov.water_price_eur_m3)
+          : ""
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load plot");
     } finally {
@@ -202,23 +210,16 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     }
   };
 
-  const handleSaveOverrides = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const applyOverrides = async (nextOverride: Record<string, unknown>, msg: string) => {
     if (!token || !plot) return;
     setSavingOverrides(true);
     try {
-      const nextOverride = {
-        ...(plot.soil_override || {}),
-        ph: Number(phInput) || 6.8,
-        electricity_price_eur_kwh: Number(elecPrice) || 0.24,
-        water_price_eur_m3: Number(waterPrice) || 0.45,
-      };
       const res = await webApi.updatePlot(plotId, { soil_override: nextOverride }, token);
       setPlot(res.plot);
       const analysisRes = await webApi.getAnalysisPayload(plotId, token).catch(() => null);
       if (analysisRes) setAnalysisData(analysisRes);
       setEditingOverrides(false);
-      toast.success("Field & utility parameters updated");
+      toast.success(msg);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save overrides");
     } finally {
@@ -226,35 +227,75 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     }
   };
 
+  const handleSaveOverrides = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!plot) return;
+    const nextOverride: Record<string, unknown> = { ...(plot.soil_override || {}) };
+
+    const applyField = (key: string, raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        delete nextOverride[key];
+      } else {
+        const num = Number(trimmed);
+        if (!Number.isNaN(num)) nextOverride[key] = num;
+      }
+    };
+
+    applyField("ph", phInput);
+    applyField("electricity_price_eur_kwh", elecPrice);
+    applyField("water_price_eur_m3", waterPrice);
+
+    await applyOverrides(nextOverride, "Field & utility parameters updated");
+  };
+
+  const handleClearAllOverrides = async () => {
+    setPhInput("");
+    setElecPrice("");
+    setWaterPrice("");
+    await applyOverrides({}, "Cleared overrides — reverted to NASA data");
+  };
+
   const handlePairDevice = async (e: React.FormEvent) => {
     e.preventDefault();
-    const code = deviceCodeInput.trim().toUpperCase();
-    if (!code || !plot) return;
+    const sn = deviceCodeInput.trim();
+    if (!sn || !plot || !token) return;
     try {
-      await webApi.registerDevice({
-        device_id: code,
-        farm_id: plot.farm,
-        plot_id: plot.id,
-      });
+      await webApi.claimPlotDevice(plot.id, { serial_number: sn }, token);
       setDeviceCodeInput("");
-      setSelectedDeviceId(code);
+      setSelectedDeviceId(sn);
       await loadDevices();
-      toast.success(`Registered sensor ${code}`);
+      toast.success(`Added device ${sn} to plot`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to register sensor");
+      toast.error(err instanceof Error ? err.message : "Failed to add device");
+    }
+  };
+
+  const handleRemoveDevice = async (sn: string) => {
+    if (!plot || !token) return;
+    try {
+      await webApi.unclaimPlotDevice(plot.id, sn, token);
+      if (selectedDeviceId === sn) {
+        setSelectedDeviceId(null);
+        setReadings([]);
+      }
+      await loadDevices();
+      toast.success(`Removed ${sn} from plot`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove device");
     }
   };
 
   const simulateProbeDip = async () => {
     if (!selectedDeviceId) return;
     try {
-      await webApi.postDeviceReading(selectedDeviceId, {
+      await webApi.ingestDeviceReading(selectedDeviceId, {
         soil_moisture: 68.4,
         humidity: 79.0,
         temperature: 17.8,
       });
       await loadReadings(selectedDeviceId);
-      toast.info("Probe spike posted to API (68.4% moisture)");
+      toast.info("Probe spike ingested (68.4% moisture)");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to post reading");
     }
@@ -418,17 +459,17 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">SOIL pH</strong>{" "}
-            {phInput}
+            {phInput ? `${phInput} (override)` : "NASA / SoilGrids"}
           </span>
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">WATER</strong>{" "}
-            €{waterPrice}/m³
+            {waterPrice ? `€${waterPrice}/m³ (override)` : "Regional default"}
           </span>
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">POWER</strong>{" "}
-            €{elecPrice}/kWh
+            {elecPrice ? `€${elecPrice}/kWh (override)` : "Eurostat default"}
           </span>
           <span className="text-[#e7e5e0]">|</span>
           <span>
@@ -448,6 +489,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
               <Input
                 value={phInput}
                 onChange={(e) => setPhInput(e.target.value)}
+                placeholder="NASA default"
                 className="h-8 text-xs font-mono"
               />
             </div>
@@ -456,6 +498,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
               <Input
                 value={waterPrice}
                 onChange={(e) => setWaterPrice(e.target.value)}
+                placeholder="Regional default"
                 className="h-8 text-xs font-mono"
               />
             </div>
@@ -464,12 +507,26 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
               <Input
                 value={elecPrice}
                 onChange={(e) => setElecPrice(e.target.value)}
+                placeholder="Eurostat default"
                 className="h-8 text-xs font-mono"
               />
             </div>
             <Button type="submit" size="sm" className="h-8 text-xs" disabled={savingOverrides}>
               {savingOverrides ? "Saving…" : "Save Parameters"}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-[#6b675f]"
+              disabled={savingOverrides}
+              onClick={handleClearAllOverrides}
+            >
+              Clear All
+            </Button>
+            <span className="text-[11px] text-[#6b675f]">
+              Leave any field blank and save to revert to NASA / regional data.
+            </span>
           </form>
         )}
 
@@ -763,19 +820,26 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
             {/* Register + Device List */}
             <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5">
-                  <Cpu className="h-4 w-4 text-[#20808d]" />
-                  <span className="text-xs font-medium">Register Device ID:</span>
-                  <Input
-                    value={deviceCodeInput}
-                    onChange={(e) => setDeviceCodeInput(e.target.value)}
-                    placeholder="e.g. ESP32-TURIN-01"
-                    className="h-8 w-48 text-xs font-mono"
-                  />
-                  <Button type="submit" size="sm" className="h-8 text-xs">
-                    Register
-                  </Button>
-                </form>
+                {isOwner ? (
+                  <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5">
+                    <Cpu className="h-4 w-4 text-[#20808d]" />
+                    <span className="text-xs font-medium">Add Board by S/N:</span>
+                    <Input
+                      value={deviceCodeInput}
+                      onChange={(e) => setDeviceCodeInput(e.target.value)}
+                      placeholder="Enter X-NASA-Board-SN"
+                      className="h-8 w-52 text-xs font-mono"
+                    />
+                    <Button type="submit" size="sm" className="h-8 text-xs">
+                      Add to Plot
+                    </Button>
+                  </form>
+                ) : (
+                  <span className="text-xs text-[#6b675f] flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-[#20808d]" />
+                    Sensors assigned to this plot
+                  </span>
+                )}
 
                 {selectedDeviceId && (
                   <div className="flex items-center gap-2">
@@ -817,31 +881,44 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 </span>
                 {plotDevices.length === 0 ? (
                   <span className="text-xs text-[#6b675f]">
-                    No devices registered yet. POST to{" "}
-                    <code className="font-mono text-[11px]">/api/devices/register</code> or enter an ID above.
+                    No boards claimed on this plot yet. Enter the physical board serial number above.
                   </span>
                 ) : (
                   plotDevices.map((d) => {
                     const active = d.device_id === selectedDeviceId;
                     return (
-                      <button
+                      <div
                         key={d.device_id}
-                        type="button"
-                        onClick={() => setSelectedDeviceId(d.device_id)}
-                        className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-mono transition ${
+                        className={`inline-flex items-center rounded-md border text-xs font-mono transition ${
                           active
                             ? "border-[#20808d] bg-[#20808d]/10 text-[#1f1915] font-semibold"
                             : "border-[#e7e5e0] bg-white text-[#6b675f] hover:border-[#20808d]/50"
                         }`}
                       >
-                        <Wifi className={`h-3 w-3 ${active ? "text-emerald-600" : "text-[#6b675f]"}`} />
-                        {d.device_id}
-                        {d.latest_reading && (
-                          <span className="text-[10px] text-[#20808d]">
-                            {d.latest_reading.soil_moisture.toFixed(1)}%
-                          </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDeviceId(d.device_id)}
+                          className="inline-flex items-center gap-2 px-2.5 py-1"
+                        >
+                          <Wifi className={`h-3 w-3 ${active ? "text-emerald-600" : "text-[#6b675f]"}`} />
+                          {d.device_id}
+                          {d.latest_reading && (
+                            <span className="text-[10px] text-[#20808d]">
+                              {d.latest_reading.soil_moisture.toFixed(1)}%
+                            </span>
+                          )}
+                        </button>
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDevice(d.device_id)}
+                            title="Remove device from plot"
+                            className="px-1.5 py-1 border-l border-[#e7e5e0] text-[#6b675f] hover:text-rose-700"
+                          >
+                            &times;
+                          </button>
                         )}
-                      </button>
+                      </div>
                     );
                   })
                 )}

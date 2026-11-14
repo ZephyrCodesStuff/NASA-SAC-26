@@ -96,23 +96,47 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(body["payload"]["overridden_fields"], ["soil.clay_pct", "soil.ph"])
             self.assertEqual(len(body["baseline_preview"]["strategies"]), 3)
 
-            # Unauthenticated IoT discovery, registration, and 3-float readings
-            pub_res = client.get("/api/public/farms-plots")
-            self.assertEqual(pub_res.status_code, 200)
-            self.assertTrue(len(pub_res.json()["farms"]) >= 1)
-
-            reg_res = client.post(
-                "/api/devices/register",
-                json={"device_id": "ESP32-01", "farm_id": farm_id, "plot_id": plot["id"]},
-            )
-            self.assertEqual(reg_res.status_code, 201)
-
-            post_res = client.post(
-                "/api/devices/ESP32-01/readings",
+            # Hardware ingestion via X-NASA-Board-SN + operator claim/unclaim
+            ing_res = client.post(
+                "/api/devices/ingest",
+                headers={"X-NASA-Board-SN": "ESP32-01"},
                 json={"soil_moisture": 44.2, "humidity": 61.5, "temperature": 19.3},
             )
-            self.assertEqual(post_res.status_code, 201)
-            self.assertAlmostEqual(post_res.json()["reading"]["soil_moisture"], 44.2)
+            self.assertEqual(ing_res.status_code, 201)
+            self.assertAlmostEqual(ing_res.json()["reading"]["soil_moisture"], 44.2)
+
+            claim_res = client.post(
+                f"/api/plots/{plot['id']}/devices",
+                headers=headers,
+                json={"serial_number": "ESP32-01"},
+            )
+            self.assertEqual(claim_res.status_code, 201)
+
+            # Second plot cannot claim the same S/N until removed
+            plot2_res = client.post(
+                f"/api/farms/{farm_id}/plots",
+                headers=headers,
+                json={
+                    "label": "West Field",
+                    "crop": "Maize",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "Polygon", "coordinates": [[[7.68, 45.00], [7.69, 45.00], [7.69, 45.01], [7.68, 45.00]]]},
+                            "properties": {"national_ref": "B791_3", "area_ha": 1.0, "centroid": [45.003, 7.685]},
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(plot2_res.status_code, 201)
+            plot2_id = plot2_res.json()["plot"]["id"]
+
+            conflict_res = client.post(
+                f"/api/plots/{plot2_id}/devices",
+                headers=headers,
+                json={"serial_number": "ESP32-01"},
+            )
+            self.assertEqual(conflict_res.status_code, 409)
 
             dev_res = client.get(f"/api/plots/{plot['id']}/devices")
             self.assertEqual(dev_res.status_code, 200)
@@ -121,6 +145,16 @@ class ApiTests(unittest.TestCase):
             ts_res = client.get("/api/devices/ESP32-01/readings")
             self.assertEqual(ts_res.status_code, 200)
             self.assertEqual(len(ts_res.json()["readings"]), 1)
+
+            # Unclaim from plot 1 -> now plot 2 can claim it
+            del_res = client.delete(f"/api/plots/{plot['id']}/devices/ESP32-01", headers=headers)
+            self.assertEqual(del_res.status_code, 200)
+            reclaim_res = client.post(
+                f"/api/plots/{plot2_id}/devices",
+                headers=headers,
+                json={"serial_number": "ESP32-01"},
+            )
+            self.assertEqual(reclaim_res.status_code, 201)
 
 
 if __name__ == "__main__":
