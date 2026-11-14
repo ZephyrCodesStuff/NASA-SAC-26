@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from src.farms import PocketBaseError
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_iso() -> str:
@@ -28,7 +33,7 @@ class DeviceStore:
         local_path: str | Path | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        self.pb_url = (pb_url or os.getenv("PB_URL", "http://127.0.0.1:8090")).rstrip("/")
+        self.pb_url = (pb_url if pb_url is not None else os.getenv("PB_URL", "http://127.0.0.1:8090")).rstrip("/")
         default_local = Path(__file__).resolve().parent.parent / ".cache" / "devices_fallback.json"
         self.local_path = Path(local_path) if local_path else default_local
         self._client = http_client
@@ -98,8 +103,21 @@ class DeviceStore:
                     )
                     if crt.status_code in (200, 201):
                         return crt.json()
-            except Exception:
-                pass
+                    logger.error("PocketBase ingest_reading failed (%s): %s", crt.status_code, crt.text)
+                    raise PocketBaseError(
+                        502 if crt.status_code >= 500 else crt.status_code,
+                        f"PocketBase ingest_reading error ({crt.status_code}): {crt.text}",
+                    )
+                logger.error("PocketBase devices lookup failed (%s): %s", dev_resp.status_code, dev_resp.text)
+                raise PocketBaseError(
+                    502 if dev_resp.status_code >= 500 else dev_resp.status_code,
+                    f"PocketBase devices lookup error ({dev_resp.status_code}): {dev_resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase ingest_reading unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -169,6 +187,7 @@ class DeviceStore:
                         )
                         if upd.status_code == 200:
                             return upd.json()
+                        raise PocketBaseError(502 if upd.status_code >= 500 else upd.status_code, upd.text)
                     else:
                         create_payload: dict[str, Any] = {
                             "device_id": clean_sn,
@@ -184,10 +203,13 @@ class DeviceStore:
                         )
                         if crt.status_code in (200, 201):
                             return crt.json()
-            except DeviceConflictError:
+                        raise PocketBaseError(502 if crt.status_code >= 500 else crt.status_code, crt.text)
+                raise PocketBaseError(502 if existing.status_code >= 500 else existing.status_code, existing.text)
+            except (DeviceConflictError, PocketBaseError):
                 raise
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("PocketBase claim_device unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -231,8 +253,12 @@ class DeviceStore:
                         f"{self.pb_url}/api/collections/devices/records/{items[0]['id']}"
                     )
                     return del_resp.status_code in (200, 204)
-            except Exception:
-                pass
+                raise PocketBaseError(502 if existing.status_code >= 500 else existing.status_code, existing.text)
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase unclaim_device unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -256,8 +282,12 @@ class DeviceStore:
                 )
                 if resp.status_code == 200:
                     return resp.json().get("items") or []
-            except Exception:
-                pass
+                raise PocketBaseError(502 if resp.status_code >= 500 else resp.status_code, resp.text)
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase list_plot_devices unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -289,8 +319,12 @@ class DeviceStore:
                     devs = dev_resp.json().get("items") or []
                     readings = list(reversed(rd_resp.json().get("items") or []))
                     return (devs[0] if devs else None, readings)
-            except Exception:
-                pass
+                raise PocketBaseError(502, "PocketBase get_device_readings failed")
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase get_device_readings unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()

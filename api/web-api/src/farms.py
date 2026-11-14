@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
 from typing import Any, Sequence
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+
+class PocketBaseError(Exception):
+    """Raised when PocketBase is configured (`pb_url` set) and a request fails."""
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
 
 from src.providers.catasto import (
     _feature_bbox,
@@ -504,13 +516,23 @@ class FarmStore:
                     params={"perPage": 100},
                     headers=self._headers(token),
                 )
-                if resp.status_code == 200:
-                    farms = resp.json().get("items") or []
-            except Exception:
-                farms = None
+                if resp.status_code != 200:
+                    logger.error("PocketBase list_farms failed (%s): %s", resp.status_code, resp.text)
+                    raise PocketBaseError(
+                        502 if resp.status_code >= 500 else resp.status_code,
+                        f"PocketBase list_farms error ({resp.status_code}): {resp.text}",
+                    )
+                farms = resp.json().get("items") or []
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase list_farms unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
+        elif self.pb_url:
+            raise PocketBaseError(401, "PocketBase requires an authenticated token to list farms")
 
         if farms is None:
             local = self._load_local()
@@ -543,7 +565,9 @@ class FarmStore:
             "constraints": constraints or {"irrigation": True, "no_till_drill": False},
         }
 
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to create a farm")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -554,8 +578,16 @@ class FarmStore:
                 )
                 if resp.status_code in (200, 201):
                     return resp.json()
-            except Exception:
-                pass
+                logger.error("PocketBase create_farm failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase create_farm error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase create_farm unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -569,7 +601,9 @@ class FarmStore:
     async def list_plots(self, farm_id: str, user: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """List saved plots (`user_plots`) for a farm."""
         token = (user or {}).get("token")
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to list plots")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -580,8 +614,16 @@ class FarmStore:
                 )
                 if resp.status_code == 200:
                     return resp.json().get("items") or []
-            except Exception:
-                pass
+                logger.error("PocketBase list_plots failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase list_plots error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase list_plots unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -599,7 +641,9 @@ class FarmStore:
         token = (user or {}).get("token")
         payload = {"farm": farm_id, **plot_data}
 
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to add plots")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -610,8 +654,16 @@ class FarmStore:
                 )
                 if resp.status_code in (200, 201):
                     return resp.json()
-            except Exception:
-                pass
+                logger.error("PocketBase add_plot failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase add_plot error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase add_plot unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -625,7 +677,9 @@ class FarmStore:
     async def remove_plot(self, plot_id: str, user: dict[str, Any] | None = None) -> bool:
         """Delete a plot from `user_plots`."""
         token = (user or {}).get("token")
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to remove plots")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -635,8 +689,18 @@ class FarmStore:
                 )
                 if resp.status_code in (200, 204):
                     return True
-            except Exception:
-                pass
+                if resp.status_code == 404:
+                    return False
+                logger.error("PocketBase remove_plot failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase remove_plot error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase remove_plot unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -655,7 +719,9 @@ class FarmStore:
     ) -> dict[str, Any] | None:
         """Update fields (e.g. `nasa_snapshot`, `soil_override`, `active_plan`) on a plot."""
         token = (user or {}).get("token")
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to update plots")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -666,8 +732,16 @@ class FarmStore:
                 )
                 if resp.status_code == 200:
                     return resp.json()
-            except Exception:
-                pass
+                logger.error("PocketBase update_plot failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase update_plot error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase update_plot unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()
@@ -688,7 +762,9 @@ class FarmStore:
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Fetch a single plot and its parent farm (PocketBase first, local fallback second)."""
         token = (user or {}).get("token")
-        if self.pb_url and token:
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to get plot")
             close_after = self._client is None
             http = await self._http()
             try:
@@ -697,19 +773,29 @@ class FarmStore:
                     params={"expand": "farm"},
                     headers=self._headers(token),
                 )
-                if resp.status_code == 200:
-                    plot_rec = resp.json()
-                    farm_rec = (plot_rec.get("expand") or {}).get("farm")
-                    if not farm_rec and plot_rec.get("farm"):
-                        f_resp = await http.get(
-                            f"{self.pb_url}/api/collections/farms/records/{plot_rec['farm']}",
-                            headers=self._headers(token),
-                        )
-                        if f_resp.status_code == 200:
-                            farm_rec = f_resp.json()
-                    return plot_rec, farm_rec
-            except Exception:
-                pass
+                if resp.status_code == 404:
+                    return None, None
+                if resp.status_code != 200:
+                    logger.error("PocketBase get_plot failed (%s): %s", resp.status_code, resp.text)
+                    raise PocketBaseError(
+                        502 if resp.status_code >= 500 else resp.status_code,
+                        f"PocketBase get_plot error ({resp.status_code}): {resp.text}",
+                    )
+                plot_rec = resp.json()
+                farm_rec = (plot_rec.get("expand") or {}).get("farm")
+                if not farm_rec and plot_rec.get("farm"):
+                    f_resp = await http.get(
+                        f"{self.pb_url}/api/collections/farms/records/{plot_rec['farm']}",
+                        headers=self._headers(token),
+                    )
+                    if f_resp.status_code == 200:
+                        farm_rec = f_resp.json()
+                return plot_rec, farm_rec
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase get_plot unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
             finally:
                 if close_after:
                     await http.aclose()

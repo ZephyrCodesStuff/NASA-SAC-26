@@ -6,8 +6,9 @@ import os
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from src.auth import AuthError, AuthService, derive_pbkdf2_client_hash, is_farm_owner
@@ -15,6 +16,7 @@ from src.devices import DeviceConflictError, DeviceStore
 from src.explainer import explain_plot_insights
 from src.farms import (
     FarmStore,
+    PocketBaseError,
     compute_geometry_bounds,
     merge_catasto_features_into_plot,
     polygons_intersect,
@@ -105,7 +107,20 @@ def create_api_router(
 
     @router.get("/health")
     async def health() -> dict[str, Any]:
-        return {"status": "ok", "pb_url": auth_service.pb_url, "data_api_url": data_api_client.base_url}
+        pb_ok: bool | None = None
+        if auth_service.pb_url:
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    r = await client.get(f"{auth_service.pb_url}/api/health")
+                    pb_ok = r.status_code == 200
+            except Exception:
+                pb_ok = False
+        return {
+            "status": "ok" if pb_ok is not False else "degraded",
+            "pb_url": auth_service.pb_url,
+            "pb_ok": pb_ok,
+            "data_api_url": data_api_client.base_url,
+        }
 
     # --- Auth ---
     @router.post("/auth/login")
@@ -457,6 +472,10 @@ def create_fastapi_app(
     """Create a standalone FastAPI app (with CORS enabled for Next.js) and `/api` routes."""
     pb_url = os.getenv("PB_URL", "http://127.0.0.1:8090").rstrip("/")
     app = FastAPI(title="NASA Space Apps 2026 — Web API", version="0.1.0")
+
+    @app.exception_handler(PocketBaseError)
+    async def _pb_error_handler(_request: Request, exc: PocketBaseError) -> JSONResponse:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=".*",
