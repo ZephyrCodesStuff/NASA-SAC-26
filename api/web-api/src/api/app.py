@@ -18,7 +18,7 @@ from src.farms import (
     polygons_intersect,
 )
 from src.formulas import evaluate_plot_strategies
-from src.providers.catasto import CatastoClient
+from src.providers.catasto import CatastoClient, is_in_italy
 from src.providers.data_api import (
     FAST_DATASETS,
     DataApiClient,
@@ -280,21 +280,32 @@ def create_api_router(
         bounds = compute_geometry_bounds(body.geometry)
         if not bounds:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid GeoJSON geometry")
-        lat = body.centroid[0] if body.centroid and len(body.centroid) == 2 else (bounds[0][0] + bounds[1][0]) / 2.0
-        lon = body.centroid[1] if body.centroid and len(body.centroid) == 2 else (bounds[0][1] + bounds[1][1]) / 2.0
+        (min_lat, min_lon), (max_lat, max_lon) = bounds
+        mid_lat, mid_lon = (min_lat + max_lat) / 2.0, (min_lon + max_lon) / 2.0
+        if not is_in_italy(mid_lat, mid_lon):
+            return {"parcels": []}  # the AdE cadastre only covers Italy
 
-        parcels = await catasto_client.fetch_parcels_in_area(lat, lon)
-        intersecting = [p for p in parcels if polygons_intersect(body.geometry, p["geometry"])]
-        farmland: list[dict[str, Any]] = []
-        for p in intersecting:
-            wc = await worldcover_client.classify_parcel(p["geometry"])
-            if wc.get("is_farmland", True):
-                props = dict(p.get("properties") or {})
-                props["worldcover_class"] = wc.get("worldcover_class")
-                props["worldcover_label"] = wc.get("worldcover_label")
-                p["properties"] = props
-                farmland.append(p)
-        return {"parcels": farmland}
+        # One WFS call around the drawn area, clamped under the AdE 2,000 m vertical-span limit
+        half_lat = min(max((max_lat - min_lat) / 2.0, 0.001), 0.007)
+        half_lon = min(max((max_lon - min_lon) / 2.0, 0.001), 0.009)
+        try:
+            fc = await catasto_client.fetch_parcels_in_bbox(
+                mid_lat - half_lat, mid_lon - half_lon, mid_lat + half_lat, mid_lon + half_lon, count=150
+            )
+        except Exception as exc:  # noqa: BLE001 — upstream WFS errors/timeouts
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Catasto WFS unavailable: {type(exc).__name__}: {exc}",
+            ) from exc
+
+        intersecting = [p for p in fc.get("features") or [] if polygons_intersect(body.geometry, p["geometry"])]
+        if not intersecting:
+            return {"parcels": []}
+        try:
+            await worldcover_client.classify_parcels(intersecting)  # adds is_farmland / worldcover_* to properties
+        except Exception:  # noqa: BLE001 — land-cover check is optional: return unfiltered parcels
+            return {"parcels": intersecting}
+        return {"parcels": [p for p in intersecting if (p.get("properties") or {}).get("is_farmland") is True]}
 
     return router
 
