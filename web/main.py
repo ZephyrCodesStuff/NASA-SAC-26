@@ -56,6 +56,9 @@ async def index() -> None:
                     ui.navigate.to("/")
 
                 ui.button("Sign out", on_click=sign_out, icon="logout").props("flat dense color=white size=sm")
+                mode_slot = ui.row().classes("items-center")
+            else:
+                mode_slot = None
 
             ui.link("PocketBase Admin", f"{PB_PUBLIC_URL}/_/", new_tab=True).classes(
                 "text-white underline text-xs"
@@ -78,6 +81,7 @@ async def index() -> None:
         catasto_client=catasto_client,
         worldcover_client=worldcover_client,
         data_api_client=data_api_client,
+        mode_slot=mode_slot,
     )
 
 

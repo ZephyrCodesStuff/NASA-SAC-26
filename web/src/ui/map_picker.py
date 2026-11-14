@@ -84,6 +84,7 @@ async def build_catasto_map_picker(
     worldcover_client: WorldCoverClient | None = None,
     data_api_client: DataApiClient | None = None,
     default_preset: str = "carmagnola_po_valley",
+    mode_slot: ui.row | None = None,
 ) -> None:
     """Render the two-mode farm map (Active Farm View & Edit/Draw Plot-Claiming Mode)."""
     store = farm_store or FarmStore()
@@ -138,13 +139,14 @@ async def build_catasto_map_picker(
                 label="Select Farm",
             ).props("dense outlined").classes("w-full")
 
-            with ui.row().classes("w-full items-center justify-between gap-2") as admin_controls:
-                edit_toggle = ui.switch("Edit Farm Plots", value=False).props("dense")
+            with ui.row().classes("w-full items-center justify-end gap-2") as admin_controls:
                 new_farm_btn = ui.button("+ Farm", icon="add").props("outline dense size=sm")
 
             with ui.row().classes("w-full items-center justify-between text-xs text-gray-600"):
                 plot_count_label = ui.label("Saved plots: 0")
                 mode_hint_label = ui.label("Read-only view").classes("text-[11px] text-gray-500")
+
+            plot_list_container = ui.column().classes("w-full gap-1 max-h-44 overflow-y-auto mt-1")
 
         # --- Top-Right Plot / Claiming Card ---
         with ui.card().classes(
@@ -345,13 +347,75 @@ async def build_catasto_map_picker(
 
             _render_plot_icons(plots)
 
+            plot_list_container.clear()
+            with plot_list_container:
+                if not plots:
+                    ui.label("No plots yet.").classes("text-[11px] text-gray-400 italic")
+                for p in plots:
+                    area_ha = float(p.get("area_ha") or 0.0)
+                    sub_count = len(p.get("sub_plots") or [])
+                    sub_txt = f" · {sub_count} parcels" if sub_count > 1 else ""
+                    ui.button(
+                        f"{p.get('label') or 'Plot'} ({area_ha:.2f} ha{sub_txt})",
+                        icon="place",
+                        on_click=lambda _, plot_item=p: _select_plot(plot_item, pan_to=True),
+                    ).props("flat dense no-caps align=left size=sm").classes(
+                        "w-full text-left text-xs text-gray-800 hover:bg-slate-100 rounded px-1"
+                    )
+
+        def _sync_mode_dropdown(owner: bool) -> None:
+            if state["edit_mode"] and owner:
+                mode_dropdown.set_text("Editor")
+                mode_dropdown.props("icon=edit color=amber text-color=black dense no-caps")
+            else:
+                mode_dropdown.set_text("Viewer")
+                mode_dropdown.props("icon=visibility color=white text-color=primary dense no-caps")
+            edit_menu_item.set_enabled(owner)
+
+        def set_edit_mode(editing: bool) -> None:
+            owner = is_farm_owner(state["current_farm"], current_user)
+            if editing and not owner:
+                state["edit_mode"] = False
+                _sync_mode_dropdown(False)
+                return
+            state["edit_mode"] = bool(editing)
+            _clear_candidate_layers()
+            _sync_role_controls()
+            if state["edit_mode"]:
+                status_badge.set_text("Edit Mode")
+                status_badge.props("color=amber")
+                hint_label.set_text("Use the polygon/rectangle tool (left) to draw a farm area.")
+            else:
+                status_badge.set_text("Active View")
+                status_badge.props("color=positive")
+                hint_label.set_text("Click a saved plot to inspect it.")
+
+        target_slot = mode_slot if mode_slot is not None else admin_controls
+        target_slot.clear()
+        with target_slot:
+            with ui.dropdown_button("Viewer", icon="visibility", auto_close=True).props(
+                "color=white text-color=primary dense no-caps size=sm"
+            ) as mode_dropdown:
+                with ui.item(on_click=lambda: set_edit_mode(False)).props("dense"):
+                    with ui.item_section().props("side").classes("pr-2"):
+                        ui.icon("visibility", size="18px")
+                    with ui.item_section():
+                        ui.item_label("Viewer")
+                        ui.item_label("Read-only map").props("caption")
+                with ui.item(on_click=lambda: set_edit_mode(True)).props("dense") as edit_menu_item:
+                    with ui.item_section().props("side").classes("pr-2"):
+                        ui.icon("edit", size="18px")
+                    with ui.item_section():
+                        ui.item_label("Editor")
+                        ui.item_label("Draw & manage plots").props("caption")
+
         def _sync_role_controls() -> None:
             owner = is_farm_owner(state["current_farm"], current_user)
             admin_controls.visible = owner
             viewer_badge.visible = not owner
             if not owner and state["edit_mode"]:
                 state["edit_mode"] = False
-                edit_toggle.value = False
+            _sync_mode_dropdown(owner)
             mode_hint_label.set_text(
                 "Draw polygon to claim" if state["edit_mode"] else ("Owner view" if owner else "Read-only view")
             )
@@ -384,24 +448,6 @@ async def build_catasto_map_picker(
                     m.set_zoom(16)
 
         farm_select.on_value_change(lambda e: load_selected_farm(e.value))
-
-        def on_edit_toggle(e: Any) -> None:
-            if not is_farm_owner(state["current_farm"], current_user):
-                edit_toggle.value = False
-                return
-            state["edit_mode"] = bool(e.value)
-            _clear_candidate_layers()
-            _sync_role_controls()
-            if state["edit_mode"]:
-                status_badge.set_text("Edit Mode")
-                status_badge.props("color=amber")
-                hint_label.set_text("Use the polygon/rectangle tool (left) to draw a farm area.")
-            else:
-                status_badge.set_text("Active View")
-                status_badge.props("color=positive")
-                hint_label.set_text("Click a saved plot to inspect it.")
-
-        edit_toggle.on_value_change(on_edit_toggle)
 
         async def on_draw_created(e: Any) -> None:
             if not state["edit_mode"] or not is_farm_owner(state["current_farm"], current_user):
@@ -537,17 +583,7 @@ async def build_catasto_map_picker(
             lambda: (_clear_candidate_layers(), setattr(hint_label, "visible", True))
         )
 
-        async def on_map_click(e: Any) -> None:
-            latlng = e.args.get("latlng") if isinstance(e.args, dict) else None
-            if not latlng:
-                return
-            lat = float(latlng["lat"])
-            lon = float(latlng["lng"])
-
-            matched = next(
-                (p for p in state["plots"] if p.get("geometry") and point_in_geojson_geometry(lat, lon, p["geometry"])),
-                None,
-            )
+        def _select_plot(matched: dict[str, Any] | None, *, pan_to: bool = False) -> None:
             if state["highlight_layer"] is not None:
                 m.remove_layer(state["highlight_layer"])
                 state["highlight_layer"] = None
@@ -560,13 +596,14 @@ async def build_catasto_map_picker(
                 return
 
             state["selected_plot"] = matched
-            state["highlight_layer"] = m.generic_layer(
-                name="geoJSON",
-                args=[
-                    {"type": "Feature", "geometry": matched["geometry"]},
-                    {"style": {"color": "#fc3d21", "weight": 3, "fillColor": "#fc3d21", "fillOpacity": 0.30}},
-                ],
-            )
+            if matched.get("geometry"):
+                state["highlight_layer"] = m.generic_layer(
+                    name="geoJSON",
+                    args=[
+                        {"type": "Feature", "geometry": matched["geometry"]},
+                        {"style": {"color": "#fc3d21", "weight": 3, "fillColor": "#fc3d21", "fillOpacity": 0.30}},
+                    ],
+                )
 
             area_ha = matched.get("area_ha") or 0.0
             wc_cls = matched.get("worldcover_class")
@@ -574,9 +611,13 @@ async def build_catasto_map_picker(
             st = _style_for_class(wc_cls)
             rot = matched.get("baseline_rotation") or []
             c = matched.get("centroid") or {}
+            sub_plots = matched.get("sub_plots") or []
+            ref_text = matched.get("cadastral_ref") or "Custom drawn polygon"
+            if len(sub_plots) > 1:
+                ref_text = f"{len(sub_plots)} Catasto sub-plots · {ref_text}"
 
             plot_name_label.set_text(matched.get("label") or "Plot")
-            plot_ref_label.set_text(matched.get("cadastral_ref") or "Custom drawn polygon")
+            plot_ref_label.set_text(ref_text)
             area_val.set_text(f"{area_ha:.4f} ha ({round(area_ha * 10_000):,} m²)")
             landcover_icon.props(f"name={st['icon']} color={st['text_color']}")
             landcover_val.set_text(f"{wc_lbl}" + (f" ({wc_cls})" if wc_cls else ""))
@@ -587,15 +628,51 @@ async def build_catasto_map_picker(
             hint_label.visible = False
             info_container.visible = True
 
+            if pan_to and isinstance(c, dict) and "lat" in c and "lon" in c:
+                m.set_center((c["lat"], c["lon"]))
+                m.set_zoom(16)
+
+        async def on_map_click(e: Any) -> None:
+            latlng = e.args.get("latlng") if isinstance(e.args, dict) else None
+            if not latlng:
+                return
+            lat = float(latlng["lat"])
+            lon = float(latlng["lng"])
+
+            matched = next(
+                (p for p in state["plots"] if p.get("geometry") and point_in_geojson_geometry(lat, lon, p["geometry"])),
+                None,
+            )
+            _select_plot(matched, pan_to=False)
+
         m.on("map-click", on_map_click)
 
-        async def on_remove_plot() -> None:
+        def on_remove_plot() -> None:
             plot = state["selected_plot"]
             farm = state["current_farm"]
             if not plot or not farm or not is_farm_owner(farm, current_user):
                 return
-            await store.remove_plot(plot["id"], user=current_user)
-            await load_selected_farm(farm["id"])
+
+            plot_name = plot.get("label") or "this plot"
+            area_ha = float(plot.get("area_ha") or 0.0)
+            with ui.dialog() as confirm_dlg, ui.card().classes("w-96 p-5 gap-3"):
+                ui.label("Remove Plot from Farm?").classes("text-base font-bold text-negative")
+                ui.label(
+                    f"Are you sure you want to delete '{plot_name}' ({area_ha:.2f} ha)? "
+                    "Its cached NASA snapshot, overrides, and saved plan will be permanently removed."
+                ).classes("text-xs text-gray-700")
+                with ui.row().classes("w-full justify-end gap-2 mt-2"):
+                    ui.button("Cancel", on_click=confirm_dlg.close).props("flat dense")
+
+                    async def _confirm_delete() -> None:
+                        confirm_dlg.close()
+                        await store.remove_plot(plot["id"], user=current_user)
+                        await load_selected_farm(farm["id"])
+                        ui.notify(f"Removed '{plot_name}'", type="info")
+
+                    ui.button("Delete Plot", icon="delete", color="negative", on_click=_confirm_delete).props("dense")
+
+            confirm_dlg.open()
 
         remove_plot_btn.on_click(on_remove_plot)
 

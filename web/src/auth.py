@@ -182,6 +182,23 @@ class AuthService:
             if close_after:
                 await http.aclose()
 
+    async def _pb_patch_auth_user(self, user_id: str, token: str, payload: dict[str, Any]) -> None:
+        if not self.pb_url or not token:
+            return
+        close_after = self._client is None
+        http = await self._http()
+        try:
+            await http.patch(
+                f"{self.pb_url}/api/collections/users/records/{user_id}",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        except Exception:
+            pass
+        finally:
+            if close_after:
+                await http.aclose()
+
     async def ensure_demo_users(self) -> None:
         """Ensure the built-in demo users exist in PocketBase `users` (and fallback store)."""
         self._ensure_fallback_demos()
@@ -190,7 +207,7 @@ class AuthService:
         for demo in DEMO_USERS:
             email = demo.email.lower()
             client_hash = derive_pbkdf2_client_hash(email, demo.password)
-            rec, _, reachable = await self._pb_auth_with_password(email, client_hash)
+            rec, tok, reachable = await self._pb_auth_with_password(email, client_hash)
             if not reachable:
                 return
             if rec is None:
@@ -206,6 +223,11 @@ class AuthService:
                         "emailVisibility": True,
                     }
                 )
+            elif tok and (rec.get("role") != demo.role or not rec.get("is_demo") or not rec.get("password_hash")):
+                patch_payload: dict[str, Any] = {"role": demo.role, "is_demo": True}
+                if not rec.get("password_hash"):
+                    patch_payload["password_hash"] = hash_password_argon2id(client_hash)
+                await self._pb_patch_auth_user(str(rec["id"]), tok, patch_payload)
 
     @staticmethod
     def _public_user(
