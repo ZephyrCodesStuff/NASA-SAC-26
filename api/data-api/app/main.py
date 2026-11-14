@@ -163,7 +163,9 @@ async def _respond(parcels: list[Parcel], q: Query, names: list[str]) -> JSONRes
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    from .core import earthdata_login_configured
+
+    return {"status": "ok", "earthdata_login": earthdata_login_configured()}
 
 
 @app.get("/datasets")

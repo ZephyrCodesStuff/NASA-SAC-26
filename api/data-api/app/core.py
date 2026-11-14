@@ -41,14 +41,30 @@ _fs = None
 
 
 def _ensure_netrc_from_env() -> None:
-    """Allow EARTHDATA_USERNAME/PASSWORD env vars as an alternative to ~/.netrc (GDAL needs a netrc)."""
+    """Make the Earthdata login available to earthaccess and GDAL (both read a netrc file).
+
+    Order: EARTHDATA_USERNAME/PASSWORD env vars (written to CACHE_DIR/netrc on the cache volume) →
+    an existing ~/.netrc or $NETRC → the CACHE_DIR/netrc saved by an earlier run. The last step keeps the
+    service working when it is redeployed without the env vars (the cache volume survives redeploys).
+    """
+    path = CACHE_DIR / "netrc"
     user, pw = os.environ.get("EARTHDATA_USERNAME"), os.environ.get("EARTHDATA_PASSWORD")
-    if user and pw and not os.environ.get("GDAL_HTTP_NETRC_FILE"):
-        path = CACHE_DIR / "netrc"
+    if user and pw:
         path.write_text(f"machine urs.earthdata.nasa.gov login {user} password {pw}\n")
         path.chmod(0o600)
-        os.environ["GDAL_HTTP_NETRC_FILE"] = str(path)
-        os.environ.setdefault("NETRC", str(path))
+    elif os.environ.get("NETRC") or (Path.home() / ".netrc").exists():
+        return  # standard locations: GDAL_HTTP_NETRC=YES and earthaccess find it themselves
+    elif path.exists():
+        log.warning("EARTHDATA_USERNAME/PASSWORD not set; using the login saved in %s", path)
+    else:
+        log.warning("No Earthdata login: set EARTHDATA_USERNAME/PASSWORD — NASA Earthdata sources will fail")
+        return
+    os.environ.setdefault("GDAL_HTTP_NETRC_FILE", str(path))
+    os.environ.setdefault("NETRC", str(path))
+
+
+def earthdata_login_configured() -> bool:
+    return bool(os.environ.get("NETRC") or (Path.home() / ".netrc").exists())
 
 
 _ensure_netrc_from_env()  # GDAL (HLS/ECOSTRESS COG reads) needs the netrc before the first read
@@ -61,7 +77,7 @@ def earthdata_fs():
         if _fs is None:
             import earthaccess
 
-            strategy = "environment" if os.environ.get("EARTHDATA_USERNAME") else "netrc"
+            strategy = "environment" if os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD") else "netrc"
             auth = earthaccess.login(strategy=strategy)
             if not auth or not auth.authenticated:
                 raise RuntimeError("Earthdata login failed: check ~/.netrc or EARTHDATA_USERNAME/PASSWORD")
