@@ -23,13 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { PeriodChart, PeriodPoint } from "@/components/period-chart";
 import { DeviceReadingRecord, DeviceRecord, FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { NasaDataPanel } from "@/components/nasa-data-panel";
+import { NasaDataTab } from "@/components/nasa-data-panel";
 import { fmt, num, okValues, pick, str, useNasaData } from "@/lib/use-nasa-data";
 
-const NasaLayerMap = dynamic(() => import("@/components/nasa-layer-map").then((m) => m.NasaLayerMap), {
-  ssr: false,
-  loading: () => <div className="h-[460px] rounded-lg border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />,
-});
 
 const PlotSatelliteThumb = dynamic(
   () => import("@/components/plot-satellite-thumb").then((m) => m.PlotSatelliteThumb),
@@ -792,10 +788,15 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
         {/* TAB: NASA DATA & IMAGERY — every data-api output for this plot */}
         {tab === "nasa" && token && (
-          <div className="space-y-6">
-            <NasaLayerMap key={plotId} plotId={plotId} token={token} geometry={plot.geometry} centroid={plot.centroid} />
-            <NasaDataPanel datasets={nasa.datasets} />
-          </div>
+          <NasaDataTab
+            datasets={nasa.datasets}
+            plotId={plotId}
+            token={token}
+            geometry={plot.geometry}
+            centroid={plot.centroid}
+            loaded={nasa.loaded}
+            total={nasa.total}
+          />
         )}
 
         {/* TAB 2: ROTATION & PROFIT */}
