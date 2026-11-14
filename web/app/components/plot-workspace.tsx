@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PeriodChart, PeriodPoint } from "@/components/period-chart";
-import { FarmRecord, PlotRecord, webApi } from "@/lib/api";
+import { DeviceReadingRecord, DeviceRecord, FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const PlotSatelliteThumb = dynamic(
@@ -105,14 +105,10 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
   // Hardware / Devices tab state
   const [deviceCodeInput, setDeviceCodeInput] = useState("");
-  const [pairedDeviceId, setPairedDeviceId] = useState<string | null>(null);
+  const [plotDevices, setPlotDevices] = useState<DeviceRecord[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [livePolling, setLivePolling] = useState(true);
-  const [readings, setReadings] = useState<SensorReading[]>([
-    { ts: "22:08:10", moisture: 34.2, humidity: 58, tempC: 18.6 },
-    { ts: "22:08:12", moisture: 34.5, humidity: 58, tempC: 18.6 },
-    { ts: "22:08:14", moisture: 34.1, humidity: 59, tempC: 18.7 },
-    { ts: "22:08:16", moisture: 34.4, humidity: 58, tempC: 18.6 },
-  ]);
+  const [readings, setReadings] = useState<SensorReading[]>([]);
 
   const loadAll = useCallback(async () => {
     if (!token) return;
@@ -142,32 +138,53 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     loadAll();
   }, [loadAll]);
 
-  // Restore paired device code for this plot
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(`paired_device_${plotId}`);
-    if (saved) setPairedDeviceId(saved);
+  const loadDevices = useCallback(async () => {
+    try {
+      const res = await webApi.listPlotDevices(plotId);
+      setPlotDevices(res.devices);
+      setSelectedDeviceId((prev) => {
+        if (prev && res.devices.some((d) => d.device_id === prev)) return prev;
+        return res.devices[0]?.device_id || null;
+      });
+    } catch {
+      // Ignore transient errors
+    }
   }, [plotId]);
 
-  // Live sensor polling tick when paired & polling enabled
   useEffect(() => {
-    if (!pairedDeviceId || !livePolling) return;
+    loadDevices();
+  }, [loadDevices]);
+
+  const loadReadings = useCallback(async (deviceId: string) => {
+    try {
+      const res = await webApi.getDeviceReadings(deviceId, 60);
+      setReadings(
+        res.readings.map((r: DeviceReadingRecord) => ({
+          ts: r.ts.slice(11, 19),
+          moisture: r.soil_moisture,
+          humidity: r.humidity,
+          tempC: r.temperature,
+        }))
+      );
+    } catch {
+      // Ignore transient errors
+    }
+  }, []);
+
+  // Poll real device readings & device list every 2s when on Devices tab
+  useEffect(() => {
+    if (!selectedDeviceId) {
+      setReadings([]);
+      return;
+    }
+    loadReadings(selectedDeviceId);
+    if (!livePolling) return;
     const timer = setInterval(() => {
-      setReadings((prev) => {
-        const last = prev[prev.length - 1] || { moisture: 34.2, humidity: 58, tempC: 18.6 };
-        const jitter = (Math.random() - 0.5) * 0.6;
-        const now = new Date().toTimeString().slice(0, 8);
-        const next: SensorReading = {
-          ts: now,
-          moisture: Number(Math.max(5, Math.min(95, last.moisture + jitter)).toFixed(1)),
-          humidity: Math.round(Math.max(20, Math.min(98, last.humidity + (Math.random() - 0.5) * 1.5))),
-          tempC: Number((last.tempC + (Math.random() - 0.5) * 0.2).toFixed(1)),
-        };
-        return [...prev.slice(-23), next];
-      });
+      loadReadings(selectedDeviceId);
+      loadDevices();
     }, 2000);
     return () => clearInterval(timer);
-  }, [pairedDeviceId, livePolling]);
+  }, [selectedDeviceId, livePolling, loadReadings, loadDevices]);
 
   const handleRefreshTelemetry = async () => {
     if (!token) return;
@@ -209,23 +226,38 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     }
   };
 
-  const handlePairDevice = (e: React.FormEvent) => {
+  const handlePairDevice = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = deviceCodeInput.trim().toUpperCase();
-    if (!code) return;
-    setPairedDeviceId(code);
-    window.localStorage.setItem(`paired_device_${plotId}`, code);
-    setDeviceCodeInput("");
-    toast.success(`Connected sensor ${code}`);
+    if (!code || !plot) return;
+    try {
+      await webApi.registerDevice({
+        device_id: code,
+        farm_id: plot.farm,
+        plot_id: plot.id,
+      });
+      setDeviceCodeInput("");
+      setSelectedDeviceId(code);
+      await loadDevices();
+      toast.success(`Registered sensor ${code}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to register sensor");
+    }
   };
 
-  const simulateProbeDip = () => {
-    const now = new Date().toTimeString().slice(0, 8);
-    setReadings((prev) => [
-      ...prev.slice(-23),
-      { ts: now, moisture: 68.4, humidity: 79, tempC: 17.8 },
-    ]);
-    toast.info("Probe spike recorded (68.4% moisture)");
+  const simulateProbeDip = async () => {
+    if (!selectedDeviceId) return;
+    try {
+      await webApi.postDeviceReading(selectedDeviceId, {
+        soil_moisture: 68.4,
+        humidity: 79.0,
+        temperature: 17.8,
+      });
+      await loadReadings(selectedDeviceId);
+      toast.info("Probe spike posted to API (68.4% moisture)");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to post reading");
+    }
   };
 
   const periodPoints = useMemo(() => build24PeriodSeries(plot?.nasa_snapshot), [plot?.nasa_snapshot]);
@@ -279,9 +311,10 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const energyCost = Number(activeStrategy.energy_cost_eur_ha ?? 90);
   const netMarginHa = grossRevenue - waterCost - energyCost - workerCost - transportCost;
 
-  const latestReading = readings[readings.length - 1];
-  const sensorStatus =
-    latestReading.moisture >= 40
+  const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
+  const sensorStatus = !latestReading
+    ? { label: "NO DATA", tone: "text-[#6b675f] bg-[#f5f4ef] border-[#e7e5e0]", dot: "bg-[#6b675f]" }
+    : latestReading.moisture >= 40
       ? { label: "OPTIMAL", tone: "text-emerald-700 bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" }
       : latestReading.moisture >= 25
         ? { label: "WATCH", tone: "text-amber-700 bg-amber-50 border-amber-200", dot: "bg-amber-500" }
@@ -460,7 +493,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
               }`}
             >
               {t.label}
-              {t.key === "devices" && pairedDeviceId && (
+              {t.key === "devices" && plotDevices.length > 0 && (
                 <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
               )}
             </button>
@@ -727,29 +760,25 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
         {/* TAB 3: DEVICES & LIVE TELEMETRY */}
         {tab === "devices" && (
           <div className="space-y-6">
-            {/* Pair Device Bar */}
-            <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 flex flex-wrap items-center justify-between gap-4">
-              {!pairedDeviceId ? (
-                <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5 w-full">
+            {/* Register + Device List */}
+            <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5">
                   <Cpu className="h-4 w-4 text-[#20808d]" />
-                  <span className="text-xs font-medium">Pair ESP32 Field Sensor:</span>
+                  <span className="text-xs font-medium">Register Device ID:</span>
                   <Input
                     value={deviceCodeInput}
                     onChange={(e) => setDeviceCodeInput(e.target.value)}
-                    placeholder="Enter device code (e.g. ESP32-TURIN-01)"
-                    className="h-8 max-w-xs text-xs font-mono"
+                    placeholder="e.g. ESP32-TURIN-01"
+                    className="h-8 w-48 text-xs font-mono"
                   />
                   <Button type="submit" size="sm" className="h-8 text-xs">
-                    Connect Sensor
+                    Register
                   </Button>
                 </form>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold">
-                      <Wifi className="h-3.5 w-3.5 text-emerald-600" />
-                      {pairedDeviceId}
-                    </span>
+
+                {selectedDeviceId && (
+                  <div className="flex items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${sensorStatus.tone}`}
                     >
@@ -759,9 +788,6 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     <span className="text-[11px] font-mono text-[#6b675f]">
                       {livePolling ? "LIVE · 2s" : "PAUSED"}
                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -780,21 +806,46 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     >
                       {livePolling ? "Pause" : "Resume"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-rose-700"
-                      onClick={() => {
-                        setPairedDeviceId(null);
-                        window.localStorage.removeItem(`paired_device_${plotId}`);
-                      }}
-                    >
-                      Unpair
-                    </Button>
                   </div>
-                </>
-              )}
+                )}
+              </div>
+
+              {/* Registered devices selector */}
+              <div className="border-t border-[#e7e5e0] pt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-mono text-[#6b675f] mr-1">
+                  PLOT DEVICES ({plotDevices.length}):
+                </span>
+                {plotDevices.length === 0 ? (
+                  <span className="text-xs text-[#6b675f]">
+                    No devices registered yet. POST to{" "}
+                    <code className="font-mono text-[11px]">/api/devices/register</code> or enter an ID above.
+                  </span>
+                ) : (
+                  plotDevices.map((d) => {
+                    const active = d.device_id === selectedDeviceId;
+                    return (
+                      <button
+                        key={d.device_id}
+                        type="button"
+                        onClick={() => setSelectedDeviceId(d.device_id)}
+                        className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-mono transition ${
+                          active
+                            ? "border-[#20808d] bg-[#20808d]/10 text-[#1f1915] font-semibold"
+                            : "border-[#e7e5e0] bg-white text-[#6b675f] hover:border-[#20808d]/50"
+                        }`}
+                      >
+                        <Wifi className={`h-3 w-3 ${active ? "text-emerald-600" : "text-[#6b675f]"}`} />
+                        {d.device_id}
+                        {d.latest_reading && (
+                          <span className="text-[10px] text-[#20808d]">
+                            {d.latest_reading.soil_moisture.toFixed(1)}%
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
             {/* Instrument Readout Strip + Single Live Trace */}
@@ -804,34 +855,33 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                   <span>
                     <strong className="text-[11px] text-[#6b675f] font-normal block">SOIL MOISTURE</strong>
                     <span className="text-lg font-semibold text-[#20808d]">
-                      {latestReading.moisture.toFixed(1)}%
+                      {latestReading ? `${latestReading.moisture.toFixed(1)}%` : "—"}
                     </span>
                   </span>
                   <span>
                     <strong className="text-[11px] text-[#6b675f] font-normal block">AIR HUMIDITY</strong>
                     <span className="text-lg font-semibold text-[#1f1915]">
-                      {latestReading.humidity}%
+                      {latestReading ? `${latestReading.humidity.toFixed(0)}%` : "—"}
                     </span>
                   </span>
                   <span>
                     <strong className="text-[11px] text-[#6b675f] font-normal block">TEMPERATURE</strong>
                     <span className="text-lg font-semibold text-[#d97706]">
-                      {latestReading.tempC.toFixed(1)}°C
+                      {latestReading ? `${latestReading.tempC.toFixed(1)}°C` : "—"}
                     </span>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-[#6b675f]">
-                  {latestReading.moisture >= 30 ? (
+                  {latestReading && latestReading.moisture >= 30 ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   ) : (
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
                   )}
                   <span>
-                    NASA SMAP Baseline: 33.0% · Delta{" "}
-                    {(latestReading.moisture - 33.0 >= 0 ? "+" : "") +
-                      (latestReading.moisture - 33.0).toFixed(1)}
-                    %
+                    {latestReading
+                      ? `Last reading ${latestReading.ts} UTC`
+                      : "Waiting for ESP32 readings…"}
                   </span>
                 </div>
               </div>
@@ -849,31 +899,35 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     </g>
                   );
                 })}
-                <path
-                  d={readings
-                    .map((r, i) => {
-                      const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
-                      const y = 140 - (r.moisture / 100) * 120;
-                      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-                    })
-                    .join(" ")}
-                  fill="none"
-                  stroke="#20808d"
-                  strokeWidth={2.2}
-                />
-                <path
-                  d={readings
-                    .map((r, i) => {
-                      const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
-                      const y = 140 - (r.humidity / 100) * 120;
-                      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-                    })
-                    .join(" ")}
-                  fill="none"
-                  stroke="#6b675f"
-                  strokeWidth={1.4}
-                  strokeDasharray="4 3"
-                />
+                {readings.length > 1 && (
+                  <>
+                    <path
+                      d={readings
+                        .map((r, i) => {
+                          const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
+                          const y = 140 - (r.moisture / 100) * 120;
+                          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+                        })
+                        .join(" ")}
+                      fill="none"
+                      stroke="#20808d"
+                      strokeWidth={2.2}
+                    />
+                    <path
+                      d={readings
+                        .map((r, i) => {
+                          const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
+                          const y = 140 - (r.humidity / 100) * 120;
+                          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+                        })
+                        .join(" ")}
+                      fill="none"
+                      stroke="#6b675f"
+                      strokeWidth={1.4}
+                      strokeDasharray="4 3"
+                    />
+                  </>
+                )}
               </svg>
             </div>
           </div>

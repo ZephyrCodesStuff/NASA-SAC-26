@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.api import create_fastapi_app
 from src.auth import AuthService
+from src.devices import DeviceStore
 from src.farms import FarmStore
 from src.providers.catasto import CatastoClient
 from src.providers.data_api import DataApiClient
@@ -32,6 +33,7 @@ class ApiTests(unittest.TestCase):
                 catasto_client=CatastoClient(pb_url=""),
                 worldcover_client=WorldCoverClient(),
                 data_api_client=DataApiClient(base_url="http://data-api.test"),
+                device_store=DeviceStore(pb_url="", local_path=Path(tmp) / "devices.json"),
             )
             client = TestClient(app)
 
@@ -93,6 +95,32 @@ class ApiTests(unittest.TestCase):
             body = analysis_res.json()
             self.assertEqual(body["payload"]["overridden_fields"], ["soil.clay_pct", "soil.ph"])
             self.assertEqual(len(body["baseline_preview"]["strategies"]), 3)
+
+            # Unauthenticated IoT discovery, registration, and 3-float readings
+            pub_res = client.get("/api/public/farms-plots")
+            self.assertEqual(pub_res.status_code, 200)
+            self.assertTrue(len(pub_res.json()["farms"]) >= 1)
+
+            reg_res = client.post(
+                "/api/devices/register",
+                json={"device_id": "ESP32-01", "farm_id": farm_id, "plot_id": plot["id"]},
+            )
+            self.assertEqual(reg_res.status_code, 201)
+
+            post_res = client.post(
+                "/api/devices/ESP32-01/readings",
+                json={"soil_moisture": 44.2, "humidity": 61.5, "temperature": 19.3},
+            )
+            self.assertEqual(post_res.status_code, 201)
+            self.assertAlmostEqual(post_res.json()["reading"]["soil_moisture"], 44.2)
+
+            dev_res = client.get(f"/api/plots/{plot['id']}/devices")
+            self.assertEqual(dev_res.status_code, 200)
+            self.assertEqual(dev_res.json()["devices"][0]["device_id"], "ESP32-01")
+
+            ts_res = client.get("/api/devices/ESP32-01/readings")
+            self.assertEqual(ts_res.status_code, 200)
+            self.assertEqual(len(ts_res.json()["readings"]), 1)
 
 
 if __name__ == "__main__":

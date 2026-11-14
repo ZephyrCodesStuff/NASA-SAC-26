@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from src.auth import AuthError, AuthService, derive_pbkdf2_client_hash, is_farm_owner
+from src.devices import DeviceStore
 from src.explainer import explain_plot_insights
 from src.farms import (
     FarmStore,
@@ -68,6 +69,19 @@ class CatastoDiscoverRequest(BaseModel):
     centroid: list[float] | None = Field(default=None, description="[lat, lon]")
 
 
+class RegisterDeviceRequest(BaseModel):
+    device_id: str
+    farm_id: str
+    plot_id: str
+    name: str | None = None
+
+
+class DeviceReadingRequest(BaseModel):
+    soil_moisture: float
+    humidity: float
+    temperature: float
+
+
 def create_api_router(
     *,
     auth_service: AuthService,
@@ -75,9 +89,11 @@ def create_api_router(
     catasto_client: CatastoClient,
     worldcover_client: WorldCoverClient,
     data_api_client: DataApiClient,
+    device_store: DeviceStore | None = None,
 ) -> APIRouter:
     """Build the FastAPI `APIRouter` for farms, plots, auth, Catasto, and telemetry."""
     router = APIRouter(tags=["api"])
+    devices = device_store or DeviceStore(pb_url=auth_service.pb_url)
 
     async def get_current_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
         if not authorization or not authorization.lower().startswith("bearer "):
@@ -307,6 +323,62 @@ def create_api_router(
             return {"parcels": intersecting}
         return {"parcels": [p for p in intersecting if (p.get("properties") or {}).get("is_farmland") is True]}
 
+    # --- Unauthenticated IoT / ESP32 Hackathon Demo Endpoints ---
+    @router.get("/public/farms-plots")
+    async def public_farms_plots() -> dict[str, Any]:
+        farms = await farm_store.list_farms(None)
+        result: list[dict[str, Any]] = []
+        for f in farms:
+            fid = str(f.get("id") or "")
+            plots = await farm_store.list_plots(fid, user=None)
+            result.append(
+                {
+                    "id": fid,
+                    "name": f.get("name"),
+                    "plots": [
+                        {
+                            "id": p.get("id"),
+                            "label": p.get("label"),
+                            "cadastral_ref": p.get("cadastral_ref"),
+                        }
+                        for p in plots
+                    ],
+                }
+            )
+        return {"farms": result}
+
+    @router.post("/devices/register", status_code=status.HTTP_201_CREATED)
+    async def register_device(body: RegisterDeviceRequest) -> dict[str, Any]:
+        if not body.device_id.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="device_id is required")
+        dev = await devices.register_device(
+            device_id=body.device_id,
+            farm_id=body.farm_id,
+            plot_id=body.plot_id,
+            name=body.name,
+        )
+        return {"status": "registered", "device": dev}
+
+    @router.post("/devices/{device_id}/readings", status_code=status.HTTP_201_CREATED)
+    async def post_device_reading(device_id: str, body: DeviceReadingRequest) -> dict[str, Any]:
+        reading = await devices.record_reading(
+            device_id=device_id,
+            soil_moisture=body.soil_moisture,
+            humidity=body.humidity,
+            temperature=body.temperature,
+        )
+        return {"ok": True, "reading": reading}
+
+    @router.get("/plots/{plot_id}/devices")
+    async def list_plot_devices(plot_id: str) -> dict[str, Any]:
+        items = await devices.list_plot_devices(plot_id)
+        return {"devices": items}
+
+    @router.get("/devices/{device_id}/readings")
+    async def get_device_readings(device_id: str, limit: int = 60) -> dict[str, Any]:
+        dev, items = await devices.get_device_readings(device_id, limit=limit)
+        return {"device": dev, "readings": items}
+
     return router
 
 
@@ -317,6 +389,7 @@ def create_fastapi_app(
     catasto_client: CatastoClient | None = None,
     worldcover_client: WorldCoverClient | None = None,
     data_api_client: DataApiClient | None = None,
+    device_store: DeviceStore | None = None,
 ) -> FastAPI:
     """Create a standalone FastAPI app (with CORS enabled for Next.js) and `/api` routes."""
     pb_url = os.getenv("PB_URL", "http://127.0.0.1:8090").rstrip("/")
@@ -334,6 +407,7 @@ def create_fastapi_app(
         catasto_client=catasto_client or CatastoClient(pb_url=pb_url),
         worldcover_client=worldcover_client or WorldCoverClient(),
         data_api_client=data_api_client or DataApiClient(),
+        device_store=device_store or DeviceStore(pb_url=pb_url),
     )
     app.include_router(router, prefix="/api")
     return app

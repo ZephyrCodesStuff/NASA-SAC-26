@@ -61,6 +61,23 @@ async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+export interface DeviceReadingRecord {
+  device_id: string;
+  ts: string;
+  soil_moisture: number;
+  humidity: number;
+  temperature: number;
+}
+
+export interface DeviceRecord {
+  device_id: string;
+  farm_id: string;
+  plot_id: string;
+  name?: string;
+  last_seen?: string;
+  latest_reading?: DeviceReadingRecord;
+}
+
 export const webApi = {
   health: () => apiFetch<{ status: string; pb_url: string; data_api_url: string }>("/health"),
   login: (email: string, password: string) =>
@@ -126,4 +143,28 @@ export const webApi = {
     ),
   getAnalysisPayload: (plotId: string, token: string) =>
     apiFetch<Record<string, unknown>>(`/plots/${plotId}/analysis-payload`, {}, token),
+  listPlotDevices: (plotId: string) =>
+    apiFetch<{ devices: DeviceRecord[] }>(`/plots/${plotId}/devices`),
+  registerDevice: (payload: {
+    device_id: string;
+    farm_id: string;
+    plot_id: string;
+    name?: string;
+  }) =>
+    apiFetch<{ status: string; device: DeviceRecord }>("/devices/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getDeviceReadings: (deviceId: string, limit = 60) =>
+    apiFetch<{ device: DeviceRecord | null; readings: DeviceReadingRecord[] }>(
+      `/devices/${encodeURIComponent(deviceId)}/readings?limit=${limit}`
+    ),
+  postDeviceReading: (
+    deviceId: string,
+    payload: { soil_moisture: number; humidity: number; temperature: number }
+  ) =>
+    apiFetch<{ ok: boolean; reading: DeviceReadingRecord }>(
+      `/devices/${encodeURIComponent(deviceId)}/readings`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
 };
