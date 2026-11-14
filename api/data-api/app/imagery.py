@@ -5,7 +5,7 @@
 - ECOSTRESS (70 m): land-surface temperature from the newest clear daytime overpass.
 - NASADEM (30 m): elevation, hillshade and slope.
 
-Pixels outside the parcel are dimmed and the parcel outline is drawn, so the field stays in context.
+The parcel outline is drawn so the field stays in context; the image is uniformly opaque inside and outside the parcel.
 """
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ HLS_BANDS = {
 }
 PAD = 12  # pixels of surroundings around the parcel
 MIN_SIDE = 512  # upscale small images (nearest neighbour) so they stay crisp on screen
-OUTSIDE_ALPHA = 120
 
 # colour ramps: list of (position 0–1, (r, g, b))
 RAMPS = {
@@ -78,10 +77,10 @@ def _auto_range(a: np.ndarray, mask: np.ndarray, p: tuple = (2, 98)) -> tuple[fl
     return float(lo), float(hi if hi > lo else lo + 1)
 
 
-def _png(rgb: np.ndarray, valid: np.ndarray, inside: np.ndarray, outline_px: list | None) -> str:
+def _png(rgb: np.ndarray, valid: np.ndarray, outline_px: list | None) -> str:
     from PIL import Image, ImageDraw
 
-    alpha = np.where(valid, np.where(inside, 255, OUTSIDE_ALPHA), 0).astype(np.uint8)
+    alpha = np.where(valid, 255, 0).astype(np.uint8)
     rgba = np.dstack([rgb, alpha])
     h, w = alpha.shape
     k = max(1, min(16, math.ceil(MIN_SIDE / max(h, w))))
@@ -168,16 +167,16 @@ def _hls_layers(item, geometry) -> tuple[dict, dict]:
         return np.dstack([(_stretch(b[c], 0, hi, gamma) * 255).astype(np.uint8) for c in (r, g, bl)])
 
     layers, legends = {}, {}
-    layers["true_color"] = _png(rgb("red", "green", "blue", 0.25, 1.6), valid, inside, outline)
-    layers["color_infrared"] = _png(rgb("nir", "red", "green", 0.45), valid, inside, outline)
-    layers["agriculture"] = _png(rgb("swir1", "nir", "blue", 0.45), valid, inside, outline)
-    layers["swir_moisture"] = _png(rgb("swir2", "swir1", "red", 0.4), valid, inside, outline)
+    layers["true_color"] = _png(rgb("red", "green", "blue", 0.25, 1.6), valid, outline)
+    layers["color_infrared"] = _png(rgb("nir", "red", "green", 0.45), valid, outline)
+    layers["agriculture"] = _png(rgb("swir1", "nir", "blue", 0.45), valid, outline)
+    layers["swir_moisture"] = _png(rgb("swir2", "swir1", "red", 0.4), valid, outline)
     indices = {"ndvi": (nd("nir", "red"), -0.2, 0.9, "ndvi"), "ndmi": (nd("nir", "swir1"), -0.4, 0.6, "ndmi")}
     if "rededge" in b:
         indices["ndre"] = (nd("nir", "rededge"), -0.1, 0.6, "ndvi")
     for name, (arr, lo, hi, ramp) in indices.items():
         ok = valid & np.isfinite(arr)
-        layers[name] = _png(_ramp(_stretch(np.nan_to_num(arr, nan=lo), lo, hi), ramp), ok, inside, outline)
+        layers[name] = _png(_ramp(_stretch(np.nan_to_num(arr, nan=lo), lo, hi), ramp), ok, outline)
         v = arr[inside & ok]
         legends[name] = {"min": lo, "max": hi, "ramp": ramp,
                          "parcel_mean": clean(float(v.mean()), 3) if v.size else None}
@@ -185,7 +184,7 @@ def _hls_layers(item, geometry) -> tuple[dict, dict]:
         t = res["thermal"][0] * 0.01  # HLS L30 TIR: °C × 100
         ok = np.isfinite(t) & (fm != 255)
         lo, hi = _auto_range(t, inside & ok)
-        layers["thermal"] = _png(_ramp(_stretch(np.nan_to_num(t, nan=lo), lo, hi), "thermal"), ok, inside, outline)
+        layers["thermal"] = _png(_ramp(_stretch(np.nan_to_num(t, nan=lo), lo, hi), "thermal"), ok, outline)
         v = t[inside & ok]
         legends["thermal"] = {"min": clean(lo, 1), "max": clean(hi, 1), "unit": "°C", "ramp": "thermal",
                               "parcel_mean": clean(float(v.mean()), 1) if v.size else None}
@@ -213,7 +212,7 @@ def _lst_layer(geometry, on: date | None):
         if (ok & inside).sum() < max(1, 0.6 * inside.sum()):
             continue
         lo, hi = _auto_range(lst, ok)
-        png = _png(_ramp(_stretch(np.nan_to_num(lst, nan=lo), lo, hi), "thermal"), ok, inside,
+        png = _png(_ramp(_stretch(np.nan_to_num(lst, nan=lo), lo, hi), "thermal"), ok,
                    _outline(_geom_in(crs, geometry), wt))
         v = lst[inside & ok]
         return {"png": png, "date": it["properties"]["datetime"], "bounds": _bounds_latlon(wt, inside.shape, crs),
@@ -244,9 +243,9 @@ def _dem_layers(geometry):
     lo, hi = _auto_range(elev, ok, (1, 99))
     gray = (np.clip(shade, 0, 1) * 255).astype(np.uint8)
     layers = {
-        "elevation": _png(_ramp(_stretch(np.nan_to_num(elev, nan=lo), lo, hi), "elevation"), ok, inside, outline),
-        "hillshade": _png(np.dstack([gray] * 3), ok, inside, outline),
-        "slope": _png(_ramp(_stretch(slope, 0, 15), "slope"), ok, inside, outline),
+        "elevation": _png(_ramp(_stretch(np.nan_to_num(elev, nan=lo), lo, hi), "elevation"), ok, outline),
+        "hillshade": _png(np.dstack([gray] * 3), ok, outline),
+        "slope": _png(_ramp(_stretch(slope, 0, 15), "slope"), ok, outline),
     }
     return {"layers": layers, "bounds": _bounds_latlon(wt, inside.shape, crs), "pixel_size_m": 30,
             "legends": {"elevation": {"min": clean(lo, 0), "max": clean(hi, 0), "unit": "m", "ramp": "elevation"},
@@ -255,10 +254,11 @@ def _dem_layers(geometry):
 
 # ---------------------------------------------------------------- entry point
 ALL_GROUPS = ("hls", "lst", "dem")
+IMAGERY_VERSION = 2  # bump to invalidate cached imagery PNGs after a rendering change
 
 
 @ttl_cache(6 * 3600)
-def render(geom_wkt: str, on: date | None = None, groups: tuple = ALL_GROUPS) -> dict:
+def render(geom_wkt: str, on: date | None = None, groups: tuple = ALL_GROUPS, version: int = IMAGERY_VERSION) -> dict:
     from shapely import wkt as W
 
     geometry = W.loads(geom_wkt)
