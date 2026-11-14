@@ -496,7 +496,9 @@ def build_wms_getmap_url(
 # ---------------------------------------------------------------------------
 
 
-DEFAULT_CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "catasto"
+DEFAULT_CACHE_DIR = Path(
+    os.getenv("CATASTO_CACHE_DIR", str(Path(__file__).resolve().parents[3] / ".cache" / "catasto"))
+)
 _MEM_CACHE: dict[str, dict[str, Any]] = {}
 
 

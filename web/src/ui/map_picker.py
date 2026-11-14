@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from nicegui import ui
@@ -10,9 +11,8 @@ from src.providers.catasto import (
     DEFAULT_BBOX_DELTA,
     TURIN_PRESETS,
     CatastoClient,
-    WMSLayers,
-    get_wms_leaflet_config,
 )
+from src.providers.worldcover import WorldCoverClient
 
 # Common Turin-area Belfiore codes -> human-readable Comune names
 BELFIORE_NAMES: dict[str, str] = {
@@ -28,19 +28,87 @@ BELFIORE_NAMES: dict[str, str] = {
     "G090": "Orbassano",
 }
 
+# Land-cover visual styling & Material icon per ESA WorldCover class
+LANDCOVER_STYLES: dict[int, dict[str, str]] = {
+    40: {
+        "name": "Cropland",
+        "icon": "agriculture",
+        "text_color": "amber-9",
+        "color": "#d97706",
+        "fillColor": "#f59e0b",
+        "fillOpacity": "0.24",
+    },
+    30: {
+        "name": "Grassland",
+        "icon": "grass",
+        "text_color": "green-9",
+        "color": "#15803d",
+        "fillColor": "#22c55e",
+        "fillOpacity": "0.20",
+    },
+    10: {
+        "name": "Tree cover",
+        "icon": "park",
+        "text_color": "teal-9",
+        "color": "#0f766e",
+        "fillColor": "#14b8a6",
+        "fillOpacity": "0.14",
+    },
+    20: {
+        "name": "Shrubland",
+        "icon": "nature",
+        "text_color": "teal-8",
+        "color": "#0f766e",
+        "fillColor": "#2dd4bf",
+        "fillOpacity": "0.14",
+    },
+    80: {
+        "name": "Water",
+        "icon": "water",
+        "text_color": "blue-8",
+        "color": "#1d4ed8",
+        "fillColor": "#3b82f6",
+        "fillOpacity": "0.18",
+    },
+    50: {
+        "name": "Built-up",
+        "icon": "apartment",
+        "text_color": "blue-grey-7",
+        "color": "#64748b",
+        "fillColor": "#94a3b8",
+        "fillOpacity": "0.12",
+    },
+}
+
+DEFAULT_LANDCOVER_STYLE: dict[str, str] = {
+    "name": "Other",
+    "icon": "layers",
+    "text_color": "grey-7",
+    "color": "#64748b",
+    "fillColor": "#94a3b8",
+    "fillOpacity": "0.12",
+}
+
+
+def _style_for_class(wc_class: int | None) -> dict[str, str]:
+    if wc_class is None:
+        return DEFAULT_LANDCOVER_STYLE
+    return LANDCOVER_STYLES.get(wc_class, DEFAULT_LANDCOVER_STYLE)
+
 
 async def build_catasto_map_picker(
     catasto_client: CatastoClient | None = None,
+    worldcover_client: WorldCoverClient | None = None,
     default_preset: str = "torino_stura_farmland",
 ) -> None:
     """Render a full-viewport Leaflet map with an overlaid Catasto parcel info card."""
     client = catasto_client or CatastoClient()
+    wc_client = worldcover_client or WorldCoverClient()
     preset = TURIN_PRESETS.get(default_preset) or TURIN_PRESETS["torino_stura_farmland"]
 
     state: dict[str, Any] = {
-        "cached_layer": None,
+        "cached_layers": [],
         "highlight_layer": None,
-        "wms_layer": None,
         "selected_parcel": None,
     }
 
@@ -67,8 +135,19 @@ async def build_catasto_map_picker(
                 on_change=on_preset_change,
             ).props("dense outlined").classes("w-full")
 
-            wms_toggle = ui.switch("Show Catasto WMS lines", value=True).props("dense")
-            cached_count_label = ui.label("Cached parcels: 0").classes("text-xs text-gray-600")
+            farmland_only_toggle = ui.switch("Farmland only (WorldCover 10m)", value=True).props("dense")
+            cached_count_label = ui.label("Farmland: 0 / 0 cached").classes("text-xs text-gray-600")
+            with ui.row().classes("w-full gap-3 pt-1 items-center text-[11px] text-gray-700"):
+                with ui.row().classes("items-center gap-1"):
+                    ui.icon("agriculture", size="14px").classes("text-amber-600")
+                    ui.label("Cropland")
+                with ui.row().classes("items-center gap-1"):
+                    ui.icon("grass", size="14px").classes("text-green-700")
+                    ui.label("Grassland")
+                with ui.row().classes("items-center gap-1") as other_legend:
+                    ui.icon("apartment", size="14px").classes("text-slate-500")
+                    ui.label("Other")
+                other_legend.visible = False
 
         # Top-right overlaid parcel info card
         with ui.card().classes(
@@ -102,55 +181,120 @@ async def build_catasto_map_picker(
                     ui.label("Centroid").classes("text-gray-500")
                     centroid_val = ui.label("-").classes("font-mono text-right")
 
+                    ui.label("Land Cover").classes("text-gray-500")
+                    with ui.row().classes("items-center justify-end gap-1"):
+                        landcover_icon = ui.icon("agriculture", size="16px").classes("text-amber-600")
+                        landcover_val = ui.label("-").classes("font-semibold text-right")
+
                     ui.label("Source").classes("text-gray-500")
                     source_val = ui.label("-").classes("text-right")
 
                 inspire_label = ui.label("").classes("text-[11px] font-mono text-gray-500 break-all mt-1")
 
-        # Wait for Leaflet initialization before adding WMS or GeoJSON layers
+        # Wait for Leaflet initialization before adding GeoJSON layers
         await m.initialized()
 
-        wms_cfg = get_wms_leaflet_config(
-            layers=[WMSLayers.CADASTRAL_PARCEL, WMSLayers.FABBRICATI],
-            transparent=True,
-            min_zoom=14,
-            max_zoom=20,
-        )
-        state["wms_layer"] = m.wms_layer(**wms_cfg)
+        async def _init_layers() -> None:
+            await refresh_cached_layer()
 
-        def refresh_cached_layer() -> None:
+        ui.timer(0.05, _init_layers, once=True)
+
+        async def refresh_cached_layer() -> None:
             cached_feats = client.get_cached_parcels()
-            cached_count_label.set_text(f"Cached parcels: {len(cached_feats)}")
-            if state["cached_layer"] is not None:
-                m.remove_layer(state["cached_layer"])
-                state["cached_layer"] = None
-            if cached_feats:
-                fc = {"type": "FeatureCollection", "features": cached_feats}
-                state["cached_layer"] = m.generic_layer(
+            try:
+                await wc_client.classify_parcels(cached_feats)
+            except Exception:
+                pass
+
+            farmland_feats = [
+                f for f in cached_feats if (f.get("properties") or {}).get("is_farmland") is True
+            ]
+            non_farmland_feats = [
+                f for f in cached_feats if (f.get("properties") or {}).get("is_farmland") is False
+            ]
+            cached_count_label.set_text(
+                f"Farmland: {len(farmland_feats)} / {len(cached_feats)} cached"
+            )
+            other_legend.visible = not farmland_only_toggle.value
+
+            for layer in state["cached_layers"]:
+                m.remove_layer(layer)
+            state["cached_layers"] = []
+
+            visible_feats = farmland_feats if farmland_only_toggle.value else farmland_feats + non_farmland_feats
+
+            # Group features by WorldCover class so each land-cover type gets its own color
+            grouped: dict[int | None, list[dict[str, Any]]] = {}
+            for feat in visible_feats:
+                wc_cls = (feat.get("properties") or {}).get("worldcover_class")
+                grouped.setdefault(wc_cls, []).append(feat)
+
+            for wc_cls, feats in grouped.items():
+                st = _style_for_class(wc_cls)
+                fc = {"type": "FeatureCollection", "features": feats}
+                layer = m.generic_layer(
                     name="geoJSON",
                     args=[
                         fc,
                         {
                             "style": {
-                                "color": "#0b3d91",
+                                "color": st["color"],
                                 "weight": 1.5,
-                                "fillColor": "#3b82f6",
-                                "fillOpacity": 0.10,
+                                "fillColor": st["fillColor"],
+                                "fillOpacity": float(st["fillOpacity"]),
                             }
                         },
                     ],
                 )
+                state["cached_layers"].append(layer)
 
-        refresh_cached_layer()
+            # Render a non-interactive Material icon at each visible parcel's centroid
+            icon_items = []
+            for feat in visible_feats:
+                props = feat.get("properties") or {}
+                centroid = props.get("centroid")
+                if not centroid or len(centroid) != 2:
+                    continue
+                st = _style_for_class(props.get("worldcover_class"))
+                icon_items.append(
+                    {
+                        "lat": centroid[0],
+                        "lon": centroid[1],
+                        "icon": st["icon"],
+                        "color": st["color"],
+                    }
+                )
 
-        def on_wms_toggle(e: Any) -> None:
-            if e.value and state["wms_layer"] is None:
-                state["wms_layer"] = m.wms_layer(**wms_cfg)
-            elif not e.value and state["wms_layer"] is not None:
-                m.remove_layer(state["wms_layer"])
-                state["wms_layer"] = None
+            ui.run_javascript(
+                f"""
+                (function renderIcons(attempt) {{
+                    const el = getElement({m.id});
+                    if (!el || !el.map || typeof L === 'undefined') {{
+                        if (attempt < 20) setTimeout(() => renderIcons(attempt + 1), 100);
+                        return;
+                    }}
+                    if (el._parcelIconLayer) {{
+                        el.map.removeLayer(el._parcelIconLayer);
+                    }}
+                    const items = {json.dumps(icon_items)};
+                    const markers = items.map(item => L.marker([item.lat, item.lon], {{
+                        interactive: false,
+                        icon: L.divIcon({{
+                            className: '',
+                            html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.9);border:1.5px solid ${{item.color}};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.25);"><span class="material-icons" style="font-size:14px;color:${{item.color}};">${{item.icon}}</span></div>`,
+                            iconSize: [22, 22],
+                            iconAnchor: [11, 11],
+                        }})
+                    }}));
+                    el._parcelIconLayer = L.layerGroup(markers).addTo(el.map);
+                }})(0);
+                """
+            )
 
-        wms_toggle.on_value_change(on_wms_toggle)
+        async def on_farmland_toggle(_: Any) -> None:
+            await refresh_cached_layer()
+
+        farmland_only_toggle.on_value_change(on_farmland_toggle)
 
         async def on_map_click(e: Any) -> None:
             latlng = e.args.get("latlng") if isinstance(e.args, dict) else None
@@ -204,8 +348,29 @@ async def build_catasto_map_picker(
                 hint_label.visible = True
                 return
 
+            try:
+                await wc_client.classify_parcel(parcel)
+            except Exception:
+                pass
+
             if not result.get("cached"):
-                refresh_cached_layer()
+                await refresh_cached_layer()
+
+            props = parcel.get("properties") or {}
+            wc_label = props.get("worldcover_label") or "Unknown"
+            wc_cls = props.get("worldcover_class")
+            is_farm = props.get("is_farmland")
+
+            if farmland_only_toggle.value and is_farm is False:
+                status_badge.set_text("Not farmland")
+                status_badge.props("color=grey")
+                info_container.visible = False
+                hint_label.set_text(
+                    f"Excluded parcel {props.get('national_ref') or ''}: "
+                    f"{wc_label} (Class {wc_cls}). Toggle off 'Farmland only' to inspect."
+                )
+                hint_label.visible = True
+                return
 
             state["selected_parcel"] = parcel
             state["highlight_layer"] = m.generic_layer(
@@ -239,6 +404,10 @@ async def build_catasto_map_picker(
                 f"{centroid[0]:.5f}, {centroid[1]:.5f}" if centroid else f"{lat:.5f}, {lon:.5f}"
             )
             source_val.set_text("Catasto WFS" if result["source"] == "ade_catasto_wfs" else "OSM Fallback")
+            st = _style_for_class(wc_cls)
+            landcover_icon.props(f"name={st['icon']} color={st['text_color']}")
+            wc_suffix = f" ({wc_cls})" if wc_cls is not None else ""
+            landcover_val.set_text(f"{wc_label}{wc_suffix}")
             inspire_label.set_text(f"INSPIRE: {props.get('inspire_id') or '-'}")
 
             is_cached = bool(result.get("cached"))
