@@ -8,7 +8,7 @@ Full API reference: [data-api/README.md](../data-api/README.md) (or http://local
 ```
 browser ──► web (NiceGUI :8080) ──► data-api (:8070) ──► NASA / ISRIC
                  │                        (in-memory cache)
-                 └──► pocketbase (:8090)  field_cache: store data-api results
+                 └──► pocketbase (:8090)  user_plots.nasa_snapshot: stored data-api results
 ```
 
 - Inside Docker, `web` reaches the API at **`http://data-api:8070`**, given in the env var `DATA_API_URL`.
@@ -33,9 +33,7 @@ Optional query parameters:
 
 ## Ready-made provider (suggested `web/src/providers/nasa.py`)
 
-This follows the same pattern as `catasto.py`: async `httpx`, with results cached in PocketBase `field_cache`.
-The `field_cache` collection is created by `pocketbase/pb_migrations/1794677705_create_field_cache.js`.
-Fields are `cache_key` (unique) and `payload` (JSON). Anyone can read and create records, but nobody can update or delete them through the API.
+Superseded by `web/src/providers/data_api.py`, which stores results in `user_plots.nasa_snapshot`. Kept as a minimal example.
 
 ```python
 """Client for the data-api service (satellite data for a parcel)."""
