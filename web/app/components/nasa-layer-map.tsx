@@ -205,7 +205,7 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* Map */}
-      <div className="lg:col-span-8 relative h-[480px] rounded-xl overflow-hidden border border-[#e7e5e0] bg-[#1f1915]">
+      <div className="lg:col-span-8 relative isolate h-[480px] rounded-xl overflow-hidden border border-[#e7e5e0] bg-[#1f1915]">
         <div ref={containerRef} className="h-full w-full" />
         {!imagery && !imageryError && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] rounded-full bg-black/70 px-3 py-1 text-[11px] text-white flex items-center gap-1.5">

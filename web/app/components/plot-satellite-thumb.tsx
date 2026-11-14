@@ -64,7 +64,7 @@ export function PlotSatelliteThumb({ geometry, centroid }: PlotSatelliteThumbPro
   }, [geometry, centroid]);
 
   return (
-    <div className="relative h-[132px] w-[220px] shrink-0 overflow-hidden rounded-md border border-[#e7e5e0] bg-[#1f1915]">
+    <div className="relative isolate h-[132px] w-[220px] shrink-0 overflow-hidden rounded-md border border-[#e7e5e0] bg-[#1f1915]">
       <div ref={containerRef} className="h-full w-full" />
       <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] text-white/90">
         Esri World_Imagery

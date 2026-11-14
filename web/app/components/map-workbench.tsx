@@ -699,7 +699,7 @@ export function MapWorkbench() {
         )}
 
         {/* Map Canvas */}
-        <main className={`flex-1 relative min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
+        <main className={`flex-1 relative isolate min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
           <div ref={mapContainerRef} className="h-full w-full" />
 
           {/* Floating Layer Switcher Pill (Top Right) */}
