@@ -37,7 +37,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[#faf9f5] text-[#1f1915]">
         <AuthProvider>{children}</AuthProvider>
-        <Toaster position="bottom-right" richColors />
+        <Toaster
+          position="top-center"
+          duration={2500}
+          closeButton
+          swipeDirections={["top", "right", "left"]}
+          richColors
+        />
       </body>
     </html>
   );

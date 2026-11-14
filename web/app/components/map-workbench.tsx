@@ -73,6 +73,8 @@ export function MapWorkbench() {
   const [drawPoints, setDrawPoints] = useState<Array<[number, number]>>([]);
   const [discovering, setDiscovering] = useState(false);
   const [discoveredParcels, setDiscoveredParcels] = useState<Array<Record<string, unknown>> | null>(null);
+  const [catastoParcels, setCatastoParcels] = useState<Array<Record<string, unknown>>>([]);
+  const [useCatastoGeometry, setUseCatastoGeometry] = useState(false);
   const [newPlotLabel, setNewPlotLabel] = useState("");
   const [newPlotCrop, setNewPlotCrop] = useState("");
   const [savingPlot, setSavingPlot] = useState(false);
@@ -298,11 +300,31 @@ export function MapWorkbench() {
     }
   }, [plots, selectedPlotId, drawPoints.length, mapReady]);
 
-  // Render drawing polygon preview
+  // Render drawing polygon preview (and Catasto snap preview when selected)
   useEffect(() => {
     const group = drawLayerRef.current;
     if (!group) return;
     group.clearLayers();
+
+    if (useCatastoGeometry && catastoParcels.length > 0) {
+      for (const feat of catastoParcels) {
+        const geom = feat.geometry as GeoJSON.GeoJsonObject | undefined;
+        if (!geom) continue;
+        try {
+          L.geoJSON(geom, {
+            style: {
+              color: "#d97706",
+              weight: 2.5,
+              fillColor: "#f59e0b",
+              fillOpacity: 0.25,
+            },
+          }).addTo(group);
+        } catch {
+          // Ignore malformed geometry
+        }
+      }
+      return;
+    }
 
     if (drawPoints.length === 0) return;
 
@@ -325,7 +347,7 @@ export function MapWorkbench() {
         fillOpacity: 0.2,
       }).addTo(group);
     }
-  }, [drawPoints]);
+  }, [drawPoints, useCatastoGeometry, catastoParcels]);
 
   const focusPlot = useCallback((plot: PlotRecord) => {
     setSelectedPlotId(plot.id);
@@ -385,22 +407,21 @@ export function MapWorkbench() {
     setDiscovering(true);
     try {
       const { geometry, centroid } = buildDrawnGeoJson();
+      const drawnFeature: Record<string, unknown> = {
+        type: "Feature",
+        geometry,
+        properties: {
+          cadastral_ref: "CUSTOM-POLYGON",
+          worldcover_label: "Custom Field Boundary",
+        },
+      };
       const res = await webApi.catastoDiscover(geometry, centroid, token);
+      setDiscoveredParcels([drawnFeature]);
+      setCatastoParcels(res.parcels);
+      setUseCatastoGeometry(false);
       if (res.parcels.length > 0) {
-        setDiscoveredParcels(res.parcels);
-        toast.success(`Found ${res.parcels.length} Catasto farmland parcel(s)`);
+        toast.success(`Found ${res.parcels.length} Catasto parcel(s) — keep drawn boundary or snap to Catasto.`);
       } else {
-        // Fallback: allow saving the drawn polygon directly (e.g. outside Italy)
-        setDiscoveredParcels([
-          {
-            type: "Feature",
-            geometry,
-            properties: {
-              cadastral_ref: "CUSTOM-POLYGON",
-              worldcover_label: "Custom Field Boundary",
-            },
-          },
-        ]);
         toast.info("No Catasto parcels matched — ready to save your drawn boundary.");
       }
     } catch (err) {
@@ -412,15 +433,17 @@ export function MapWorkbench() {
 
   const handleSavePlot = async () => {
     if (!token || !selectedFarmId || !discoveredParcels) return;
+    const featuresToSave =
+      useCatastoGeometry && catastoParcels.length > 0 ? catastoParcels : discoveredParcels;
     setSavingPlot(true);
     try {
       const res = await webApi.createPlot(
         selectedFarmId,
         {
-          features: discoveredParcels,
+          features: featuresToSave,
           label: newPlotLabel.trim() || undefined,
           crop: newPlotCrop.trim() || undefined,
-          use_catasto_names: !newPlotLabel.trim(),
+          use_catasto_names: useCatastoGeometry && !newPlotLabel.trim(),
         },
         token
       );
@@ -428,6 +451,8 @@ export function MapWorkbench() {
       setSelectedPlotId(res.plot.id);
       setDrawPoints([]);
       setDiscoveredParcels(null);
+      setCatastoParcels([]);
+      setUseCatastoGeometry(false);
       setNewPlotLabel("");
       setNewPlotCrop("");
       setMode("viewer");
@@ -767,21 +792,57 @@ export function MapWorkbench() {
             <div className="absolute bottom-5 right-5 z-[500] w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 shadow-lg space-y-3">
               <div className="flex items-center justify-between">
                 <p className="font-serif text-sm font-semibold">
-                  Save Plot ({discoveredParcels.length} parcel{discoveredParcels.length > 1 ? "s" : ""})
+                  {useCatastoGeometry && catastoParcels.length > 0
+                    ? `Save Plot (${catastoParcels.length} Catasto parcel${catastoParcels.length > 1 ? "s" : ""})`
+                    : "Save Drawn Plot"}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setDiscoveredParcels(null)}
+                  onClick={() => {
+                    setDiscoveredParcels(null);
+                    setCatastoParcels([]);
+                    setUseCatastoGeometry(false);
+                  }}
                   className="text-[#6b675f] hover:text-[#1f1915]"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
+              {catastoParcels.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-[#6b675f]">Boundary source</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setUseCatastoGeometry(false)}
+                      className={`px-2.5 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        !useCatastoGeometry
+                          ? "bg-[#20808d] text-white border-[#20808d]"
+                          : "bg-white text-[#1f1915] border-[#e7e5e0] hover:bg-[#f5f4ef]"
+                      }`}
+                    >
+                      My drawing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUseCatastoGeometry(true)}
+                      className={`px-2.5 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        useCatastoGeometry
+                          ? "bg-[#d97706] text-white border-[#d97706]"
+                          : "bg-white text-[#1f1915] border-[#e7e5e0] hover:bg-[#f5f4ef]"
+                      }`}
+                    >
+                      Catasto ({catastoParcels.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div className="space-y-1">
                   <label className="text-[11px] font-medium text-[#6b675f]">
-                    Plot Label (optional — defaults to Catasto ref)
+                    {useCatastoGeometry ? "Plot Label (optional — defaults to Catasto ref)" : "Plot Label"}
                   </label>
                   <Input
                     value={newPlotLabel}
@@ -809,7 +870,11 @@ export function MapWorkbench() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={() => setDiscoveredParcels(null)}
+                  onClick={() => {
+                    setDiscoveredParcels(null);
+                    setCatastoParcels([]);
+                    setUseCatastoGeometry(false);
+                  }}
                 >
                   Cancel
                 </Button>
