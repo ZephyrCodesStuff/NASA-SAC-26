@@ -1,0 +1,89 @@
+# data-api — satellite data for a field
+
+Give it a field boundary, get back what the satellites and models say about that field — weather, rain,
+soil moisture, crop water use and stress, crop health, soil, groundwater, terrain — as one JSON document.
+
+Runs as the `data-api` service in the root `compose.yaml`; the web app reaches it at `http://data-api:8000`
+(`DATA_API_URL`). Interactive docs: http://localhost:8000/docs
+
+## Setup
+
+1. Free NASA Earthdata account: https://urs.earthdata.nasa.gov
+2. On that account: **Applications → Authorized Apps → Approve More Applications → "NASA GESDISC DATA ARCHIVE"**
+   (needed for IMERG rainfall).
+3. In the repo root: `cp .env.example .env` and fill `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD`.
+4. `docker compose up --build -d`
+
+Local dev without Docker: `cd data-api && uv run uvicorn app.main:app --reload --port 8000`
+(credentials from `.env` variables or `~/.netrc`). Tests: `uv run pytest` (offline, no credentials needed).
+
+## Endpoints
+
+| Method | Path | Body | Use |
+|---|---|---|---|
+| POST | `/geojson` | GeoJSON `Feature`, `FeatureCollection` or `Polygon` (WGS84 lon/lat) | what `web/src/providers/catasto.py` produces |
+| POST | `/parcel` | raw Catasto WFS GML 3.2 (EPSG:6706, lat/lon order handled) | straight from Agenzia delle Entrate |
+| GET | `/point?lat=&lon=` | — | ~30 m square around a point (testing) |
+| GET | `/datasets` | — | list of datasets |
+| GET | `/health` | — | health check |
+
+Query options on all data endpoints:
+- `datasets=weather,crop_health` — only some datasets (faster)
+- `history=true` — add time series; `start` / `end` (ISO dates, default last 90 days, max 365)
+
+Up to 20 parcels per request.
+
+## Response
+
+```jsonc
+{
+  "parcels": [{
+    "parcel": { "id": "IT.AGE.PLA.F257_025400.121", "area_ha": 1.58, "centroid": {...}, "geometry": {...} },
+    "datasets": {
+      "crop_health": {
+        "status": "ok",            // ok | no_data | error | timeout | unavailable
+        "scale": "field",          // field = measured on the parcel; area = coarser than the parcel
+        "resolution_m": 30,
+        "date": "2026-10-29",
+        "values": { "ndvi": {"mean": 0.75, ...}, "low_vigor_fraction": 0.0, ... },
+        "units": {...}, "note": "...", "history": [...]   // history only with ?history=true
+      },
+      ...
+    },
+    "timings_s": {...}
+  }]
+}
+```
+
+A dataset that fails never fails the request — check each `status`.
+
+## Datasets
+
+| key | source | scale | what you get |
+|---|---|---|---|
+| `weather` | NASA POWER (daily, AG community) | area ~55 km | temp, rain, radiation, humidity, wind, ET; last 7/30 days; GDD (base 10 °C) since 1 Jan |
+| `rainfall` | NASA GPM IMERG Late daily V07 | area ~11 km | last day, 3/7/30-day totals, consecutive dry days |
+| `soil_moisture` | NASA SMAP L4 (SPL4SMGP v8) | area 9 km | surface (0–5 cm) and root-zone (0–100 cm) moisture, wetness |
+| `evapotranspiration_field` | NASA ECOSTRESS v2 (JET, ESI, LSTE) | **field 70 m** | daily ET (mm/day), Evaporative Stress Index, surface temp — latest clear daytime overpass |
+| `evapotranspiration_area` | NASA MODIS MOD16A2 v6.1 (ORNL DAAC) | area 500 m | 8-day ET, potential ET, ET/PET ratio |
+| `crop_health` | NASA HLS v2 (Landsat 8/9 + Sentinel-2) | **field 30 m** | NDVI, NDMI, NDRE (S2), share of field with low vigor; clouds removed (Fmask) |
+| `soil` | ISRIC SoilGrids 2.0 | area 250 m | clay/sand/silt, texture class, organic carbon, pH, N, CEC, bulk density at 0–5/5–15/15–30 cm |
+| `groundwater` | NASA/JPL GRACE-FO mascon RL06.3 | area ~300 km | water storage anomaly, 12-month trend, percentile vs same month in past years |
+| `terrain` | NASA NASADEM | **field 30 m** | elevation, slope, aspect, share > 8°, low-spot (waterlogging) flag |
+| `crop_type` | ESA WorldCereal 2021 | — | not wired yet |
+
+## Speed & caching
+
+First request for a new place: ~1–2.5 min (MODIS/ORNL is the slow one, ECOSTRESS/HLS scan recent overpasses).
+Repeat requests: ~1–2 s. Results are cached in memory (hours to days per dataset); DEM tiles on the `data_api_cache` volume.
+For demos, warm the demo parcels once before going on stage.
+
+## Known limits
+
+- ECOSTRESS covers ~52°N–52°S and overpasses are irregular; values from different dates.
+- NASADEM covers 56°S–60°N.
+- POWER and SMAP lag 2–4 days; MODIS ET 2–4 weeks; GRACE a few months.
+- Area-scale values describe the surroundings, not the parcel — the `scale` field says which.
+- SoilGrids REST is rate-limited (~5/min); falls back to reading the maps directly.
+
+Design notes: [DESIGN.md](DESIGN.md).
