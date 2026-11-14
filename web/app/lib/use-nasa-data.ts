@@ -41,8 +41,7 @@ export function useNasaData(plotId: string, token: string | null | undefined) {
     // No synchronous reset: datasets without an entry (or from an older generation) read as "loading"
     for (const d of NASA_DATASETS) {
       const t0 = performance.now();
-      webApi
-        .getPlotData(plotId, d.name, token, { year: d.year, history: d.history })
+      fetchWithRetry(() => webApi.getPlotData(plotId, d.name, token, { year: d.year, history: d.history }))
         .then((res) => {
           if (gen !== generation.current) return;
           const data = res.datasets?.[d.name];
@@ -72,6 +71,21 @@ export function useNasaData(plotId: string, token: string | null | undefined) {
     NASA_DATASETS.map((d) => [d.name, datasets[d.name] ?? { state: "loading" as const }])
   );
   return { datasets: view, reload: load, loaded, total: NASA_DATASETS.length };
+}
+
+/** The public site sits behind Cloudflare, which drops requests after 100 s (HTTP 524). A cold dataset can take
+ * longer, but data-api keeps working and caches the result, so retrying shortly after usually succeeds. */
+async function fetchWithRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 8000): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const clientError = /^HTTP 4\d\d$|not found|invalid|expired|unknown dataset/i.test(msg);
+      if (attempt >= retries || clientError) throw err;
+      await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+    }
+  }
 }
 
 // ---------------------------------------------------------------- safe accessors for loose JSON

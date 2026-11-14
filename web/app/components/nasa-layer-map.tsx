@@ -90,10 +90,16 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
   // Fetch field imagery + GIBS layer catalogue
   useEffect(() => {
     let cancelled = false;
-    webApi
-      .getPlotImagery(plotId, token)
-      .then((res) => !cancelled && setImagery(res))
-      .catch((err: unknown) => !cancelled && setImageryError(err instanceof Error ? err.message : String(err)));
+    const loadImagery = (attempt: number) =>
+      webApi
+        .getPlotImagery(plotId, token)
+        .then((res) => !cancelled && setImagery(res))
+        .catch((err: unknown) => {
+          // Cloudflare cuts requests at 100 s; data-api keeps rendering and caches, so retry a few times
+          if (!cancelled && attempt < 3) setTimeout(() => loadImagery(attempt + 1), 8000 * (attempt + 1));
+          else if (!cancelled) setImageryError(err instanceof Error ? err.message : String(err));
+        });
+    loadImagery(0);
     webApi
       .getMapLayers(token)
       .then((res) => !cancelled && setLayers(res.layers || {}))
