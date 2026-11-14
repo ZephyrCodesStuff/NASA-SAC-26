@@ -23,6 +23,13 @@ import { Badge } from "@/components/ui/badge";
 import { PeriodChart, PeriodPoint } from "@/components/period-chart";
 import { DeviceReadingRecord, DeviceRecord, FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { NasaDataPanel } from "@/components/nasa-data-panel";
+import { fmt, num, okValues, pick, str, useNasaData } from "@/lib/use-nasa-data";
+
+const NasaLayerMap = dynamic(() => import("@/components/nasa-layer-map").then((m) => m.NasaLayerMap), {
+  ssr: false,
+  loading: () => <div className="h-[460px] rounded-lg border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />,
+});
 
 const PlotSatelliteThumb = dynamic(
   () => import("@/components/plot-satellite-thumb").then((m) => m.PlotSatelliteThumb),
@@ -34,7 +41,7 @@ const PlotSatelliteThumb = dynamic(
   }
 );
 
-type TabKey = "overview" | "rotation" | "devices";
+type TabKey = "overview" | "nasa" | "rotation" | "devices";
 
 interface SensorReading {
   ts: string;
@@ -79,8 +86,28 @@ function build24PeriodSeries(nasaSnapshot?: Record<string, unknown>): PeriodPoin
   });
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Real last-12-months series from data-api weather `periods` (NASA POWER, 24 half-months)
+function realPeriodSeries(periods: Array<Record<string, unknown>> | undefined): PeriodPoint[] | null {
+  if (!periods || periods.length < 12) return null;
+  return periods.map((p, idx) => {
+    const [y, m, half] = String(p.period).split("-");
+    const mi = Number(m) - 1;
+    const label = `${MONTHS[mi]} ${half === "H1" ? "1–15" : "16–end"} '${y.slice(2)}`;
+    return {
+      period: idx + 1,
+      label,
+      precipMm: num(p, "PRECTOTCORR") ?? 0,
+      etcMm: num(p, "EVPTRNS") ?? 0,
+      tempC: num(p, "T2M") ?? 0,
+    };
+  });
+}
+
 export function PlotWorkspace({ plotId }: { plotId: string }) {
   const { token } = useAuth();
+  const nasa = useNasaData(plotId, token);
   const [tab, setTab] = useState<TabKey>("overview");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -202,6 +229,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
       setPlot((prev) => (prev ? { ...prev, nasa_snapshot: res.nasa_snapshot } : prev));
       const analysisRes = await webApi.getAnalysisPayload(plotId, token).catch(() => null);
       if (analysisRes) setAnalysisData(analysisRes);
+      nasa.reload();
       toast.success("NASA & SoilGrids telemetry refreshed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Telemetry refresh failed");
@@ -301,7 +329,37 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     }
   };
 
-  const periodPoints = useMemo(() => build24PeriodSeries(plot?.nasa_snapshot), [plot?.nasa_snapshot]);
+  const weatherPeriods = nasa.datasets.weather?.data?.periods;
+  const realPeriods = useMemo(() => realPeriodSeries(weatherPeriods), [weatherPeriods]);
+  const periodPoints = useMemo(
+    () => realPeriods ?? build24PeriodSeries(plot?.nasa_snapshot),
+    [realPeriods, plot?.nasa_snapshot]
+  );
+
+  // Live values for the risk ledger (fall back to the strategy preview while loading)
+  const wv = okValues(nasa.datasets.weather);
+  const ero = okValues(nasa.datasets.erosion);
+  const etf = okValues(nasa.datasets.evapotranspiration_field);
+  const eta = okValues(nasa.datasets.evapotranspiration_area);
+  const proj = okValues(nasa.datasets.climate_projection);
+  const hist = okValues(nasa.datasets.crop_history);
+  const esi = num(etf, "esi.mean");
+  const etPet = num(eta, "et_pet_ratio");
+  const stressIdx = esi ?? etPet;
+  const waterStress =
+    stressIdx === null ? null : stressIdx < 0.4 ? "High" : stressIdx < 0.7 ? "Moderate" : "Low";
+  const erosionNow = num(ero, "soil_loss_current_cover_t_ha_yr");
+  const erosionRisk = str(ero, "risk_current_cover");
+  const hottest = num(wv, "extremes_last_365_days.hottest_day.t_max_c");
+  const frostDays = num(wv, "extremes_last_365_days.frost_days");
+  const heatDays = num(wv, "extremes_last_365_days.heat_days_over_35c");
+  const droughtRisk = str(proj, "headline");
+  const peakDeficit = useMemo(() => {
+    if (!realPeriods) return null;
+    let worst = realPeriods[0];
+    for (const p of realPeriods) if (p.precipMm - p.etcMm < worst.precipMm - worst.etcMm) worst = p;
+    return worst;
+  }, [realPeriods]);
 
   const strategies = useMemo(() => {
     const preview = (analysisData?.baseline_preview || {}) as Record<string, unknown>;
@@ -535,6 +593,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           {(
             [
               { key: "overview", label: "Overview & Conditions" },
+              { key: "nasa", label: `NASA Data & Imagery (${nasa.loaded}/${nasa.total})` },
               { key: "rotation", label: "Rotation & Profit" },
               { key: "devices", label: "Devices & Live Telemetry" },
             ] as const
@@ -567,8 +626,20 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                   24-Period Seasonal Balance (15-Day Intervals)
                 </p>
                 <p className="font-serif text-lg font-medium text-[#1f1915]">
-                  Peak water deficit occurs in Jul–Aug (Periods 13–16); topsoil erosion remains low at{" "}
-                  {Number(activeStrategy.erosion_t_ha_yr ?? 1.4).toFixed(1)} t/ha/yr.
+                  {peakDeficit
+                    ? `Last 12 months: biggest water deficit in ${peakDeficit.label} (P${peakDeficit.period}); `
+                    : "Peak water deficit occurs in Jul–Aug (Periods 13–16); "}
+                  topsoil erosion{" "}
+                  {erosionNow !== null
+                    ? `${erosionRisk} at ${erosionNow.toFixed(1)} t/ha/yr with today's cover.`
+                    : `remains low at ${Number(activeStrategy.erosion_t_ha_yr ?? 1.4).toFixed(1)} t/ha/yr.`}
+                </p>
+                <p className="text-[11px] font-mono text-[#6b675f]">
+                  {realPeriods
+                    ? "NASA POWER · last 24 half-months · bars = rain, line = evapotranspiration, dashed = mean temp"
+                    : nasa.datasets.weather?.state === "loading"
+                      ? "Loading NASA POWER year… (showing seasonal baseline)"
+                      : "Seasonal baseline (NASA data unavailable)"}
                 </p>
               </div>
               <PeriodChart points={periodPoints} />
@@ -595,39 +666,46 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Water Stress (FAO-56)</td>
                       <td className="px-4 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 text-amber-700">
-                          <span className="h-2 w-2 rounded-full bg-amber-500" />
-                          Moderate
-                        </span>
+                        <LedgerStatus text={waterStress ?? "Moderate"} tone={waterStress === "High" ? "bad" : waterStress === "Low" ? "good" : "warn"} />
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {Number(activeStrategy.water_deficit_mm ?? -48)} mm
+                        {stressIdx !== null
+                          ? `${esi !== null ? "ESI" : "ET/PET"} ${stressIdx.toFixed(2)}`
+                          : `${Number(activeStrategy.water_deficit_mm ?? -48)} mm`}
                       </td>
-                      <td className="px-4 py-2.5 text-[#6b675f]">Periods 13–16 (Jul–Aug)</td>
+                      <td className="px-4 py-2.5 text-[#6b675f]">
+                        {peakDeficit ? `Worst: ${peakDeficit.label}` : "Periods 13–16 (Jul–Aug)"}
+                      </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Topsoil Erosion (RUSLE)</td>
                       <td className="px-4 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 text-emerald-700">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          Low
-                        </span>
+                        <LedgerStatus
+                          text={erosionRisk ? erosionRisk[0].toUpperCase() + erosionRisk.slice(1) : "Low"}
+                          tone={!erosionRisk || erosionRisk === "low" ? "good" : erosionRisk === "moderate" ? "warn" : "bad"}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {Number(activeStrategy.erosion_t_ha_yr ?? 1.4).toFixed(1)} t/ha/yr
+                        {(erosionNow ?? Number(activeStrategy.erosion_t_ha_yr ?? 1.4)).toFixed(1)} t/ha/yr
                       </td>
-                      <td className="px-4 py-2.5 text-[#6b675f]">Po Valley low slope</td>
+                      <td className="px-4 py-2.5 text-[#6b675f]">
+                        {ero ? `Slope ${fmt(num(ero, "slope_deg"), 1, "°")} · bare soil ${fmt(num(ero, "soil_loss_bare_t_ha_yr"), 1)} t/ha` : "Po Valley low slope"}
+                      </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Extreme Heat / Frost</td>
                       <td className="px-4 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 text-amber-700">
-                          <span className="h-2 w-2 rounded-full bg-amber-500" />
-                          Watch
-                        </span>
+                        <LedgerStatus
+                          text={heatDays !== null && heatDays > 5 ? "High" : "Watch"}
+                          tone={heatDays !== null && heatDays > 5 ? "bad" : "warn"}
+                        />
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono">24.5°C peak</td>
-                      <td className="px-4 py-2.5 text-[#6b675f]">July heatwaves (P13–14)</td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        {hottest !== null ? `${hottest.toFixed(1)}°C peak` : "24.5°C peak"}
+                      </td>
+                      <td className="px-4 py-2.5 text-[#6b675f]">
+                        {heatDays !== null ? `${heatDays} days >35°C · ${frostDays} frost days (12 mo)` : "July heatwaves (P13–14)"}
+                      </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Greenhouse Requirement</td>
@@ -638,7 +716,22 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">Not required</td>
-                      <td className="px-4 py-2.5 text-[#6b675f]">210 frost-free days</td>
+                      <td className="px-4 py-2.5 text-[#6b675f]">
+                        {frostDays !== null ? `${365 - frostDays} frost-free days (12 mo)` : "210 frost-free days"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 font-medium">Drought Risk 2050s (CMIP6)</td>
+                      <td className="px-4 py-2.5">
+                        <LedgerStatus
+                          text={droughtRisk ? droughtRisk[0].toUpperCase() + droughtRisk.slice(1) : "Loading…"}
+                          tone={!droughtRisk ? "neutral" : droughtRisk === "low" ? "good" : droughtRisk === "moderate" ? "warn" : "bad"}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        {fmt(num(proj, "projections.ssp245_mid_2050s.water_balance_change_mm"), 0, " mm")}
+                      </td>
+                      <td className="px-4 py-2.5 text-[#6b675f]">Water-balance change vs 2000s (SSP2-4.5)</td>
                     </tr>
                   </tbody>
                 </table>
@@ -649,6 +742,29 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 <h2 className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
                   5-Year Regional Events &amp; Local Eyes
                 </h2>
+                {hist && (
+                  <div className="divide-y divide-[#e7e5e0] text-xs">
+                    {((pick(hist, "seasons") as Array<Record<string, unknown>>) || []).map((s) => (
+                      <div key={String(s.year)} className="py-1.5 space-y-0.5">
+                        <p className="font-mono text-[10px] text-[#6b675f]">
+                          {String(s.year)}
+                          {s.complete ? "" : " (so far)"} · SATELLITE CROP SIGNATURE
+                        </p>
+                        <p className="text-[#1f1915]">{String(s.crop_group)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {wv && (
+                  <div className="py-2 space-y-0.5 text-xs border-t border-[#e7e5e0]">
+                    <p className="font-mono text-[10px] text-[#6b675f]">LAST 12 MONTHS · EXTREMES</p>
+                    <p className="text-[#1f1915]">
+                      Hottest {fmt(hottest, 1, "°C")} ({str(wv, "extremes_last_365_days.hottest_day.date")}), wettest day{" "}
+                      {fmt(num(wv, "extremes_last_365_days.wettest_day.precip_mm"), 0, " mm")}, longest dry spell{" "}
+                      {fmt(num(wv, "extremes_last_365_days.longest_dry_spell_days"), 0, " days")}.
+                    </p>
+                  </div>
+                )}
                 <div className="divide-y divide-[#e7e5e0] text-xs">
                   <div className="py-2 space-y-0.5">
                     <p className="font-mono text-[10px] text-[#6b675f]">2022 · PIEDMONT DROUGHT</p>
@@ -671,6 +787,14 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: NASA DATA & IMAGERY — every data-api output for this plot */}
+        {tab === "nasa" && token && (
+          <div className="space-y-6">
+            <NasaLayerMap key={plotId} plotId={plotId} token={token} geometry={plot.geometry} centroid={plot.centroid} />
+            <NasaDataPanel datasets={nasa.datasets} />
           </div>
         )}
 
@@ -1011,5 +1135,20 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
         )}
       </main>
     </div>
+  );
+}
+
+function LedgerStatus({ text, tone }: { text: string; tone: "good" | "warn" | "bad" | "neutral" }) {
+  const cls = {
+    good: ["text-emerald-700", "bg-emerald-500"],
+    warn: ["text-amber-700", "bg-amber-500"],
+    bad: ["text-rose-700", "bg-rose-500"],
+    neutral: ["text-[#6b675f]", "bg-[#6b675f]"],
+  }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${cls[0]}`}>
+      <span className={`h-2 w-2 rounded-full ${cls[1]}`} />
+      {text}
+    </span>
   );
 }

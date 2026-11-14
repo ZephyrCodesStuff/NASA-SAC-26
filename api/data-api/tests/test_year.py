@@ -106,3 +106,17 @@ def test_local_prices_outside_eu(monkeypatch):
 
     monkeypatch.setattr(eu_prices, "country_at", lambda lat, lon: {"iso2": "US", "name": "United States"})
     assert eu_prices.fetch(point_parcel(40, -100), None)["status"] == "unavailable"
+
+
+def test_plane_gradient_ignores_dem_noise():
+    import numpy as np
+
+    from app.sources.nasadem import _plane_gradient_deg
+
+    rng = np.random.default_rng(0)
+    yy, xx = np.mgrid[0:20, 0:20]
+    flat_noisy = 100 + rng.normal(0, 1.0, (20, 20))  # ±1 m noise, like NASADEM on a paddy
+    tilted = 100 + xx * 30 * np.tan(np.radians(3))  # true 3° slope along x
+    inside = np.ones((20, 20), bool)
+    assert _plane_gradient_deg(flat_noisy, inside, 30, 30) < 0.3
+    assert abs(_plane_gradient_deg(tilted, inside, 30, 30) - 3) < 0.01

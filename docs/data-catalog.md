@@ -183,7 +183,8 @@ Scale `field` · static.
 | field | meaning |
 |---|---|
 | `elevation_m.{mean,min,max}` | altitude (m) |
-| `slope_deg.{mean,max}` | steepness (°) |
+| `slope_deg.{mean,max}` | steepness (°), per pixel. On flat land this reads ~1° from DEM noise |
+| `field_gradient_deg` | overall tilt of the field (least-squares plane over the parcel); used by `erosion` |
 | `aspect_deg` | direction the slope faces (0 = north) |
 | `share_steeper_than_8deg` | 0–1 |
 | `relative_elevation_m` | parcel minus surroundings (~300 m); negative = lower ground |
@@ -232,6 +233,7 @@ Scale `field` · fetches `soil`, `terrain`, `weather` and `crop_health` automati
 
 | field | meaning |
 |---|---|
+| `slope_deg` | the field gradient used for LS (falls back to the mean pixel slope) |
 | `r_factor` | rainfall erosivity, MJ·mm/(ha·h·yr), from 30-year annual rain |
 | `k_factor` | soil erodibility, from topsoil texture + organic carbon |
 | `ls_factor` | slope steepness × length |

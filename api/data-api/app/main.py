@@ -72,10 +72,11 @@ def _error_entry(name: str, exc: BaseException) -> dict:
 
 
 RESULT_TTL_S = 3 * 3600
+RESULT_VERSION = 2  # bump when a source's output changes so cached results from older code are ignored
 
 
 @ttl_cache(RESULT_TTL_S)
-def _fetch_cached(name: str, wkt: str, q: Query, day: str) -> dict:
+def _fetch_cached(name: str, wkt: str, q: Query, day: str, version: int = RESULT_VERSION) -> dict:
     """Finished per-source result for a parcel shape (memory + disk). `day` makes entries roll over daily."""
     from shapely import wkt as W
 
@@ -87,7 +88,7 @@ async def _run_source(name: str, parcel: Parcel, q: Query) -> tuple[str, dict, f
     t0 = time.perf_counter()
     try:
         factor = YEAR_TIMEOUT_FACTOR if q.periods else HISTORY_TIMEOUT_FACTOR if q.history else 1
-        res = await asyncio.wait_for(asyncio.to_thread(_fetch_cached, name, parcel.geometry.wkt, q, date.today().isoformat()),
+        res = await asyncio.wait_for(asyncio.to_thread(_fetch_cached, name, parcel.geometry.wkt, q, date.today().isoformat(), RESULT_VERSION),
                                      timeout * factor)
         if (q.periods and "periods" not in res and res.get("history")
                 and getattr(SOURCES[name][0], "AGGREGATE_PERIODS", True)):

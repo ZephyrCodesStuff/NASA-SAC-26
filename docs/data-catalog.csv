@@ -88,6 +88,7 @@ groundwater,interpretation,,drier than usual / near normal / wetter than usual,a
 groundwater,history[],cm,monthly anomaly since 2002,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
 terrain,"elevation_m.{mean,min,max}",m,altitude,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
 terrain,"slope_deg.{mean,max}",°,steepness,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,field_gradient_deg,°,overall tilt of the field (plane fit over the parcel); ignores ~1° DEM noise on flat land; used by erosion,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
 terrain,aspect_deg,°,"direction slope faces, 0 = north",field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
 terrain,share_steeper_than_8deg,0-1,steep share of parcel,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
 terrain,relative_elevation_m,m,parcel minus ~300 m surroundings; negative = lower,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point

@@ -218,3 +218,53 @@ class CatastoDiscoverTests(unittest.TestCase):
         r = self._app(catasto, WorldCoverClient()).post("/api/catasto/discover", headers={"Authorization": "Bearer t"},
                                                         json={"geometry": self._square(7.70, 45.00)})
         self.assertEqual(r.status_code, 502)
+
+
+class DataApiPassthroughTests(unittest.TestCase):
+    """`/api/plots/{id}/data`, `/api/plots/{id}/imagery`, `/api/layers` forward the plot polygon to data-api."""
+
+    def test_passthroughs(self) -> None:
+        import httpx
+
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            if request.url.path == "/geojson":
+                return httpx.Response(200, json={"query": {"periods": True}, "parcels": [
+                    {"parcel": {"id": "x"}, "datasets": {"weather": {"status": "ok"}}, "timings_s": {"weather": 1.0}}]})
+            if request.url.path == "/imagery":
+                return httpx.Response(200, json={"groups": {"hls": {"status": "ok", "layers": {"ndvi": "data:image/png;base64,AA=="}}}})
+            if request.url.path == "/layers":
+                return httpx.Response(200, json={"layers": {"precipitation": {"url": "https://gibs/{time}/{z}/{y}/{x}.png"}}})
+            return httpx.Response(404)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FarmStore(pb_url="", store_path=Path(tmp) / "farms.json")
+            auth = AuthService(pb_url="")
+            user = {"id": "u", "user_id": "u", "role": "farm_admin", "token": "t"}
+            auth.verify_token = AsyncMock(side_effect=lambda tok: user if tok == "t" else None)  # type: ignore[method-assign]
+            data_api = DataApiClient(base_url="http://data-api.test",
+                                     client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+            client = TestClient(create_fastapi_app(auth_service=auth, farm_store=store,
+                                                   catasto_client=CatastoClient(), worldcover_client=WorldCoverClient(),
+                                                   data_api_client=data_api))
+            h = {"Authorization": "Bearer t"}
+            farm_id = client.post("/api/farms", headers=h, json={"name": "F"}).json()["farm"]["id"]
+            plot = client.post(f"/api/farms/{farm_id}/plots", headers=h, json={"label": "P", "features": [{
+                "type": "Feature", "properties": {"area_ha": 1.0},
+                "geometry": {"type": "Polygon", "coordinates": [[[7.7, 45.0], [7.71, 45.0], [7.71, 45.01], [7.7, 45.0]]]}}]}).json()["plot"]
+
+            r = client.get(f"/api/plots/{plot['id']}/data", headers=h, params={"datasets": "weather", "year": "true"})
+            self.assertEqual(r.status_code, 200, r.text)
+            self.assertEqual(r.json()["datasets"]["weather"]["status"], "ok")
+            self.assertEqual(seen[-1].url.params["year"], "true")
+            self.assertEqual(seen[-1].url.params["datasets"], "weather")
+
+            r = client.get(f"/api/plots/{plot['id']}/imagery", headers=h, params={"groups": "hls"})
+            self.assertEqual(r.json()["groups"]["hls"]["layers"]["ndvi"][:10], "data:image")
+            self.assertEqual(seen[-1].url.params["groups"], "hls")
+
+            self.assertIn("precipitation", client.get("/api/layers", headers=h).json()["layers"])
+            self.assertEqual(client.get("/api/layers").status_code, 401)
+            self.assertEqual(client.get("/api/plots/nope/data", headers=h, params={"datasets": "weather"}).status_code, 404)
