@@ -292,7 +292,7 @@ def stats(data: np.ndarray, ok: np.ndarray, n_inside: int) -> dict:
     vals = data[ok & np.isfinite(data)]
     if vals.size == 0:
         return {"mean": None, "pixels": 0, "pixels_in_parcel": n_inside}
-    return {"mean": float(vals.mean()), "min": float(vals.min()), "max": float(vals.max()),
+    return {"mean": float(vals.mean()), "median": float(np.median(vals)), "min": float(vals.min()), "max": float(vals.max()),
             "std": float(vals.std()), "pixels": int(vals.size), "pixels_in_parcel": n_inside}
 
 

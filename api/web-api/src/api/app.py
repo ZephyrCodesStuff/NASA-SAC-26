@@ -304,11 +304,13 @@ def create_api_router(
         datasets: str,
         year: bool = False,
         history: bool = False,
+        start: str | None = None,
+        end: str | None = None,
         user: dict[str, Any] = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Any data-api datasets for this plot (e.g. `weather,soil`; `year=true` adds 24 half-month periods)."""
         feature = await _plot_feature(plot_id, user)
-        return await _data_api_call(data_api_client.fetch_datasets(feature, datasets, year=year, history=history))
+        return await _data_api_call(data_api_client.fetch_datasets(feature, datasets, year=year, history=history, start=start, end=end))
 
     @router.get("/plots/{plot_id}/imagery")
     async def get_plot_imagery(

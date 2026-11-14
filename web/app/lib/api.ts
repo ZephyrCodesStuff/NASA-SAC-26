@@ -203,11 +203,13 @@ export const webApi = {
     ),
   getAnalysisPayload: (plotId: string, token: string) =>
     apiFetch<Record<string, unknown>>(`/plots/${plotId}/analysis-payload`, {}, token),
-  getPlotData: (plotId: string, datasets: string, token: string, opts: { year?: boolean; history?: boolean } = {}) =>
+  getPlotData: (plotId: string, datasets: string, token: string, opts: { year?: boolean; history?: boolean; start?: string; end?: string } = {}) =>
     apiFetch<PlotDataResponse>(
       `/plots/${plotId}/data?datasets=${encodeURIComponent(datasets)}` +
         (opts.year ? "&year=true" : "") +
-        (opts.history ? "&history=true" : ""),
+        (opts.history ? "&history=true" : "") +
+        (opts.start ? `&start=${opts.start}` : "") +
+        (opts.end ? `&end=${opts.end}` : ""),
       {},
       token
     ),
