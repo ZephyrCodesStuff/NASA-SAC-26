@@ -97,3 +97,62 @@ class ApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatastoDiscoverTests(unittest.TestCase):
+    """`POST /api/catasto/discover`: parcels overlapping a drawn polygon, filtered to farmland."""
+
+    def _app(self, catasto, worldcover):
+        auth = AuthService(pb_url="")
+        user = {"id": "u", "user_id": "u", "role": "farm_admin", "token": "t"}
+        auth.verify_token = AsyncMock(side_effect=lambda tok: user if tok == "t" else None)  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FarmStore(pb_url="", store_path=Path(tmp) / "farms.json")
+        return TestClient(create_fastapi_app(auth_service=auth, farm_store=store, catasto_client=catasto,
+                                             worldcover_client=worldcover,
+                                             data_api_client=DataApiClient(base_url="http://data-api.test")))
+
+    @staticmethod
+    def _square(lon, lat, d=0.001):
+        return {"type": "Polygon", "coordinates": [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]]}
+
+    def test_returns_overlapping_farmland_parcels(self) -> None:
+        inside_farm = {"type": "Feature", "id": "a", "geometry": self._square(7.7002, 45.0002, 0.0005), "properties": {}}
+        inside_urban = {"type": "Feature", "id": "b", "geometry": self._square(7.7005, 45.0005, 0.0003), "properties": {}}
+        outside = {"type": "Feature", "id": "c", "geometry": self._square(7.80, 45.10), "properties": {}}
+        catasto = CatastoClient(pb_url="")
+        catasto.fetch_parcels_in_bbox = AsyncMock(return_value={"type": "FeatureCollection",  # type: ignore[method-assign]
+                                                                "features": [inside_farm, inside_urban, outside]})
+        worldcover = WorldCoverClient()
+
+        async def classify(features):
+            for f in features:
+                f["properties"].update(is_farmland=f["id"] == "a", worldcover_class=40 if f["id"] == "a" else 50,
+                                       worldcover_label="Cropland" if f["id"] == "a" else "Built-up")
+            return features
+
+        worldcover.classify_parcels = AsyncMock(side_effect=classify)  # type: ignore[method-assign]
+        r = self._app(catasto, worldcover).post("/api/catasto/discover", headers={"Authorization": "Bearer t"},
+                                                json={"geometry": self._square(7.70, 45.00)})
+        self.assertEqual(r.status_code, 200, r.text)
+        parcels = r.json()["parcels"]
+        self.assertEqual([p["id"] for p in parcels], ["a"])
+        self.assertEqual(parcels[0]["properties"]["worldcover_label"], "Cropland")
+        lat_span = catasto.fetch_parcels_in_bbox.await_args.args[2] - catasto.fetch_parcels_in_bbox.await_args.args[0]
+        self.assertLess(lat_span, 0.018)  # stays under the AdE WFS 2 km vertical limit
+
+    def test_outside_italy_returns_empty_without_calling_wfs(self) -> None:
+        catasto = CatastoClient(pb_url="")
+        catasto.fetch_parcels_in_bbox = AsyncMock()  # type: ignore[method-assign]
+        r = self._app(catasto, WorldCoverClient()).post("/api/catasto/discover", headers={"Authorization": "Bearer t"},
+                                                        json={"geometry": self._square(-93.6, 42.0)})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["parcels"], [])
+        catasto.fetch_parcels_in_bbox.assert_not_awaited()
+
+    def test_wfs_failure_is_a_502_not_a_crash(self) -> None:
+        catasto = CatastoClient(pb_url="")
+        catasto.fetch_parcels_in_bbox = AsyncMock(side_effect=RuntimeError("WFS down"))  # type: ignore[method-assign]
+        r = self._app(catasto, WorldCoverClient()).post("/api/catasto/discover", headers={"Authorization": "Bearer t"},
+                                                        json={"geometry": self._square(7.70, 45.00)})
+        self.assertEqual(r.status_code, 502)

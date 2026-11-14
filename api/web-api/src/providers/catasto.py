@@ -621,19 +621,28 @@ class CatastoClient:
     ) -> dict[str, Any]:
         validate_wfs_bbox(min_lat, min_lon, max_lat, max_lon, layer=layer)
         http = await self._http()
-        resp = await http.get(
-            WFS_URL,
-            params={
-                "SERVICE": "WFS",
-                "VERSION": "2.0.0",
-                "REQUEST": "GetFeature",
-                "TYPENAMES": layer,
-                "BBOX": f"{min_lat},{min_lon},{max_lat},{max_lon}",
-                "COUNT": str(count),
-            },
-        )
+        params = {
+            "SERVICE": "WFS",
+            "VERSION": "2.0.0",
+            "REQUEST": "GetFeature",
+            "TYPENAMES": layer,
+            "BBOX": f"{min_lat:.6f},{min_lon:.6f},{max_lat:.6f},{max_lon:.6f}",
+            "COUNT": str(count),
+        }
+        resp = await http.get(WFS_URL, params=params)
         resp.raise_for_status()
-        return parse_gml_feature_collection(resp.text, layer=layer)
+        try:
+            return parse_gml_feature_collection(resp.text, layer=layer)
+        except CatastoError as exc:
+            if "ExceptionReport" not in str(exc):
+                raise
+            # The AdE nginx front caches every response per exact URL for 5 minutes — errors included —
+            # so a transient "Richiesta non valida" sticks. Retry once with a cache-busting parameter.
+            import time
+
+            resp = await http.get(WFS_URL, params={**params, "_": str(int(time.time() * 1000))})
+            resp.raise_for_status()
+            return parse_gml_feature_collection(resp.text, layer=layer)
 
     async def fetch_parcels_in_bbox(
         self,

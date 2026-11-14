@@ -165,3 +165,26 @@ class CatastoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WfsCachedErrorRetryTests(unittest.TestCase):
+    def test_cached_exception_report_is_retried_with_cache_buster(self) -> None:
+        error_xml = ('<?xml version="1.0" encoding="ISO-8859-1"?><ServiceExceptionReport version="1.1.1">'
+                     '<ServiceException code="InvalidFormat"><![CDATA[Richiesta non valida ]]></ServiceException>'
+                     '</ServiceExceptionReport>')
+        seen: list[httpx.URL] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url)
+            if "_" not in request.url.params:  # the nginx-cached error for the plain URL
+                return httpx.Response(200, text=error_xml)
+            return httpx.Response(200, text=SAMPLE_PARCEL_GML)
+
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+                return await CatastoClient(client=http).fetch_parcels_in_bbox(45.0, 7.7, 45.003, 7.703)
+
+        fc = asyncio.run(run())
+        self.assertEqual(len(seen), 2)
+        self.assertGreater(len(fc["features"]), 0)
+        self.assertEqual(seen[0].params["BBOX"], "45.000000,7.700000,45.003000,7.703000")
