@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ChevronDown, ChevronUp, Info, Layers, Loader2 } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Info, Layers, Loader2 } from "lucide-react";
 import { ImageryResponse, MapLayer, webApi } from "@/lib/api";
 
 interface NasaLayerMapProps {
@@ -85,6 +85,20 @@ function rampCss(ramp?: Array<[number, number[]]>): string {
   return `linear-gradient(90deg,${ramp.map(([p, c]) => `rgb(${c.join(",")}) ${Math.round(p * 100)}%`).join(",")})`;
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+const toLocalISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => toLocalISO(new Date());
+const daysAgo = (n: number) => toLocalISO(new Date(Date.now() - n * 86_400_000));
+
+// "" = latest. Historical dates are only fetched when the user selects one.
+const DATE_PRESETS: Array<{ label: string; value: string }> = [
+  { label: "Latest", value: "" },
+  { label: "1 week ago", value: daysAgo(7) },
+  { label: "1 month ago", value: daysAgo(30) },
+  { label: "3 months ago", value: daysAgo(90) },
+  { label: "1 year ago", value: daysAgo(365) },
+];
+
 export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -98,6 +112,8 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
   const [tile, setTile] = useState<string>("");
   const [opacity, setOpacity] = useState(0.85);
   const [showRegional, setShowRegional] = useState(false);
+  const [date, setDate] = useState<string>("");
+  const [fetching, setFetching] = useState(true);
 
   // Base map + plot outline
   useEffect(() => {
@@ -139,19 +155,35 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
     };
   }, [geometry, centroid]);
 
-  // Field imagery + regional layer catalogue
+  // Field imagery — fetched for the selected date; historical dates are requested only on demand
   useEffect(() => {
     let cancelled = false;
     const loadImagery = (attempt: number) =>
       webApi
-        .getPlotImagery(plotId, token)
-        .then((res) => !cancelled && setImagery(res))
+        .getPlotImagery(plotId, token, date ? { date } : {})
+        .then((res) => {
+          if (!cancelled) {
+            setImagery(res);
+            setFetching(false);
+          }
+        })
         .catch((err: unknown) => {
           // Cloudflare cuts requests at 100 s; data-api keeps rendering and caches, so retry a few times
           if (!cancelled && attempt < 3) setTimeout(() => loadImagery(attempt + 1), 8000 * (attempt + 1));
-          else if (!cancelled) setImageryError(err instanceof Error ? err.message : String(err));
+          else if (!cancelled) {
+            setImageryError(err instanceof Error ? err.message : String(err));
+            setFetching(false);
+          }
         });
     loadImagery(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [plotId, token, date]);
+
+  // Regional layer catalogue (loads once)
+  useEffect(() => {
+    let cancelled = false;
     webApi
       .getMapLayers(token)
       .then((res) => !cancelled && setLayers(res.layers || {}))
@@ -159,7 +191,7 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
     return () => {
       cancelled = true;
     };
-  }, [plotId, token]);
+  }, [token]);
 
   const viewDef = useMemo(() => ALL_VIEWS.find((v) => v.key === view), [view]);
   const group = viewDef ? imagery?.groups?.[viewDef.group] : undefined;
@@ -202,14 +234,22 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
     return x?.status === "ok" ? `${x.date?.slice(0, 10)}${x.sensor ? ` · ${x.sensor}` : ""}` : null;
   };
 
+  const changeDate = (d: string) => {
+    setImagery(null);
+    setImageryError(null);
+    setFetching(true);
+    setDate(d);
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* Map */}
       <div className="lg:col-span-8 relative isolate h-[480px] rounded-xl overflow-hidden border border-[#e7e5e0] bg-[#1f1915]">
         <div ref={containerRef} className="h-full w-full" />
-        {!imagery && !imageryError && (
+        {fetching && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] rounded-full bg-black/70 px-3 py-1 text-[11px] text-white flex items-center gap-1.5">
-            <Loader2 className="h-3 w-3 animate-spin" /> Getting the latest satellite images of your field…
+            <Loader2 className="h-3 w-3 animate-spin" />{" "}
+            {date ? `Getting images on or before ${date}…` : "Getting the latest satellite images of your field…"}
           </div>
         )}
         {viewDef && uri && (
@@ -255,7 +295,42 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
               />
             </label>
           </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#6b675f]">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Date
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {DATE_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => changeDate(p.value)}
+                  className={`rounded-full border px-2.5 py-0.5 transition ${
+                    date === p.value
+                      ? "border-[#20808d] bg-[#20808d] text-white"
+                      : "border-[#e7e5e0] bg-white hover:border-[#20808d]"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] text-[#6b675f] shrink-0">Specific date</label>
+              <input
+                type="date"
+                value={date}
+                max={todayStr()}
+                onChange={(e) => changeDate(e.target.value)}
+                className="flex-1 rounded-md border border-[#e7e5e0] bg-white px-2 py-1 text-[11px] text-[#1f1915]"
+              />
+            </div>
+          </div>
           {imageryError && <p className="text-rose-700">Images unavailable: {imageryError}</p>}
+          {imagery && !fetching && imagery.groups.hls && imagery.groups.hls.status !== "ok" && (
+            <p className="text-[11px] text-amber-700">{imagery.groups.hls.note || imagery.groups.hls.error}</p>
+          )}
           {VIEW_THEMES.map((t) => (
             <div key={t.theme} className="space-y-1">
               <p className="text-[10px] uppercase tracking-wider text-[#6b675f]">{t.theme}</p>
