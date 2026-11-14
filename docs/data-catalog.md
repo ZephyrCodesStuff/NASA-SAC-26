@@ -296,7 +296,7 @@ ESA WorldCereal 2021 is only distributed as very large global archives. It is li
 
 Response: `parcel`, `groups.{hls,lst,dem}`, `descriptions`, `ramps`. Each group has `status`, `source`,
 `date`, `bounds` `[[south, west], [north, east]]` (for `L.imageOverlay`), `pixel_size_m`, `legends` and
-`layers.<name>` = PNG data URI. Pixels outside the parcel are dimmed and the parcel is outlined in white.
+`layers.<name>` = PNG data URI. The image is uniformly opaque and the parcel is outlined in white.
 
 | group | layer | what it shows |
 |---|---|---|

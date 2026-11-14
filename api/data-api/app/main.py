@@ -248,10 +248,10 @@ def _groups(groups: str | None) -> tuple:
 async def _imagery(parcel: Parcel, on: date | None, groups: tuple, layer: str | None, timeout: float = 240):
     from fastapi.responses import Response
 
-    from .imagery import render
+    from .imagery import IMAGERY_VERSION, render
 
     try:
-        out = await asyncio.wait_for(asyncio.to_thread(render, parcel.geometry.wkt, on, groups), timeout)
+        out = await asyncio.wait_for(asyncio.to_thread(render, parcel.geometry.wkt, on, groups, IMAGERY_VERSION), timeout)
     except (asyncio.TimeoutError, TimeoutError) as e:
         raise HTTPException(504, "Imagery sources did not answer in time; try again (results are cached).") from e
     if layer:  # raw PNG of one layer, for <img src=...>
