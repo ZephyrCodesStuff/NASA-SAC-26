@@ -18,6 +18,7 @@ from src.providers.data_api import (
     FAST_DATASETS,
     SLOW_DATASETS,
     DataApiClient,
+    compute_soil_override_flags,
     extract_datasets,
     is_snapshot_fresh,
     merge_telemetry_snapshots,
@@ -77,6 +78,8 @@ async def open_plot_insights_dialog(
                 ).classes("text-xs text-gray-500")
             with ui.row().classes("items-center gap-2"):
                 fetch_badge = ui.badge("Checking cache...", color="amber")
+                if owner:
+                    refresh_btn = ui.button("Refresh NASA Data", icon="refresh").props("flat dense size=sm color=primary")
                 ui.button(icon="close", on_click=dlg.close).props("flat round dense")
 
         body = ui.column().classes("w-full gap-4")
@@ -145,12 +148,32 @@ async def open_plot_insights_dialog(
                                         "ph": ph_in.value,
                                     }
                                 )
+                                flags = compute_soil_override_flags(soil_override)
                                 plot["soil_override"] = dict(soil_override)
-                                await farm_store.update_plot(plot["id"], {"soil_override": plot["soil_override"]}, user=current_user)
-                                ui.notify("Saved soil overrides", type="positive")
+                                plot["overridden_fields"] = flags
+                                await farm_store.update_plot(
+                                    plot["id"],
+                                    {"soil_override": plot["soil_override"], "overridden_fields": flags},
+                                    user=current_user,
+                                )
+                                ui.notify(f"Saved overrides ({len(flags)} fields locked)", type="positive")
+                                render_contents(snap, api_note)
+
+                            async def reset_soil() -> None:
+                                soil_override.clear()
+                                plot["soil_override"] = {}
+                                plot["overridden_fields"] = []
+                                await farm_store.update_plot(
+                                    plot["id"],
+                                    {"soil_override": {}, "overridden_fields": []},
+                                    user=current_user,
+                                )
+                                ui.notify("Reset soil profile to satellite baseline", type="info")
                                 render_contents(snap, api_note)
 
                             ui.button("Save Soil Overrides", on_click=save_soil, color="primary").props("dense")
+                            if compute_soil_override_flags(soil_override):
+                                ui.button("Reset to Satellite", on_click=reset_soil, color="grey").props("outline dense")
                         else:
                             ui.badge("Viewer Mode (Read-Only)", color="blue-grey")
 
@@ -205,6 +228,53 @@ async def open_plot_insights_dialog(
                         ui.label(f"• {item}").classes("text-xs text-gray-700 px-2")
                     ui.label(explained["disclaimer"]).classes("text-[11px] italic text-gray-500 px-2 pt-1")
 
+        async def _fetch_and_store_telemetry() -> None:
+            nonlocal snapshot
+            fetch_badge.set_text("Fetching NASA Stage 1...")
+            fetch_badge.props("color=amber")
+            feature = {
+                "type": "Feature",
+                "id": plot.get("cadastral_ref") or plot.get("id"),
+                "geometry": plot["geometry"],
+                "properties": {"area_ha": plot.get("area_ha")},
+            }
+            try:
+                snapshot = await data_api.fetch_plot_telemetry(feature, datasets=FAST_DATASETS, history=True)
+                plot["nasa_snapshot"] = snapshot
+                # Refreshing nasa_snapshot never overwrites soil_override or overridden_fields.
+                if owner:
+                    await farm_store.update_plot(plot["id"], {"nasa_snapshot": snapshot}, user=current_user)
+                fetch_badge.set_text("Stage 1 Ready (Enriching MODIS ET...)")
+                fetch_badge.props("color=primary")
+                render_contents(snapshot)
+
+                async def _enrich_stage2() -> None:
+                    try:
+                        modis = await data_api.fetch_plot_telemetry(feature, datasets=SLOW_DATASETS, history=True)
+                        merged = merge_telemetry_snapshots(snapshot, modis)
+                        plot["nasa_snapshot"] = merged
+                        if owner:
+                            await farm_store.update_plot(plot["id"], {"nasa_snapshot": merged}, user=current_user)
+                        fetch_badge.set_text("All 9 Datasets Ready")
+                        fetch_badge.props("color=positive")
+                        render_contents(merged)
+                    except Exception:
+                        fetch_badge.set_text("Stage 1 Ready")
+                        fetch_badge.props("color=positive")
+
+                asyncio.create_task(_enrich_stage2())
+            except Exception as exc:
+                logger.warning("data-api fetch failed (%s): %s", data_api.base_url, exc)
+                fetch_badge.set_text("Baseline Mode")
+                fetch_badge.props("color=warning")
+                render_contents(
+                    snapshot,
+                    api_note=f"data-api ({data_api.base_url}) is offline/unreachable ({type(exc).__name__}: {exc}) — running deterministic baseline models.",
+                )
+
+        if owner:
+            refresh_btn.on_click(_fetch_and_store_telemetry)
+
         dlg.open()
 
         # Stage 1: Use fresh cached `nasa_snapshot` or fetch fast datasets
@@ -214,44 +284,4 @@ async def open_plot_insights_dialog(
             render_contents(snapshot)
             return
 
-        fetch_badge.set_text("Fetching NASA Stage 1...")
-        fetch_badge.props("color=amber")
-        feature = {
-            "type": "Feature",
-            "id": plot.get("cadastral_ref") or plot.get("id"),
-            "geometry": plot["geometry"],
-            "properties": {"area_ha": plot.get("area_ha")},
-        }
-        try:
-            snapshot = await data_api.fetch_plot_telemetry(feature, datasets=FAST_DATASETS, history=True)
-            plot["nasa_snapshot"] = snapshot
-            if owner:
-                await farm_store.update_plot(plot["id"], {"nasa_snapshot": snapshot}, user=current_user)
-            fetch_badge.set_text("Stage 1 Ready (Enriching MODIS ET...)")
-            fetch_badge.props("color=primary")
-            render_contents(snapshot)
-
-            # Stage 2: Background enrichment for slow MODIS MOD16A2 (~50s cold)
-            async def _enrich_stage2() -> None:
-                try:
-                    modis = await data_api.fetch_plot_telemetry(feature, datasets=SLOW_DATASETS, history=True)
-                    merged = merge_telemetry_snapshots(snapshot, modis)
-                    plot["nasa_snapshot"] = merged
-                    if owner:
-                        await farm_store.update_plot(plot["id"], {"nasa_snapshot": merged}, user=current_user)
-                    fetch_badge.set_text("All 9 Datasets Ready")
-                    fetch_badge.props("color=positive")
-                    render_contents(merged)
-                except Exception:
-                    fetch_badge.set_text("Stage 1 Ready")
-                    fetch_badge.props("color=positive")
-
-            asyncio.create_task(_enrich_stage2())
-        except Exception as exc:
-            logger.warning("data-api fetch failed (%s): %s", data_api.base_url, exc)
-            fetch_badge.set_text("Baseline Mode")
-            fetch_badge.props("color=warning")
-            render_contents(
-                None,
-                api_note=f"data-api ({data_api.base_url}) is offline/unreachable ({type(exc).__name__}: {exc}) — running deterministic baseline models.",
-            )
+        await _fetch_and_store_telemetry()

@@ -14,6 +14,22 @@ Monorepo for the NASA Space Apps Challenge 2026 hackathon.
 - Dockerfiles 🐳
 - Everything your heart most desires ❤️
 
+### 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    Browser["Browser (Farmer / Viewer)"] <-->|HTTP / WebSocket :8080| Web["web (NiceGUI + Web API Proxy :8080)"]
+    Web <-->|"Auth, farms, user_plots + overrides :8090"| PB[("PocketBase :8090")]
+    Web -->|"Fresh plot fetch / refresh non-overridden fields :8070"| DataAPI["data-api (Built :8070)"]
+    DataAPI -->|"Satellite & soil queries"| NASA["NASA / ISRIC / Catasto"]
+    Web -->|"Plot data + nasa_snapshot + manual overrides"| AnalysisAPI["analysis-api (Planned)"]
+    AnalysisAPI -->|"Readable report, suggestions & predictions"| Web
+```
+
+- **`web` (`:8080`):** Hosts the NiceGUI app, acts as the backend proxy for all other services, and manages PocketBase records (`users`, `farms`, `user_plots`).
+- **`data-api` (`:8070`, built):** Fetches NASA/ISRIC telemetry to populate a fresh `nasa_snapshot` on `user_plots` and refresh fields the user has not manually overridden.
+- **`analysis-api` (planned):** Receives plot context, `nasa_snapshot`, and any user overrides (flagged as farmer-verified) to return a readable report with rotation suggestions and predictions.
+
 ### 🛰️ Data API (`data-api/`)
 
 Service that returns satellite and model data for a field boundary (GeoJSON or Catasto GML).

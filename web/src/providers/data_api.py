@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -111,6 +112,57 @@ def summarize_sensor_gaps(
         "fallbacks": fallbacks,
         "alerts": alerts,
         "soil_badge": "Lab-Verified Soil" if soil_verified else "Satellite Estimate (250m)",
+    }
+
+
+def compute_soil_override_flags(soil_override: dict[str, Any] | None) -> list[str]:
+    """Return sorted field paths (`soil.<key>`) for non-None manual soil overrides."""
+    if not soil_override or not isinstance(soil_override, dict):
+        return []
+    return sorted(f"soil.{k}" for k, v in soil_override.items() if v is not None)
+
+
+def merge_plot_with_overrides(
+    datasets: dict[str, dict[str, Any]],
+    soil_override: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Deep-copy `datasets` and apply manual overrides without mutating `nasa_snapshot`."""
+    effective = copy.deepcopy(datasets or {})
+    if soil_override and isinstance(soil_override, dict):
+        soil_ds = dict(effective.get("soil") or {})
+        soil_vals = dict(soil_ds.get("values") or {})
+        applied = False
+        for key, val in soil_override.items():
+            if val is not None:
+                soil_vals[key] = val
+                applied = True
+        if applied:
+            soil_ds["values"] = soil_vals
+            soil_ds.setdefault("status", "ok")
+            soil_ds["overridden"] = True
+            effective["soil"] = soil_ds
+    return effective
+
+
+def build_analysis_payload(plot: dict[str, Any]) -> dict[str, Any]:
+    """Build an `analysis-api`-ready payload combining `nasa_snapshot` and manual overrides."""
+    snapshot = plot.get("nasa_snapshot")
+    soil_override = plot.get("soil_override") if isinstance(plot.get("soil_override"), dict) else {}
+    raw_datasets = extract_datasets(snapshot)
+    overridden_fields = plot.get("overridden_fields")
+    if not isinstance(overridden_fields, list):
+        overridden_fields = compute_soil_override_flags(soil_override)
+    return {
+        "plot_id": plot.get("id"),
+        "cadastral_ref": plot.get("cadastral_ref"),
+        "label": plot.get("label"),
+        "area_ha": plot.get("area_ha"),
+        "geometry": plot.get("geometry"),
+        "baseline_rotation": plot.get("baseline_rotation"),
+        "nasa_snapshot": snapshot,
+        "soil_override": soil_override,
+        "overridden_fields": overridden_fields,
+        "effective_datasets": merge_plot_with_overrides(raw_datasets, soil_override),
     }
 
 

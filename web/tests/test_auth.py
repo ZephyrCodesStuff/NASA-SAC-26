@@ -38,17 +38,28 @@ class AuthTests(unittest.TestCase):
         pb_store: dict[str, dict] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
-            if request.url.path == "/api/collections/app_users/records":
-                if request.method == "GET":
-                    flt = request.url.params.get("filter", "")
-                    email = flt.split('"')[1] if '"' in flt else ""
-                    rec = pb_store.get(email)
-                    return httpx.Response(200, json={"items": [rec] if rec else []})
-                if request.method == "POST":
-                    body = json.loads(request.content.decode("utf-8"))
-                    rec = {"id": f"pb_{len(pb_store) + 1}", **body}
-                    pb_store[body["email"]] = rec
-                    return httpx.Response(201, json=rec)
+            if request.url.path == "/api/collections/users/records" and request.method == "POST":
+                body = json.loads(request.content.decode("utf-8"))
+                email = body["email"]
+                if email in pb_store:
+                    return httpx.Response(400, json={"message": "Failed to create record."})
+                rec = {
+                    "id": f"pb_{len(pb_store) + 1}",
+                    "email": email,
+                    "name": body["name"],
+                    "role": body.get("role", "viewer"),
+                    "password_hash": body.get("password_hash", ""),
+                    "is_demo": body.get("is_demo", False),
+                    "_pw": body["password"],
+                }
+                pb_store[email] = rec
+                return httpx.Response(201, json=rec)
+            if request.url.path == "/api/collections/users/auth-with-password" and request.method == "POST":
+                body = json.loads(request.content.decode("utf-8"))
+                rec = pb_store.get(body["identity"])
+                if not rec or rec["_pw"] != body["password"]:
+                    return httpx.Response(400, json={"message": "Failed to authenticate."})
+                return httpx.Response(200, json={"token": f"tok_{rec['id']}", "record": rec})
             return httpx.Response(404)
 
         async def run_test() -> None:

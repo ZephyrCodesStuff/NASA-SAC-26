@@ -149,6 +149,117 @@ def extract_drawn_geojson(event_args: Any) -> dict[str, Any] | None:
     }
 
 
+def merge_catasto_features_into_plot(
+    features: list[dict[str, Any]],
+    *,
+    label: str = "",
+    crop: str = "Maize",
+    use_catasto_names: bool = False,
+    fallback_index: int = 1,
+) -> dict[str, Any]:
+    """Combine one or more GeoJSON parcel features into a single `user_plots` payload.
+
+    Custom drawn areas produce a single `Polygon` plot; multi-parcel Catasto selections
+    are unified into a single `MultiPolygon` plot with `sub_plots` metadata preserved.
+    """
+    polygons: list[Any] = []
+    sub_plots: list[dict[str, Any]] = []
+    refs: list[str] = []
+    total_area_ha = 0.0
+    weighted_lat = 0.0
+    weighted_lon = 0.0
+    centroid_weight = 0.0
+
+    for feat in features:
+        geom = feat.get("geometry") or {}
+        gtype = geom.get("type")
+        coords = geom.get("coordinates") or []
+        if gtype == "Polygon" and coords:
+            polygons.append(coords)
+        elif gtype == "MultiPolygon" and coords:
+            polygons.extend(coords)
+
+        props = feat.get("properties") or {}
+        area = float(props.get("area_ha") or 0.0)
+        total_area_ha += area
+        c_ref = str(props.get("national_ref") or props.get("cadastral_ref") or "").strip()
+        if c_ref:
+            refs.append(c_ref)
+
+        c_raw = props.get("centroid")
+        c_obj: dict[str, float] | None = None
+        if isinstance(c_raw, list) and len(c_raw) == 2:
+            c_obj = {"lat": float(c_raw[0]), "lon": float(c_raw[1])}
+        elif isinstance(c_raw, dict) and "lat" in c_raw and "lon" in c_raw:
+            c_obj = {"lat": float(c_raw["lat"]), "lon": float(c_raw["lon"])}
+
+        if c_obj is not None:
+            w = area if area > 0 else 1.0
+            weighted_lat += c_obj["lat"] * w
+            weighted_lon += c_obj["lon"] * w
+            centroid_weight += w
+
+        if use_catasto_names or len(features) > 1:
+            sub_plots.append(
+                {
+                    "cadastral_ref": c_ref,
+                    "area_ha": round(area, 4),
+                    "centroid": c_obj,
+                    "administrative_unit": props.get("administrative_unit"),
+                    "foglio": props.get("foglio"),
+                    "particella": props.get("particella"),
+                    "inspire_id": props.get("inspire_id"),
+                    "worldcover_class": props.get("worldcover_class"),
+                    "worldcover_label": props.get("worldcover_label"),
+                }
+            )
+
+    if len(polygons) == 1:
+        merged_geometry: dict[str, Any] = {"type": "Polygon", "coordinates": polygons[0]}
+    else:
+        merged_geometry = {"type": "MultiPolygon", "coordinates": polygons}
+
+    centroid_obj = (
+        {"lat": round(weighted_lat / centroid_weight, 6), "lon": round(weighted_lon / centroid_weight, 6)}
+        if centroid_weight > 0
+        else None
+    )
+
+    first_props = (features[0].get("properties") or {}) if features else {}
+    if len(refs) <= 1:
+        cadastral_ref = refs[0] if refs else ""
+    elif len(refs) <= 3:
+        cadastral_ref = ", ".join(refs)
+    else:
+        cadastral_ref = f"{', '.join(refs[:3])} (+{len(refs) - 3} more)"
+
+    clean_label = label.strip()
+    if clean_label:
+        final_label = clean_label
+    elif use_catasto_names and len(refs) == 1:
+        final_label = f"Parcel {refs[0]}"
+    elif use_catasto_names and len(features) > 1:
+        final_label = f"Catasto Plot ({len(features)} parcels)"
+    else:
+        final_label = f"Drawn Field {fallback_index}"
+
+    return {
+        "cadastral_ref": cadastral_ref,
+        "administrative_unit": first_props.get("administrative_unit") if len(features) == 1 else None,
+        "foglio": first_props.get("foglio") if len(features) == 1 else None,
+        "particella": first_props.get("particella") if len(features) == 1 else None,
+        "inspire_id": first_props.get("inspire_id") if len(features) == 1 else None,
+        "label": final_label,
+        "area_ha": round(total_area_ha, 4),
+        "centroid": centroid_obj,
+        "geometry": merged_geometry,
+        "sub_plots": sub_plots if sub_plots else None,
+        "baseline_rotation": [crop],
+        "worldcover_class": first_props.get("worldcover_class"),
+        "worldcover_label": first_props.get("worldcover_label") or ("Custom Area" if not use_catasto_names else "Farmland"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Pre-seeded Turin demo farms & plots
 # ---------------------------------------------------------------------------

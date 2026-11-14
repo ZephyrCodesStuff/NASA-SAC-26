@@ -136,114 +136,76 @@ class AuthService:
             return self._client
         return httpx.AsyncClient(timeout=self.timeout)
 
-    async def _pb_get_user(self, email: str) -> dict[str, Any] | None:
+    async def _pb_create_auth_user(self, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+        """Create a user in PocketBase `users` Auth collection. Returns `(record, error_msg)`."""
         if not self.pb_url:
-            return None
-        close_after = self._client is None
-        http = await self._http()
-        try:
-            resp = await http.get(
-                f"{self.pb_url}/api/collections/app_users/records",
-                params={"filter": f'email="{email}"', "perPage": 1},
-            )
-            if resp.status_code != 200:
-                return None
-            items = resp.json().get("items") or []
-            return items[0] if items else None
-        except Exception:
-            return None
-        finally:
-            if close_after:
-                await http.aclose()
-
-    async def _pb_create_user(self, payload: dict[str, Any]) -> dict[str, Any] | None:
-        if not self.pb_url:
-            return None
+            return None, None
         close_after = self._client is None
         http = await self._http()
         try:
             resp = await http.post(
-                f"{self.pb_url}/api/collections/app_users/records",
+                f"{self.pb_url}/api/collections/users/records",
                 json=payload,
             )
             if resp.status_code in (200, 201):
-                return resp.json()
-            return None
+                return resp.json(), None
+            if resp.status_code == 400:
+                return None, "exists"
+            return None, None
         except Exception:
-            return None
+            return None, None
+        finally:
+            if close_after:
+                await http.aclose()
+
+    async def _pb_auth_with_password(self, email: str, client_hash: str) -> tuple[dict[str, Any] | None, str | None, bool]:
+        """Authenticate against PocketBase `users` Auth collection.
+
+        Returns `(record, token, pb_reachable)`.
+        """
+        if not self.pb_url:
+            return None, None, False
+        close_after = self._client is None
+        http = await self._http()
+        try:
+            resp = await http.post(
+                f"{self.pb_url}/api/collections/users/auth-with-password",
+                json={"identity": email, "password": client_hash},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("record") or {}, data.get("token"), True
+            return None, None, True
+        except Exception:
+            return None, None, False
         finally:
             if close_after:
                 await http.aclose()
 
     async def ensure_demo_users(self) -> None:
-        """Ensure the built-in demo users exist in PocketBase (and fallback store)."""
+        """Ensure the built-in demo users exist in PocketBase `users` (and fallback store)."""
         self._ensure_fallback_demos()
         if not self.pb_url:
             return
         for demo in DEMO_USERS:
             email = demo.email.lower()
-            existing = await self._pb_get_user(email)
-            if existing is None:
-                client_hash = derive_pbkdf2_client_hash(email, demo.password)
-                await self._pb_create_user(
+            client_hash = derive_pbkdf2_client_hash(email, demo.password)
+            rec, _, reachable = await self._pb_auth_with_password(email, client_hash)
+            if not reachable:
+                return
+            if rec is None:
+                await self._pb_create_auth_user(
                     {
                         "email": email,
+                        "password": client_hash,
+                        "passwordConfirm": client_hash,
                         "name": demo.name,
                         "role": demo.role,
                         "password_hash": hash_password_argon2id(client_hash),
                         "is_demo": True,
+                        "emailVisibility": True,
                     }
                 )
-
-    async def _pb_auth_users_session(
-        self,
-        email: str,
-        name: str,
-        role: str,
-        client_hash: str,
-    ) -> tuple[str | None, str | None]:
-        """Authenticate (or create + authenticate) in PocketBase `users` Auth collection for JWT rules."""
-        if not self.pb_url:
-            return None, None
-        close_after = self._client is None
-        http = await self._http()
-        try:
-            auth_resp = await http.post(
-                f"{self.pb_url}/api/collections/users/auth-with-password",
-                json={"identity": email, "password": client_hash},
-            )
-            if auth_resp.status_code == 200:
-                data = auth_resp.json()
-                rec = data.get("record") or {}
-                return rec.get("id"), data.get("token")
-
-            # Create user in `users` auth collection if not present yet
-            create_resp = await http.post(
-                f"{self.pb_url}/api/collections/users/records",
-                json={
-                    "email": email,
-                    "password": client_hash,
-                    "passwordConfirm": client_hash,
-                    "name": name,
-                    "role": role,
-                    "emailVisibility": True,
-                },
-            )
-            if create_resp.status_code in (200, 201):
-                auth_resp = await http.post(
-                    f"{self.pb_url}/api/collections/users/auth-with-password",
-                    json={"identity": email, "password": client_hash},
-                )
-                if auth_resp.status_code == 200:
-                    data = auth_resp.json()
-                    rec = data.get("record") or {}
-                    return rec.get("id"), data.get("token")
-            return None, None
-        except Exception:
-            return None, None
-        finally:
-            if close_after:
-                await http.aclose()
 
     @staticmethod
     def _public_user(
@@ -285,49 +247,66 @@ class AuthService:
 
         await self.ensure_demo_users()
 
-        existing_pb = await self._pb_get_user(norm_email)
-        if existing_pb is not None or norm_email in self._fallback_users:
+        if norm_email in self._fallback_users:
             raise AuthError("An account with this email already exists.")
 
         argon2_hash = hash_password_argon2id(client_hash)
-        payload = {
+        pb_payload = {
+            "email": norm_email,
+            "password": client_hash,
+            "passwordConfirm": client_hash,
+            "name": clean_name,
+            "role": clean_role,
+            "password_hash": argon2_hash,
+            "is_demo": False,
+            "emailVisibility": True,
+        }
+
+        created, err = await self._pb_create_auth_user(pb_payload)
+        if err == "exists":
+            raise AuthError("An account with this email already exists.")
+        if created is not None:
+            rec, pb_tok, _ = await self._pb_auth_with_password(norm_email, client_hash)
+            return self._public_user(
+                rec or created,
+                backend="pocketbase",
+                pb_user_id=(rec or created).get("id"),
+                pb_token=pb_tok,
+            )
+
+        local_rec = {
+            "id": f"local_{len(self._fallback_users) + 1}",
             "email": norm_email,
             "name": clean_name,
             "role": clean_role,
             "password_hash": argon2_hash,
             "is_demo": False,
         }
-
-        created = await self._pb_create_user(payload)
-        if created is not None:
-            pb_uid, pb_tok = await self._pb_auth_users_session(norm_email, clean_name, clean_role, client_hash)
-            return self._public_user(created, backend="pocketbase", pb_user_id=pb_uid, pb_token=pb_tok)
-
-        local_rec = {"id": f"local_{len(self._fallback_users) + 1}", **payload}
         self._fallback_users[norm_email] = local_rec
         return self._public_user(local_rec, backend="local_fallback")
 
     async def login(self, email: str, client_hash: str) -> dict[str, Any]:
-        """Authenticate a user by verifying the PBKDF2 client hash against Argon2id."""
+        """Authenticate a user against PocketBase `users` (PBKDF2 + Argon2id)."""
         norm_email = email.strip().lower()
         if not norm_email or not client_hash:
             raise AuthError("Email and password are required.")
 
         await self.ensure_demo_users()
 
-        record = await self._pb_get_user(norm_email)
-        backend = "pocketbase"
-        if record is None:
-            record = self._fallback_users.get(norm_email)
-            backend = "local_fallback"
+        record, pb_tok, reachable = await self._pb_auth_with_password(norm_email, client_hash)
+        if reachable:
+            if record is None:
+                raise AuthError("Invalid email or password.")
+            if record.get("password_hash") and not verify_password_argon2id(record["password_hash"], client_hash):
+                raise AuthError("Invalid email or password.")
+            return self._public_user(
+                record,
+                backend="pocketbase",
+                pb_user_id=record.get("id"),
+                pb_token=pb_tok,
+            )
 
-        if record is None or not verify_password_argon2id(record.get("password_hash", ""), client_hash):
+        fallback = self._fallback_users.get(norm_email)
+        if fallback is None or not verify_password_argon2id(fallback.get("password_hash", ""), client_hash):
             raise AuthError("Invalid email or password.")
-
-        pb_uid, pb_tok = await self._pb_auth_users_session(
-            norm_email,
-            str(record.get("name") or norm_email),
-            str(record.get("role") or "viewer"),
-            client_hash,
-        )
-        return self._public_user(record, backend=backend, pb_user_id=pb_uid, pb_token=pb_tok)
+        return self._public_user(fallback, backend="local_fallback")

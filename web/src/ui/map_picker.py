@@ -8,7 +8,12 @@ from typing import Any
 from nicegui import ui
 
 from src.auth import is_farm_owner
-from src.farms import FarmStore, extract_drawn_geojson, polygons_intersect
+from src.farms import (
+    FarmStore,
+    extract_drawn_geojson,
+    merge_catasto_features_into_plot,
+    polygons_intersect,
+)
 from src.providers.catasto import (
     TURIN_PRESETS,
     CatastoClient,
@@ -479,7 +484,7 @@ async def build_catasto_map_picker(
                     f"Found {len(intersecting_farmland)} Catasto farmland parcel(s) "
                     f"({total_cat_ha:.2f} ha) intersecting your {drawn_ha:.2f} ha selection."
                 )
-                use_catasto_btn.set_text(f"Use Catasto Plot Shapes ({len(intersecting_farmland)})")
+                use_catasto_btn.set_text(f"Save as 1 Plot ({len(intersecting_farmland)} Catasto sub-plots)")
                 use_catasto_btn.visible = True
                 keep_drawn_btn.set_text("Keep My Drawn Polygon")
                 status_badge.set_text("Refine Selection")
@@ -500,47 +505,23 @@ async def build_catasto_map_picker(
 
         async def _save_features_to_farm(features: list[dict[str, Any]], use_catasto_names: bool) -> None:
             farm = state["current_farm"]
-            if not farm or not is_farm_owner(farm, current_user):
+            if not farm or not is_farm_owner(farm, current_user) or not features:
                 return
             nick = (nickname_input.value or "").strip()
             crop = (crop_input.value or "Maize").strip() or "Maize"
 
-            for idx, feat in enumerate(features, start=1):
-                props = feat.get("properties") or {}
-                c_ref = props.get("national_ref") or props.get("cadastral_ref") or ""
-                if nick and len(features) == 1:
-                    label = nick
-                elif nick:
-                    label = f"{nick} #{idx}"
-                elif use_catasto_names and c_ref:
-                    label = f"Parcel {c_ref}"
-                else:
-                    label = f"Drawn Field {len(state['plots']) + idx}"
-
-                centroid_list = props.get("centroid")
-                centroid_obj = (
-                    {"lat": centroid_list[0], "lon": centroid_list[1]}
-                    if isinstance(centroid_list, list) and len(centroid_list) == 2
-                    else None
-                )
-                await store.add_plot(
-                    farm_id=farm["id"],
-                    plot_data={
-                        "cadastral_ref": c_ref,
-                        "administrative_unit": props.get("administrative_unit"),
-                        "foglio": props.get("foglio"),
-                        "particella": props.get("particella"),
-                        "inspire_id": props.get("inspire_id"),
-                        "label": label,
-                        "area_ha": props.get("area_ha") or 0.0,
-                        "centroid": centroid_obj,
-                        "geometry": feat["geometry"],
-                        "baseline_rotation": [crop],
-                        "worldcover_class": props.get("worldcover_class"),
-                        "worldcover_label": props.get("worldcover_label") or ("Custom Area" if not use_catasto_names else "Farmland"),
-                    },
-                    user=current_user,
-                )
+            plot_data = merge_catasto_features_into_plot(
+                features,
+                label=nick,
+                crop=crop,
+                use_catasto_names=use_catasto_names,
+                fallback_index=len(state["plots"]) + 1,
+            )
+            await store.add_plot(
+                farm_id=farm["id"],
+                plot_data=plot_data,
+                user=current_user,
+            )
 
             nickname_input.value = ""
             _clear_candidate_layers()

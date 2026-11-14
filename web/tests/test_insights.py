@@ -14,8 +14,11 @@ from src.explainer import explain_plot_insights
 from src.formulas import evaluate_plot_strategies
 from src.providers.data_api import (
     DataApiClient,
+    build_analysis_payload,
+    compute_soil_override_flags,
     extract_datasets,
     is_snapshot_fresh,
+    merge_plot_with_overrides,
     merge_telemetry_snapshots,
     summarize_sensor_gaps,
 )
@@ -93,6 +96,34 @@ class InsightsTests(unittest.TestCase):
                 self.assertEqual(len(res["parcels"]), 1)
 
         asyncio.run(run_test())
+
+    def test_override_flags_merge_and_analysis_payload(self) -> None:
+        raw_ds = extract_datasets(SAMPLE_DATA_API_RESPONSE)
+        override = {"clay_pct": 42.0, "ph": 7.4, "sand_pct": None}
+        flags = compute_soil_override_flags(override)
+        self.assertEqual(flags, ["soil.clay_pct", "soil.ph"])
+
+        effective = merge_plot_with_overrides(raw_ds, override)
+        self.assertEqual(effective["soil"]["values"]["clay_pct"], 42.0)
+        self.assertEqual(effective["soil"]["values"]["ph"], 7.4)
+        # Non-overridden fields stay at satellite baseline, and raw snapshot is untouched
+        self.assertEqual(effective["soil"]["values"]["sand_pct"], 32.0)
+        self.assertEqual(raw_ds["soil"]["values"]["clay_pct"], 28.0)
+
+        plot = {
+            "id": "plot_1",
+            "cadastral_ref": "B791_011500.1",
+            "label": "South Clay",
+            "area_ha": 1.5,
+            "geometry": {"type": "Polygon", "coordinates": []},
+            "baseline_rotation": ["Maize", "Wheat"],
+            "nasa_snapshot": SAMPLE_DATA_API_RESPONSE,
+            "soil_override": override,
+        }
+        payload = build_analysis_payload(plot)
+        self.assertEqual(payload["overridden_fields"], ["soil.clay_pct", "soil.ph"])
+        self.assertEqual(payload["effective_datasets"]["soil"]["values"]["clay_pct"], 42.0)
+        self.assertEqual(payload["nasa_snapshot"]["parcels"][0]["datasets"]["soil"]["values"]["clay_pct"], 28.0)
 
 
 if __name__ == "__main__":

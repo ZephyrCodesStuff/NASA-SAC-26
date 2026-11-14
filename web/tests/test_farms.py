@@ -9,7 +9,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.auth import is_farm_owner
-from src.farms import FarmStore, extract_drawn_geojson, polygons_intersect
+from src.farms import (
+    FarmStore,
+    extract_drawn_geojson,
+    merge_catasto_features_into_plot,
+    polygons_intersect,
+)
 
 
 class FarmTests(unittest.TestCase):
@@ -97,6 +102,39 @@ class FarmTests(unittest.TestCase):
                 self.assertEqual(await store.list_plots(created_farm["id"], user=admin), [])
 
         asyncio.run(run_test())
+
+    def test_merge_catasto_features_into_one_plot(self) -> None:
+        catasto_feats = [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[7.70, 45.00], [7.71, 45.00], [7.71, 45.01], [7.70, 45.00]]]},
+                "properties": {"national_ref": "B791_001_01", "area_ha": 0.8, "centroid": [45.003, 7.705], "worldcover_class": 40},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[7.71, 45.00], [7.72, 45.00], [7.72, 45.01], [7.71, 45.00]]]},
+                "properties": {"national_ref": "B791_001_02", "area_ha": 1.2, "centroid": [45.003, 7.715], "worldcover_class": 40},
+            },
+        ]
+        merged = merge_catasto_features_into_plot(catasto_feats, label="North Block", crop="Soy", use_catasto_names=True)
+        self.assertEqual(merged["label"], "North Block")
+        self.assertEqual(merged["geometry"]["type"], "MultiPolygon")
+        self.assertEqual(len(merged["geometry"]["coordinates"]), 2)
+        self.assertAlmostEqual(merged["area_ha"], 2.0, places=3)
+        self.assertEqual(len(merged["sub_plots"]), 2)
+        self.assertEqual(merged["cadastral_ref"], "B791_001_01, B791_001_02")
+
+        drawn_feat = [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[7.70, 45.00], [7.71, 45.00], [7.71, 45.01], [7.70, 45.00]]]},
+                "properties": {"area_ha": 1.5, "centroid": [45.003, 7.705]},
+            }
+        ]
+        single = merge_catasto_features_into_plot(drawn_feat, label="", crop="Wheat", use_catasto_names=False, fallback_index=3)
+        self.assertEqual(single["label"], "Drawn Field 3")
+        self.assertEqual(single["geometry"]["type"], "Polygon")
+        self.assertIsNone(single["sub_plots"])
 
 
 if __name__ == "__main__":
