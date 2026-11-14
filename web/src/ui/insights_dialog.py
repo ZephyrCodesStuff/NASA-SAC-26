@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from nicegui import ui
+
+logger = logging.getLogger(__name__)
 
 from src.auth import is_farm_owner
 from src.explainer import explain_plot_insights
@@ -244,7 +247,11 @@ async def open_plot_insights_dialog(
                     fetch_badge.props("color=positive")
 
             asyncio.create_task(_enrich_stage2())
-        except Exception:
+        except Exception as exc:
+            logger.warning("data-api fetch failed (%s): %s", data_api.base_url, exc)
             fetch_badge.set_text("Baseline Mode")
             fetch_badge.props("color=warning")
-            render_contents(None, api_note="data-api is offline/unreachable — running deterministic baseline models.")
+            render_contents(
+                None,
+                api_note=f"data-api ({data_api.base_url}) is offline/unreachable ({type(exc).__name__}: {exc}) — running deterministic baseline models.",
+            )

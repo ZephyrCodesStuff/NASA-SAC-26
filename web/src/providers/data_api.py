@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-DATA_API_URL = os.getenv("DATA_API_URL", "http://127.0.0.1:8000").rstrip("/")
+DATA_API_URL = os.getenv("DATA_API_URL", "http://127.0.0.1:8070").rstrip("/")
 
 FAST_DATASETS = (
     "crop_health,evapotranspiration_field,terrain,"

@@ -25,7 +25,7 @@ services:
       PB_PUBLIC_URL: http://localhost:8090
       PORT: "8080"
       RELOAD: "0"
-      DATA_API_URL: http://data-api:8000
+      DATA_API_URL: http://data-api:8070
     depends_on:
       pocketbase:
         condition: service_healthy
@@ -37,7 +37,7 @@ services:
       context: ./data-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8070:8070"
     environment:
       # NASA Earthdata Login (free: https://urs.earthdata.nasa.gov). Put them in ./.env (gitignored).
       # The account must also approve the "NASA GESDISC DATA ARCHIVE" application (for IMERG rainfall).

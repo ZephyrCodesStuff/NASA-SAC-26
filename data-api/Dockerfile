@@ -10,14 +10,14 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
     PARCEL_API_CACHE=/cache \
-    PORT=8000
+    PORT=8070
 
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-dev --no-install-project || uv sync --no-dev --no-install-project
 
 COPY app ./app
 
-EXPOSE 8000
+EXPOSE 8070
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
     CMD ["python", "-c", "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/health', timeout=2)"]

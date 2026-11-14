@@ -1,18 +1,18 @@
 # Calling the data API from the web app
 
 How `web/` gets satellite data for the parcel the farmer clicked.
-Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8000/docs when running).
+Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
 
 ## How it fits together
 
 ```
-browser ──► web (NiceGUI :8080) ──► data-api (:8000) ──► NASA / ISRIC
+browser ──► web (NiceGUI :8080) ──► data-api (:8070) ──► NASA / ISRIC
                  │                        (in-memory cache)
                  └──► pocketbase (:8090)  field_cache: store data-api results
 ```
 
-- Inside Docker, `web` reaches the API at **`http://data-api:8000`**, given in the env var `DATA_API_URL`.
-  For local dev outside Docker, use `http://localhost:8000`.
+- Inside Docker, `web` reaches the API at **`http://data-api:8070`**, given in the env var `DATA_API_URL`.
+  For local dev outside Docker, use `http://localhost:8070`.
 - The API needs the Earthdata login in the root `.env` (see `.env.example`). Without it, most datasets return `error`.
 
 ## The call
@@ -45,7 +45,7 @@ from typing import Any
 
 import httpx
 
-DATA_API_URL = os.getenv("DATA_API_URL", "http://localhost:8000").rstrip("/")
+DATA_API_URL = os.getenv("DATA_API_URL", "http://localhost:8070").rstrip("/")
 PB_URL = os.getenv("PB_URL", "http://127.0.0.1:8090").rstrip("/")
 
 
@@ -163,7 +163,7 @@ Every dataset has the same envelope:
 Warm the demo parcels before going on stage. Each one needs one call, after which repeat calls are instant:
 
 ```bash
-curl -s -X POST "http://<server>:8000/geojson" -H 'Content-Type: application/json' -d @parcel.json > /dev/null
+curl -s -X POST "http://<server>:8070/geojson" -H 'Content-Type: application/json' -d @parcel.json > /dev/null
 ```
 
 The API's in-memory cache is lost when the container restarts. The PocketBase cache in the provider above survives restarts.
@@ -171,5 +171,5 @@ The API's in-memory cache is lost when the container restarts. The PocketBase ca
 ## Quick test from the command line
 
 ```bash
-curl "http://localhost:8000/point?lat=45.0921&lon=7.5735&datasets=weather,soil"
+curl "http://localhost:8070/point?lat=45.0921&lon=7.5735&datasets=weather,soil"
 ```

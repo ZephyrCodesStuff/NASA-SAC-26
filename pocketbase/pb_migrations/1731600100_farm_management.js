@@ -26,18 +26,20 @@ migrate(
       deleteRule: "owner = @request.auth.id",
       fields: [
         { name: "name", type: "text", required: true },
-        new RelationField({
+        {
           name: "owner",
+          type: "relation",
           collectionId: users.id,
           maxSelect: 1,
           required: true,
-        }),
-        new RelationField({
+        },
+        {
           name: "viewers",
+          type: "relation",
           collectionId: users.id,
           maxSelect: 99,
           required: false,
-        }),
+        },
         { name: "is_public_demo", type: "bool", required: false },
         { name: "constraints", type: "json", required: false },
       ],
@@ -54,13 +56,14 @@ migrate(
       updateRule: "farm.owner = @request.auth.id",
       deleteRule: "farm.owner = @request.auth.id",
       fields: [
-        new RelationField({
+        {
           name: "farm",
+          type: "relation",
           collectionId: farms.id,
           maxSelect: 1,
           cascadeDelete: true,
           required: true,
-        }),
+        },
         { name: "cadastral_ref", type: "text", required: false },
         { name: "label", type: "text", required: true },
         { name: "area_ha", type: "number", required: false },

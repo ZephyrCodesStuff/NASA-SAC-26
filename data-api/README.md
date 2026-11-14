@@ -3,8 +3,8 @@
 Give it a field boundary, get back what the satellites and models say about that field — weather, rain,
 soil moisture, crop water use and stress, crop health, soil, groundwater, terrain — as one JSON document.
 
-Runs as the `data-api` service in the root `compose.yaml`; the web app reaches it at `http://data-api:8000`
-(`DATA_API_URL`). Interactive docs: http://localhost:8000/docs
+Runs as the `data-api` service in the root `compose.yaml`; the web app reaches it at `http://data-api:8070`
+(`DATA_API_URL`). Interactive docs: http://localhost:8070/docs
 
 ## Setup
 
@@ -14,7 +14,7 @@ Runs as the `data-api` service in the root `compose.yaml`; the web app reaches i
 3. In the repo root: `cp .env.example .env` and fill `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD`.
 4. `docker compose up --build -d`
 
-Local dev without Docker: `cd data-api && uv run uvicorn app.main:app --reload --port 8000`
+Local dev without Docker: `cd data-api && uv run uvicorn app.main:app --reload --port 8070`
 (credentials from `.env` variables or `~/.netrc`). Tests: `uv run pytest` (offline, no credentials needed).
 
 ## Endpoints
