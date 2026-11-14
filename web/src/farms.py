@@ -260,6 +260,19 @@ def merge_catasto_features_into_plot(
     }
 
 
+def compute_geometry_bounds(geometry: dict[str, Any] | None) -> list[list[float]] | None:
+    """Return Leaflet `[[min_lat, min_lon], [max_lat, max_lon]]` bounds for a GeoJSON geometry."""
+    if not geometry or not isinstance(geometry, dict):
+        return None
+    rings = _extract_rings(geometry)
+    pts = [pt for poly in rings for ring in poly for pt in ring if len(pt) >= 2]
+    if not pts:
+        return None
+    lons = [float(pt[0]) for pt in pts]
+    lats = [float(pt[1]) for pt in pts]
+    return [[min(lats), min(lons)], [max(lats), max(lons)]]
+
+
 # ---------------------------------------------------------------------------
 # Pre-seeded Turin demo farms & plots
 # ---------------------------------------------------------------------------
@@ -667,3 +680,43 @@ class FarmStore:
                 self._save_local(local)
                 return updated
         return None
+
+    async def get_plot_with_farm(
+        self,
+        plot_id: str,
+        user: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Fetch a single plot and its parent farm (PocketBase first, local fallback second)."""
+        token = (user or {}).get("token")
+        if self.pb_url and token:
+            close_after = self._client is None
+            http = await self._http()
+            try:
+                resp = await http.get(
+                    f"{self.pb_url}/api/collections/user_plots/records/{plot_id}",
+                    params={"expand": "farm"},
+                    headers=self._headers(token),
+                )
+                if resp.status_code == 200:
+                    plot_rec = resp.json()
+                    farm_rec = (plot_rec.get("expand") or {}).get("farm")
+                    if not farm_rec and plot_rec.get("farm"):
+                        f_resp = await http.get(
+                            f"{self.pb_url}/api/collections/farms/records/{plot_rec['farm']}",
+                            headers=self._headers(token),
+                        )
+                        if f_resp.status_code == 200:
+                            farm_rec = f_resp.json()
+                    return plot_rec, farm_rec
+            except Exception:
+                pass
+            finally:
+                if close_after:
+                    await http.aclose()
+
+        local = self._load_local()
+        plot_rec = next((p for p in local["user_plots"] if p.get("id") == plot_id), None)
+        if not plot_rec:
+            return None, None
+        farm_rec = next((f for f in local["farms"] if f.get("id") == plot_rec.get("farm")), None)
+        return plot_rec, farm_rec

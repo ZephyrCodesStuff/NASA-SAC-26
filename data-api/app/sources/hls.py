@@ -76,12 +76,12 @@ def fetch(parcel, q: Query) -> dict:
         start = end - timedelta(days=LOOKBACK_DAYS)
     items = stac_search(list(BANDS), geom, start, end)
     # Skip scenes the provider already flags as almost fully cloudy over the tile
-    items = [i for i in items if (i["properties"].get("eo:cloud_cover") or 0) < 95]
+    items = [i for i in items if (i["properties"].get("eo:cloud_cover") or 0) < (70 if q.periods else 95)]
 
     latest = None
     history = None
     if q.history:
-        with ThreadPoolExecutor(6) as ex:
+        with ThreadPoolExecutor(10) as ex:
             scenes = [s for s in ex.map(lambda i: _scene(i, parcel.geometry), items) if s]
         history = [{"date": s["date"], "sensor": s["sensor"], "ndvi": s["ndvi"]["mean"], "ndmi": s["ndmi"]["mean"],
                     "ndre": s.get("ndre", {}).get("mean")} for s in scenes]

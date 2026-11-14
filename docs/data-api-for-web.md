@@ -1,14 +1,14 @@
 # Calling the data API from the web app
 
 How `web/` gets satellite data for the parcel the farmer clicked.
-Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
+Every field explained: [data-catalog.md](data-catalog.md). Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
 
 ## How it fits together
 
 ```
 browser ──► web (NiceGUI :8080) ──► data-api (:8070) ──► NASA / ISRIC
                  │                        (in-memory cache)
-                 └──► pocketbase (:8090)  field_cache: store data-api results
+                 └──► pocketbase (:8090)  user_plots.nasa_snapshot: stored data-api results
 ```
 
 - Inside Docker, `web` reaches the API at **`http://data-api:8070`**, given in the env var `DATA_API_URL`.
@@ -30,10 +30,13 @@ ndvi = data["crop_health"]["values"]["ndvi"]["mean"]
 Optional query parameters:
 - `?datasets=weather,soil,terrain` returns only some datasets, which is faster.
 - `?history=true&start=2026-05-01&end=2026-10-31` adds time series for charts.
+- `?year=true` gives the last 12 months plus `periods` (24 half-months), for the season charts. The first call per parcel takes several minutes.
+- Images: `POST /imagery` (same GeoJSON body) returns PNG layers with `bounds` for `L.imageOverlay`.
+- Map layers: `GET /layers` returns NASA GIBS tile URLs (rain, soil moisture, NDVI, relief…).
 
 ## Ready-made provider (suggested `web/src/providers/nasa.py`)
 
-This follows the same pattern as `catasto.py`: async `httpx`, with results cached in PocketBase `field_cache`.
+Superseded by `web/src/providers/data_api.py`, which stores results in `user_plots.nasa_snapshot`. Kept as a minimal example.
 
 ```python
 """Client for the data-api service (satellite data for a parcel)."""
@@ -166,7 +169,7 @@ Warm the demo parcels before going on stage. Each one needs one call, after whic
 curl -s -X POST "http://<server>:8070/geojson" -H 'Content-Type: application/json' -d @parcel.json > /dev/null
 ```
 
-The API's in-memory cache is lost when the container restarts. The PocketBase cache in the provider above survives restarts.
+The API keeps its cache on disk, so warmed parcels stay fast across restarts and redeploys.
 
 ## Quick test from the command line
 
