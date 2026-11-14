@@ -338,6 +338,15 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
   // Live values for the risk ledger (fall back to the strategy preview while loading)
   const wv = okValues(nasa.datasets.weather);
+  const soilDs = okValues(nasa.datasets.soil);
+  const topsoil = (soilDs?.["0-5cm"] || {}) as Record<string, unknown>;
+  const nasaPh = num(topsoil, "phh2o");
+  const localPrices = okValues(nasa.datasets.local_prices);
+  const elecSeries = pick(localPrices, "energy.electricity.MWH500-1999.excl_taxes") as
+    | Array<Record<string, unknown>>
+    | undefined;
+  const latestElec = elecSeries?.[elecSeries.length - 1];
+  const eurostatElec = latestElec ? num(latestElec, "price") : null;
   const ero = okValues(nasa.datasets.erosion);
   const etf = okValues(nasa.datasets.evapotranspiration_field);
   const eta = okValues(nasa.datasets.evapotranspiration_area);
@@ -517,7 +526,13 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">SOIL pH</strong>{" "}
-            {phInput ? `${phInput} (override)` : "NASA / SoilGrids"}
+            {phInput
+              ? `${phInput} (override)`
+              : nasaPh !== null
+                ? `${nasaPh.toFixed(1)} (SoilGrids)`
+                : nasa.datasets.soil?.state === "loading"
+                  ? "Loading…"
+                  : "NASA / SoilGrids"}
           </span>
           <span className="text-[#e7e5e0]">|</span>
           <span>
@@ -527,12 +542,18 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">POWER</strong>{" "}
-            {elecPrice ? `€${elecPrice}/kWh (override)` : "Eurostat default"}
+            {elecPrice
+              ? `€${elecPrice}/kWh (override)`
+              : eurostatElec !== null
+                ? `€${eurostatElec.toFixed(3)}/kWh (Eurostat)`
+                : nasa.datasets.local_prices?.state === "loading"
+                  ? "Loading…"
+                  : "Eurostat default"}
           </span>
           <span className="text-[#e7e5e0]">|</span>
           <span>
             <strong className="text-[#6b675f] font-normal">NASA SNAPSHOT</strong>{" "}
-            {plot.nasa_snapshot ? "Cached" : "Baseline preview"}
+            {nasa.loaded > 0 ? `${nasa.loaded}/${nasa.total} live` : plot.nasa_snapshot ? "Cached" : "Baseline preview"}
           </span>
         </div>
 
@@ -951,7 +972,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     <Input
                       value={deviceCodeInput}
                       onChange={(e) => setDeviceCodeInput(e.target.value)}
-                      placeholder="Enter X-NASA-Board-SN"
+                      placeholder="Enter serial number"
                       className="h-8 w-52 text-xs font-mono"
                     />
                     <Button type="submit" size="sm" className="h-8 text-xs">
