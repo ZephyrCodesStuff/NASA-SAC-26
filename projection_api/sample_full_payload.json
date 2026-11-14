@@ -1,0 +1,572 @@
+{
+  "parcel_info": {
+    "parcel_id": "PRCL-2026-IOWA-084",
+    "field_name": "North Prairie Section 14",
+    "cadastral_number": "IA-STORY-14-082-99B",
+    "country_code": "US",
+    "state_or_province": "Iowa",
+    "latitude": 42.030781,
+    "longitude": -93.631913,
+    "boundary_geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [-93.6350, 42.0280],
+          [-93.6280, 42.0280],
+          [-93.6280, 42.0335],
+          [-93.6350, 42.0335],
+          [-93.6350, 42.0280]
+        ]
+      ]
+    },
+    "area_hectares": 25.0,
+    "area_acres": 61.78,
+    "soil_type": "Clarion Silt Loam",
+    "elevation_m": 295.0,
+    "slope_pct": 2.8,
+    "greenhouse_available": false,
+    "ownership_type": "Owned",
+    "annual_water_quota_m3": 75000.0
+  },
+  "harvest_history": {
+    "historical_seasons": [
+      {
+        "year": 2023,
+        "season": "Main Season",
+        "crop_name": "Winter Wheat",
+        "variety_or_hybrid": "Pioneer 25R74 Hard Red Winter",
+        "botanical_family": "Poaceae (Grasses & Cereals)",
+        "yield_harvested_tons_ha": 5.8,
+        "planting_date": "2022-10-05",
+        "harvest_date": "2023-07-12",
+        "nitrogen_applied_kg_ha": 110.0,
+        "phosphorus_applied_kg_ha": 45.0,
+        "potassium_applied_kg_ha": 30.0,
+        "irrigation_applied_mm": 0.0,
+        "soil_amendments": [
+          "Agricultural Limestone (CaCO3) 2.2 t/ha"
+        ],
+        "pest_disease_incidents": [
+          "Stripe Rust (Puccinia striiformis)"
+        ],
+        "gross_revenue_usd_ha": 1560.0
+      },
+      {
+        "year": 2024,
+        "season": "Main Season",
+        "crop_name": "Soybeans",
+        "variety_or_hybrid": "Asgrow AG24XF1 Enlist E3",
+        "botanical_family": "Fabaceae / Leguminosae",
+        "yield_harvested_tons_ha": 3.7,
+        "planting_date": "2024-05-08",
+        "harvest_date": "2024-10-02",
+        "nitrogen_applied_kg_ha": 0.0,
+        "phosphorus_applied_kg_ha": 55.0,
+        "potassium_applied_kg_ha": 70.0,
+        "irrigation_applied_mm": 40.0,
+        "soil_amendments": [
+          "Liquid Inoculant Bradyrhizobium japonicum"
+        ],
+        "pest_disease_incidents": [
+          "Soybean Aphid (Aphis glycines)"
+        ],
+        "gross_revenue_usd_ha": 1920.0
+      },
+      {
+        "year": 2025,
+        "season": "Main Season",
+        "crop_name": "Corn (Maize)",
+        "variety_or_hybrid": "DeKalb DKC62-70 RIB SmartStax",
+        "botanical_family": "Poaceae (Grasses & Cereals)",
+        "yield_harvested_tons_ha": 9.8,
+        "planting_date": "2025-04-28",
+        "harvest_date": "2025-10-18",
+        "nitrogen_applied_kg_ha": 185.0,
+        "phosphorus_applied_kg_ha": 75.0,
+        "potassium_applied_kg_ha": 85.0,
+        "irrigation_applied_mm": 95.0,
+        "soil_amendments": [
+          "Nitrogen Solution UAN 32% Side-dress",
+          "Zinc Sulfate Chelated (1.5 kg/ha)"
+        ],
+        "pest_disease_incidents": [
+          "European Corn Borer (Ostrinia nubilalis)",
+          "Northern Corn Leaf Blight"
+        ],
+        "gross_revenue_usd_ha": 2450.0
+      }
+    ]
+  },
+  "economic_prices": {
+    "diesel_fuel_price_usd_liter": 1.18,
+    "engine_lubricant_oil_price_usd_liter": 5.80,
+    "irrigation_water_price_usd_m3": 0.085,
+    "electricity_pumping_tariff_usd_kwh": 0.115,
+    "nitrogen_price_usd_kg": 1.38,
+    "phosphorus_price_usd_kg": 1.65,
+    "potassium_price_usd_kg": 0.95,
+    "labor_hourly_wage_usd": 23.50,
+    "seed_prices_usd_per_ha": {
+      "Corn (Maize)": 285.0,
+      "Soybeans": 165.0,
+      "Winter Wheat": 115.0,
+      "Grain Sorghum": 85.0,
+      "Alfalfa / Clover (Perennial Legume)": 180.0,
+      "Canola / Rapeseed": 145.0,
+      "Sunflowers": 135.0,
+      "Field Peas / Chickpeas": 120.0,
+      "Daikon Radish & Rye (Regenerative Bio-Drill)": 65.0
+    }
+  },
+  "seed_data": [
+    {
+      "crop_name": "Corn (Maize)",
+      "variety_or_hybrid_name": "DKC62-70 RIB",
+      "seed_cost_usd_per_ha": 285.0,
+      "seeding_rate_kg_ha": 24.5,
+      "greenhouse_need": "Open Field Only",
+      "can_grow_in_greenhouse": false,
+      "requires_greenhouse": false,
+      "extreme_event_resistance": {
+        "drought_resistance": "Moderate (Average Resilience)",
+        "drought_tolerance_score": 3.2,
+        "flood_waterlogging_resistance": "Low",
+        "flood_tolerance_score": 2.4,
+        "wind_lodging_resistance": "High",
+        "wind_tolerance_score": 4.1,
+        "frost_cold_resistance": "Low",
+        "frost_tolerance_score": 1.9,
+        "extreme_heat_resistance": "Moderate (Average Resilience)",
+        "heat_tolerance_score": 3.6,
+        "salinity_tolerance": "Moderate",
+        "extreme_event_notes": "Stout stalk architecture resists high late-season wind gusts; acute heat stress above 35°C during silking impairs pollination."
+      }
+    },
+    {
+      "crop_name": "Soybeans",
+      "variety_or_hybrid_name": "AG24XF1",
+      "seed_cost_usd_per_ha": 165.0,
+      "seeding_rate_kg_ha": 68.0,
+      "greenhouse_need": "Open Field Only",
+      "can_grow_in_greenhouse": false,
+      "requires_greenhouse": false,
+      "extreme_event_resistance": {
+        "drought_resistance": "Moderate (Average Resilience)",
+        "drought_tolerance_score": 3.4,
+        "flood_waterlogging_resistance": "Low",
+        "flood_tolerance_score": 2.1,
+        "wind_lodging_resistance": "High",
+        "wind_tolerance_score": 4.0,
+        "frost_cold_resistance": "Low",
+        "frost_tolerance_score": 2.0,
+        "extreme_heat_resistance": "Moderate (Average Resilience)",
+        "heat_tolerance_score": 3.4,
+        "salinity_tolerance": "Moderate",
+        "extreme_event_notes": "Pod-fill abortion risk during mid-August dry spells; anaerobic saturation over 48 hours causes Phytophthora root rot."
+      }
+    },
+    {
+      "crop_name": "Alfalfa / Clover (Perennial Legume)",
+      "variety_or_hybrid_name": "AmeriStand 427TQ",
+      "seed_cost_usd_per_ha": 180.0,
+      "seeding_rate_kg_ha": 18.0,
+      "greenhouse_need": "Open Field Only",
+      "can_grow_in_greenhouse": false,
+      "requires_greenhouse": false,
+      "extreme_event_resistance": {
+        "drought_resistance": "High",
+        "drought_tolerance_score": 4.6,
+        "flood_waterlogging_resistance": "Low",
+        "flood_tolerance_score": 2.0,
+        "wind_lodging_resistance": "Very High (Extreme Tolerance)",
+        "wind_tolerance_score": 4.8,
+        "frost_cold_resistance": "Very High (Extreme Tolerance)",
+        "frost_tolerance_score": 4.7,
+        "extreme_heat_resistance": "High",
+        "heat_tolerance_score": 4.2,
+        "salinity_tolerance": "Moderate to High",
+        "extreme_event_notes": "Deep taproots extract moisture from 2.5m+ subsoil depths; dense groundcover virtually eliminates gale wind lodging."
+      }
+    },
+    {
+      "crop_name": "Grain Sorghum",
+      "variety_or_hybrid_name": "Pioneer 84G62",
+      "seed_cost_usd_per_ha": 85.0,
+      "seeding_rate_kg_ha": 9.5,
+      "greenhouse_need": "Open Field Only",
+      "can_grow_in_greenhouse": false,
+      "requires_greenhouse": false,
+      "extreme_event_resistance": {
+        "drought_resistance": "Very High (Extreme Tolerance)",
+        "drought_tolerance_score": 4.8,
+        "flood_waterlogging_resistance": "Moderate (Average Resilience)",
+        "flood_tolerance_score": 3.0,
+        "wind_lodging_resistance": "High",
+        "wind_tolerance_score": 4.2,
+        "frost_cold_resistance": "Moderate (Average Resilience)",
+        "frost_tolerance_score": 2.8,
+        "extreme_heat_resistance": "Very High (Extreme Tolerance)",
+        "heat_tolerance_score": 4.7,
+        "salinity_tolerance": "High",
+        "extreme_event_notes": "Waxy cuticle limits transpiration; enters temporary physiological dormancy during severe water stress."
+      }
+    },
+    {
+      "crop_name": "Processing Tomatoes",
+      "variety_or_hybrid_name": "Heinz H9665 Determinate",
+      "seed_cost_usd_per_ha": 460.0,
+      "seeding_rate_kg_ha": 0.35,
+      "greenhouse_need": "Open Field or Greenhouse Compatible",
+      "can_grow_in_greenhouse": true,
+      "requires_greenhouse": false,
+      "extreme_event_resistance": {
+        "drought_resistance": "Low",
+        "drought_tolerance_score": 2.0,
+        "flood_waterlogging_resistance": "Low",
+        "flood_tolerance_score": 1.8,
+        "wind_lodging_resistance": "Low",
+        "wind_tolerance_score": 2.0,
+        "frost_cold_resistance": "Very Low (Highly Susceptible)",
+        "frost_tolerance_score": 1.2,
+        "extreme_heat_resistance": "Moderate (Average Resilience)",
+        "heat_tolerance_score": 3.2,
+        "salinity_tolerance": "Moderate",
+        "extreme_event_notes": "Blossom end rot occurs with irregular moisture; frost below 0°C destroys green canopy."
+      }
+    }
+  ],
+  "nasa_data": {
+    "nasa_power": {
+      "raw_official_response": {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [-93.631913, 42.030781, 295.0]
+        },
+        "properties": {
+          "parameter": {
+            "T2M": {
+              "20250601": 22.4,
+              "20250615": 25.1,
+              "20250701": 27.2,
+              "20250715": 28.5,
+              "20250801": 26.8,
+              "20250815": 24.3
+            },
+            "T2M_MAX": {
+              "20250601": 28.1,
+              "20250615": 31.4,
+              "20250701": 33.5,
+              "20250715": 35.2,
+              "20250801": 32.8,
+              "20250815": 29.8
+            },
+            "T2M_MIN": {
+              "20250601": 16.2,
+              "20250615": 18.8,
+              "20250701": 20.5,
+              "20250715": 21.8,
+              "20250801": 20.1,
+              "20250815": 18.2
+            },
+            "PRECTOTCORR": {
+              "20250601": 0.0,
+              "20250615": 18.5,
+              "20250701": 4.2,
+              "20250715": 42.6,
+              "20250801": 0.0,
+              "20250815": 8.4
+            },
+            "ALLSKY_SFC_SW_DWN": {
+              "20250601": 24.8,
+              "20250615": 21.2,
+              "20250701": 26.5,
+              "20250715": 17.4,
+              "20250801": 25.1,
+              "20250815": 22.8
+            },
+            "RH2M": {
+              "20250601": 58.2,
+              "20250615": 68.5,
+              "20250701": 55.4,
+              "20250715": 78.2,
+              "20250801": 60.1,
+              "20250815": 64.0
+            },
+            "WS2M": {
+              "20250601": 2.8,
+              "20250615": 3.5,
+              "20250701": 2.4,
+              "20250715": 4.8,
+              "20250801": 2.6,
+              "20250815": 3.1
+            },
+            "PS": {
+              "20250601": 98.2,
+              "20250615": 97.8,
+              "20250701": 98.4,
+              "20250715": 97.5,
+              "20250801": 98.1,
+              "20250815": 98.3
+            }
+          }
+        }
+      },
+      "t2m_mean_c": 13.5,
+      "solar_radiation_mj_m2": 18.5,
+      "growing_degree_days_base10": 1640.0,
+      "fao56_et0_annual_mm": 1145.0
+    },
+    "gpm_imerg": {
+      "annual_rainfall_mm": 685.4,
+      "growing_season_rainfall_mm": 445.0,
+      "peak_daily_rainfall_mm": 42.6,
+      "daily_rainfall_series": {
+        "2025-06-01": 0.0,
+        "2025-06-15": 18.5,
+        "2025-07-01": 4.2,
+        "2025-07-15": 42.6,
+        "2025-08-01": 0.0,
+        "2025-08-15": 8.4
+      }
+    },
+    "smap_moisture": {
+      "surface_moisture_m3_m3": 0.28,
+      "rootzone_moisture_m3_m3": 0.29,
+      "surface_soil_temp_c": 21.4,
+      "rootzone_depletion_pct": 35.0
+    },
+    "openet_water": {
+      "raw_official_response": [
+        {"date": "2025-06-01", "et": 4.2, "et0": 5.2, "kc": 0.81},
+        {"date": "2025-06-15", "et": 4.8, "et0": 5.6, "kc": 0.86},
+        {"date": "2025-07-01", "et": 5.9, "et0": 6.2, "kc": 0.95},
+        {"date": "2025-07-15", "et": 6.4, "et0": 6.1, "kc": 1.05},
+        {"date": "2025-08-01", "et": 5.7, "et0": 5.8, "kc": 0.98},
+        {"date": "2025-08-15", "et": 4.6, "et0": 5.1, "kc": 0.90}
+      ],
+      "actual_et_annual_mm": 510.0,
+      "crop_coefficient_kc_mid": 1.05
+    },
+    "ecostress": {
+      "scenes": [
+        {
+          "timestamp": "2025-07-15T18:35:12Z",
+          "canopy_surface_temp_c": 29.4,
+          "evaporative_stress_index": 0.78,
+          "water_deficit_index": 0.22,
+          "quality_flag": "Clear Sky"
+        }
+      ],
+      "canopy_surface_temp_c": 29.4,
+      "evaporative_stress_index": 0.78
+    },
+    "hls_vegetation": {
+      "overpasses": [
+        {
+          "date": "2025-07-18",
+          "sensor": "Sentinel-2 MSI (S30)",
+          "ndvi": 0.84,
+          "ndre": 0.62,
+          "ndwi": 0.38,
+          "cloud_cover_pct": 1.5
+        }
+      ],
+      "ndvi_peak": 0.84,
+      "ndre_peak": 0.62,
+      "ndwi_peak": 0.38
+    },
+    "soilgrids": {
+      "depth_layers": [
+        {
+          "depth_interval": "0-5cm",
+          "top_depth_cm": 0.0,
+          "bottom_depth_cm": 5.0,
+          "clay_pct": 18.0,
+          "sand_pct": 22.0,
+          "silt_pct": 60.0,
+          "soil_organic_carbon_pct": 2.10,
+          "soil_ph_h2o": 6.6,
+          "bulk_density_g_cm3": 1.30,
+          "cation_exchange_capacity_cmol_kg": 24.5,
+          "total_nitrogen_g_kg": 2.2
+        },
+        {
+          "depth_interval": "5-15cm",
+          "top_depth_cm": 5.0,
+          "bottom_depth_cm": 15.0,
+          "clay_pct": 20.0,
+          "sand_pct": 20.0,
+          "silt_pct": 60.0,
+          "soil_organic_carbon_pct": 1.85,
+          "soil_ph_h2o": 6.5,
+          "bulk_density_g_cm3": 1.33,
+          "cation_exchange_capacity_cmol_kg": 23.0,
+          "total_nitrogen_g_kg": 1.9
+        },
+        {
+          "depth_interval": "15-30cm",
+          "top_depth_cm": 15.0,
+          "bottom_depth_cm": 30.0,
+          "clay_pct": 24.0,
+          "sand_pct": 18.0,
+          "silt_pct": 58.0,
+          "soil_organic_carbon_pct": 1.45,
+          "soil_ph_h2o": 6.7,
+          "bulk_density_g_cm3": 1.38,
+          "cation_exchange_capacity_cmol_kg": 21.5,
+          "total_nitrogen_g_kg": 1.4
+        },
+        {
+          "depth_interval": "30-60cm",
+          "top_depth_cm": 30.0,
+          "bottom_depth_cm": 60.0,
+          "clay_pct": 28.0,
+          "sand_pct": 16.0,
+          "silt_pct": 56.0,
+          "soil_organic_carbon_pct": 0.95,
+          "soil_ph_h2o": 6.9,
+          "bulk_density_g_cm3": 1.44,
+          "cation_exchange_capacity_cmol_kg": 20.0,
+          "total_nitrogen_g_kg": 0.9
+        },
+        {
+          "depth_interval": "60-100cm",
+          "top_depth_cm": 60.0,
+          "bottom_depth_cm": 100.0,
+          "clay_pct": 30.0,
+          "sand_pct": 15.0,
+          "silt_pct": 55.0,
+          "soil_organic_carbon_pct": 0.55,
+          "soil_ph_h2o": 7.1,
+          "bulk_density_g_cm3": 1.48,
+          "cation_exchange_capacity_cmol_kg": 19.5,
+          "total_nitrogen_g_kg": 0.5
+        }
+      ],
+      "texture_class": "Silt Loam",
+      "soil_organic_carbon_pct": 1.85,
+      "soil_ph_h2o": 6.6
+    },
+    "grace_groundwater": {
+      "monthly_records": [
+        {
+          "date": "2025-05",
+          "lwe_thickness_anomaly_cm": -0.8,
+          "groundwater_percentile": 52.0,
+          "trend_status": "Stable"
+        },
+        {
+          "date": "2025-06",
+          "lwe_thickness_anomaly_cm": -1.1,
+          "groundwater_percentile": 49.0,
+          "trend_status": "Stable"
+        },
+        {
+          "date": "2025-07",
+          "lwe_thickness_anomaly_cm": -1.4,
+          "groundwater_percentile": 46.0,
+          "trend_status": "Stable"
+        }
+      ],
+      "terrestrial_water_storage_trend": "Stable (-0.4 cm/yr)",
+      "water_table_depth_meters": 3.8,
+      "aquifer_security_status": "Secure"
+    }
+  },
+  "long_term_projections": {
+    "scenario": "CMIP6 Moderate Mitigation (SSP2-4.5)",
+    "projection_horizon_years": 5,
+    "projected_annual_temp_shift_c": 0.75,
+    "projected_annual_precipitation_delta_pct": -3.8,
+    "heat_wave_days_increase_per_year": 4,
+    "drought_frequency_rating": "Moderate (1 in 4 yr)"
+  },
+  "local_user_data": {
+    "soil_type": "Silt Loam",
+    "dated_sensor_readings": [
+      {
+        "timestamp": "2025-04-15T09:30:00Z",
+        "sensor_id": "STN-WEST-01",
+        "depth_cm": 15.0,
+        "location_latitude": 42.0310,
+        "location_longitude": -93.6330,
+        "soil_nitrogen_ppm": 22.0,
+        "soil_phosphorus_ppm": 34.0,
+        "soil_potassium_ppm": 185.0,
+        "soil_moisture_vol_pct": 31.0,
+        "soil_ph": 6.6,
+        "soil_ec_salinity_ds_m": 0.38,
+        "soil_organic_matter_pct": 3.30,
+        "soil_compaction_psi": 200.0,
+        "soil_temperature_c": 12.5,
+        "device_model": "Spectrum FieldScout SC-900 / TDR-350",
+        "notes": "Spring pre-plant baseline calibration."
+      },
+      {
+        "timestamp": "2025-06-20T11:00:00Z",
+        "sensor_id": "STN-WEST-01",
+        "depth_cm": 15.0,
+        "location_latitude": 42.0310,
+        "location_longitude": -93.6330,
+        "soil_nitrogen_ppm": 28.5,
+        "soil_phosphorus_ppm": 36.0,
+        "soil_potassium_ppm": 190.0,
+        "soil_moisture_vol_pct": 26.5,
+        "soil_ph": 6.65,
+        "soil_ec_salinity_ds_m": 0.41,
+        "soil_organic_matter_pct": 3.40,
+        "soil_compaction_psi": 210.0,
+        "soil_temperature_c": 21.2,
+        "device_model": "Spectrum FieldScout SC-900 / TDR-350",
+        "notes": "Post side-dress V6 corn stage observation."
+      },
+      {
+        "timestamp": "2025-09-18T14:15:00Z",
+        "sensor_id": "STN-WEST-01",
+        "depth_cm": 15.0,
+        "location_latitude": 42.0310,
+        "location_longitude": -93.6330,
+        "soil_nitrogen_ppm": 24.0,
+        "soil_phosphorus_ppm": 35.0,
+        "soil_potassium_ppm": 180.0,
+        "soil_moisture_vol_pct": 24.0,
+        "soil_ph": 6.7,
+        "soil_ec_salinity_ds_m": 0.40,
+        "soil_organic_matter_pct": 3.35,
+        "soil_compaction_psi": 225.0,
+        "soil_temperature_c": 18.6,
+        "device_model": "Spectrum FieldScout SC-900 / TDR-350",
+        "notes": "Pre-harvest soil dry-down and subsoil compaction reading."
+      }
+    ],
+    "irrigation_system": "Center Pivot Sprinkler",
+    "tillage_practice": "Strip-Till / Reduced Tillage",
+    "is_organic_certified": false,
+    "labor_availability_rating": "Standard",
+    "preferred_candidate_crops": [
+      "Corn (Maize)",
+      "Soybeans",
+      "Winter Wheat",
+      "Alfalfa / Clover (Perennial Legume)",
+      "Grain Sorghum",
+      "Daikon Radish & Rye (Regenerative Bio-Drill)"
+    ],
+    "excluded_crops": [
+      "Cotton"
+    ],
+    "farm_management_notes": "Prioritizing subsoil compaction alleviation and biological nitrogen fixation after corn."
+  },
+  "elevation_maps": {
+    "elevation_mean_m": 295.0,
+    "elevation_min_m": 291.5,
+    "elevation_max_m": 299.2,
+    "slope_mean_pct": 2.8,
+    "slope_max_pct": 5.2,
+    "aspect": "South-Facing (Maximum Solar Irradiance)",
+    "topographic_wetness_index": 7.2,
+    "waterlogging_depression_present": false,
+    "soil_erosion_susceptibility": "Low (Stable Flat)",
+    "elevation_raster_url_or_ref": "s3://nasadem-30m/h10v04/dem_wgs84.tif"
+  }
+}

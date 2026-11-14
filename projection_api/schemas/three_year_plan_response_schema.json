@@ -1,0 +1,495 @@
+{
+  "$defs": {
+    "AnnualGroundImpact": {
+      "description": "Year-by-year physical, chemical, and economic impact of a crop on the parcel.",
+      "properties": {
+        "year_index": {
+          "description": "Simulation year: 1, 2, or 3",
+          "title": "Year Index",
+          "type": "integer"
+        },
+        "crop_id": {
+          "title": "Crop Id",
+          "type": "string"
+        },
+        "crop_name": {
+          "title": "Crop Name",
+          "type": "string"
+        },
+        "botanical_family": {
+          "title": "Botanical Family",
+          "type": "string"
+        },
+        "season_label": {
+          "default": "Warm Season (Spring/Summer)",
+          "title": "Season Label",
+          "type": "string"
+        },
+        "projected_yield_tons_ha": {
+          "title": "Projected Yield Tons Ha",
+          "type": "number"
+        },
+        "total_yield_tons": {
+          "title": "Total Yield Tons",
+          "type": "number"
+        },
+        "gross_revenue_usd": {
+          "title": "Gross Revenue Usd",
+          "type": "number"
+        },
+        "total_cost_usd": {
+          "title": "Total Cost Usd",
+          "type": "number"
+        },
+        "itemized_costs_usd": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Seed, water, fuel/machinery, fertilizer (N, P, K), labor, crop protection, botanical penalty",
+          "title": "Itemized Costs Usd",
+          "type": "object"
+        },
+        "net_profit_usd": {
+          "title": "Net Profit Usd",
+          "type": "number"
+        },
+        "roi_pct": {
+          "title": "Roi Pct",
+          "type": "number"
+        },
+        "labor_hours_total": {
+          "title": "Labor Hours Total",
+          "type": "number"
+        },
+        "machinery_passes_count": {
+          "title": "Machinery Passes Count",
+          "type": "integer"
+        },
+        "fuel_consumed_liters": {
+          "title": "Fuel Consumed Liters",
+          "type": "number"
+        },
+        "nitrogen_balance_kg_ha": {
+          "description": "Net soil nitrogen (+ fixed credit or - uptake extraction)",
+          "title": "Nitrogen Balance Kg Ha",
+          "type": "number"
+        },
+        "p2o5_balance_kg_ha": {
+          "title": "P2O5 Balance Kg Ha",
+          "type": "number"
+        },
+        "k2o_balance_kg_ha": {
+          "title": "K2O Balance Kg Ha",
+          "type": "number"
+        },
+        "biological_n_fixed_kg_ha": {
+          "default": 0.0,
+          "title": "Biological N Fixed Kg Ha",
+          "type": "number"
+        },
+        "synthetic_n_applied_kg_ha": {
+          "default": 0.0,
+          "title": "Synthetic N Applied Kg Ha",
+          "type": "number"
+        },
+        "legume_n_credit_used_kg_ha": {
+          "default": 0.0,
+          "title": "Legume N Credit Used Kg Ha",
+          "type": "number"
+        },
+        "soc_pct_start": {
+          "title": "Soc Pct Start",
+          "type": "number"
+        },
+        "soc_pct_end": {
+          "title": "Soc Pct End",
+          "type": "number"
+        },
+        "soc_change_pct": {
+          "description": "Delta SOC % (humification of residue vs mineralization)",
+          "title": "Soc Change Pct",
+          "type": "number"
+        },
+        "carbon_input_tons_ha": {
+          "description": "IPCC dry matter carbon input (AG + BG roots)",
+          "title": "Carbon Input Tons Ha",
+          "type": "number"
+        },
+        "compaction_psi_start": {
+          "title": "Compaction Psi Start",
+          "type": "number"
+        },
+        "compaction_psi_end": {
+          "title": "Compaction Psi End",
+          "type": "number"
+        },
+        "compaction_change_psi": {
+          "description": "Traffic compaction accumulation vs taproot bio-drill relief",
+          "title": "Compaction Change Psi",
+          "type": "number"
+        },
+        "water_demand_etc_mm": {
+          "title": "Water Demand Etc Mm",
+          "type": "number"
+        },
+        "effective_precipitation_mm": {
+          "title": "Effective Precipitation Mm",
+          "type": "number"
+        },
+        "irrigation_water_applied_mm": {
+          "title": "Irrigation Water Applied Mm",
+          "type": "number"
+        },
+        "irrigation_volume_m3": {
+          "title": "Irrigation Volume M3",
+          "type": "number"
+        },
+        "water_stress_coefficient_ks": {
+          "default": 1.0,
+          "description": "1.0 = no water stress, <1.0 = transpiration reduction",
+          "title": "Water Stress Coefficient Ks",
+          "type": "number"
+        },
+        "soil_erosion_tons_ha": {
+          "description": "RUSLE predicted soil loss",
+          "title": "Soil Erosion Tons Ha",
+          "type": "number"
+        },
+        "rhizosphere_vitality_score": {
+          "description": "Rhizosphere microbial score 0-100",
+          "title": "Rhizosphere Vitality Score",
+          "type": "number"
+        },
+        "pathogen_disease_risk_score": {
+          "description": "Pathogen/disease risk index 0-100",
+          "title": "Pathogen Disease Risk Score",
+          "type": "number"
+        },
+        "extreme_event_vulnerability_score": {
+          "description": "Climate shock vulnerability index 0-100",
+          "title": "Extreme Event Vulnerability Score",
+          "type": "number"
+        },
+        "ground_narrative": {
+          "description": "Mechanistic explanation of what this crop caused to the ground",
+          "title": "Ground Narrative",
+          "type": "string"
+        }
+      },
+      "required": [
+        "year_index",
+        "crop_id",
+        "crop_name",
+        "botanical_family",
+        "projected_yield_tons_ha",
+        "total_yield_tons",
+        "gross_revenue_usd",
+        "total_cost_usd",
+        "net_profit_usd",
+        "roi_pct",
+        "labor_hours_total",
+        "machinery_passes_count",
+        "fuel_consumed_liters",
+        "nitrogen_balance_kg_ha",
+        "p2o5_balance_kg_ha",
+        "k2o_balance_kg_ha",
+        "soc_pct_start",
+        "soc_pct_end",
+        "soc_change_pct",
+        "carbon_input_tons_ha",
+        "compaction_psi_start",
+        "compaction_psi_end",
+        "compaction_change_psi",
+        "water_demand_etc_mm",
+        "effective_precipitation_mm",
+        "irrigation_water_applied_mm",
+        "irrigation_volume_m3",
+        "soil_erosion_tons_ha",
+        "rhizosphere_vitality_score",
+        "pathogen_disease_risk_score",
+        "extreme_event_vulnerability_score",
+        "ground_narrative"
+      ],
+      "title": "AnnualGroundImpact",
+      "type": "object"
+    },
+    "GeminiAdvisoryReport": {
+      "description": "Structured AI agronomic consultation generated via Google Gemini 3.8 Flash (with deterministic fallback).",
+      "properties": {
+        "model_used": {
+          "default": "google-genai/gemini-3.8-flash",
+          "description": "Model identifier",
+          "title": "Model Used",
+          "type": "string"
+        },
+        "executive_summary": {
+          "title": "Executive Summary",
+          "type": "string"
+        },
+        "parcel_climate_context": {
+          "title": "Parcel Climate Context",
+          "type": "string"
+        },
+        "strategy_tradeoff_matrix": {
+          "title": "Strategy Tradeoff Matrix",
+          "type": "string"
+        },
+        "year_by_year_soil_transformation": {
+          "title": "Year By Year Soil Transformation",
+          "type": "string"
+        },
+        "extreme_event_resilience_playbook": {
+          "title": "Extreme Event Resilience Playbook",
+          "type": "string"
+        },
+        "farmer_decision_guide": {
+          "title": "Farmer Decision Guide",
+          "type": "string"
+        },
+        "ground_truth_field_checklist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ground Truth Field Checklist",
+          "type": "array"
+        }
+      },
+      "required": [
+        "executive_summary",
+        "parcel_climate_context",
+        "strategy_tradeoff_matrix",
+        "year_by_year_soil_transformation",
+        "extreme_event_resilience_playbook",
+        "farmer_decision_guide",
+        "ground_truth_field_checklist"
+      ],
+      "title": "GeminiAdvisoryReport",
+      "type": "object"
+    },
+    "ThreeYearCultivationPlan": {
+      "description": "Full 3-year trajectory for one farmer strategy.",
+      "properties": {
+        "strategy_id": {
+          "description": "most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "strategy_title": {
+          "title": "Strategy Title",
+          "type": "string"
+        },
+        "core_objective": {
+          "title": "Core Objective",
+          "type": "string"
+        },
+        "rotation_sequence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rotation Sequence",
+          "type": "array"
+        },
+        "year_1": {
+          "$ref": "#/$defs/AnnualGroundImpact"
+        },
+        "year_2": {
+          "$ref": "#/$defs/AnnualGroundImpact"
+        },
+        "year_3": {
+          "$ref": "#/$defs/AnnualGroundImpact"
+        },
+        "cumulative_metrics": {
+          "$ref": "#/$defs/ThreeYearCumulativeMetrics"
+        },
+        "strategic_summary": {
+          "title": "Strategic Summary",
+          "type": "string"
+        },
+        "risk_mitigation_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Risk Mitigation Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "strategy_id",
+        "strategy_title",
+        "core_objective",
+        "rotation_sequence",
+        "year_1",
+        "year_2",
+        "year_3",
+        "cumulative_metrics",
+        "strategic_summary",
+        "risk_mitigation_actions"
+      ],
+      "title": "ThreeYearCultivationPlan",
+      "type": "object"
+    },
+    "ThreeYearCumulativeMetrics": {
+      "description": "Aggregate 3-year performance and soil evolution metrics.",
+      "properties": {
+        "total_gross_revenue_usd": {
+          "title": "Total Gross Revenue Usd",
+          "type": "number"
+        },
+        "total_cost_usd": {
+          "title": "Total Cost Usd",
+          "type": "number"
+        },
+        "total_net_profit_usd": {
+          "title": "Total Net Profit Usd",
+          "type": "number"
+        },
+        "cumulative_roi_pct": {
+          "title": "Cumulative Roi Pct",
+          "type": "number"
+        },
+        "total_labor_hours": {
+          "title": "Total Labor Hours",
+          "type": "number"
+        },
+        "total_machinery_passes": {
+          "title": "Total Machinery Passes",
+          "type": "integer"
+        },
+        "total_diesel_liters": {
+          "title": "Total Diesel Liters",
+          "type": "number"
+        },
+        "net_soc_change_pct": {
+          "title": "Net Soc Change Pct",
+          "type": "number"
+        },
+        "initial_soc_pct": {
+          "title": "Initial Soc Pct",
+          "type": "number"
+        },
+        "final_soc_pct": {
+          "title": "Final Soc Pct",
+          "type": "number"
+        },
+        "total_carbon_input_tons_ha": {
+          "title": "Total Carbon Input Tons Ha",
+          "type": "number"
+        },
+        "total_biological_n_fixed_kg_ha": {
+          "title": "Total Biological N Fixed Kg Ha",
+          "type": "number"
+        },
+        "synthetic_n_saved_usd": {
+          "title": "Synthetic N Saved Usd",
+          "type": "number"
+        },
+        "initial_compaction_psi": {
+          "title": "Initial Compaction Psi",
+          "type": "number"
+        },
+        "final_compaction_psi": {
+          "title": "Final Compaction Psi",
+          "type": "number"
+        },
+        "net_compaction_change_psi": {
+          "title": "Net Compaction Change Psi",
+          "type": "number"
+        },
+        "total_irrigation_volume_m3": {
+          "title": "Total Irrigation Volume M3",
+          "type": "number"
+        },
+        "average_annual_erosion_tons_ha": {
+          "title": "Average Annual Erosion Tons Ha",
+          "type": "number"
+        },
+        "cumulative_soil_health_score": {
+          "description": "0 - 100 regenerative soil health index",
+          "title": "Cumulative Soil Health Score",
+          "type": "number"
+        },
+        "composite_loss_risk_score": {
+          "description": "0 - 100 overall failure risk",
+          "title": "Composite Loss Risk Score",
+          "type": "number"
+        },
+        "botanical_families_count": {
+          "description": "Distinct plant families in the 3-year sequence",
+          "title": "Botanical Families Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_gross_revenue_usd",
+        "total_cost_usd",
+        "total_net_profit_usd",
+        "cumulative_roi_pct",
+        "total_labor_hours",
+        "total_machinery_passes",
+        "total_diesel_liters",
+        "net_soc_change_pct",
+        "initial_soc_pct",
+        "final_soc_pct",
+        "total_carbon_input_tons_ha",
+        "total_biological_n_fixed_kg_ha",
+        "synthetic_n_saved_usd",
+        "initial_compaction_psi",
+        "final_compaction_psi",
+        "net_compaction_change_psi",
+        "total_irrigation_volume_m3",
+        "average_annual_erosion_tons_ha",
+        "cumulative_soil_health_score",
+        "composite_loss_risk_score",
+        "botanical_families_count"
+      ],
+      "title": "ThreeYearCumulativeMetrics",
+      "type": "object"
+    }
+  },
+  "description": "Top-level API response containing all 5 strategy trajectories and Gemini AI advisory.",
+  "properties": {
+    "cadastral_parcel_id": {
+      "title": "Cadastral Parcel Id",
+      "type": "string"
+    },
+    "field_area_ha": {
+      "title": "Field Area Ha",
+      "type": "number"
+    },
+    "resolved_soil_type": {
+      "title": "Resolved Soil Type",
+      "type": "string"
+    },
+    "simulation_timestamp": {
+      "title": "Simulation Timestamp",
+      "type": "string"
+    },
+    "climate_baseline": {
+      "additionalProperties": true,
+      "title": "Climate Baseline",
+      "type": "object"
+    },
+    "strategies": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ThreeYearCultivationPlan"
+      },
+      "description": "Keys: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk",
+      "title": "Strategies",
+      "type": "object"
+    },
+    "gemini_advisory": {
+      "$ref": "#/$defs/GeminiAdvisoryReport"
+    }
+  },
+  "required": [
+    "cadastral_parcel_id",
+    "field_area_ha",
+    "resolved_soil_type",
+    "simulation_timestamp",
+    "climate_baseline",
+    "strategies",
+    "gemini_advisory"
+  ],
+  "title": "ThreeYearPlanResponse",
+  "type": "object"
+}

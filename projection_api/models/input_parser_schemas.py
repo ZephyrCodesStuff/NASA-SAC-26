@@ -26,7 +26,7 @@ Covers the core input domains:
 
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, AliasChoices
 
 
 # ==============================================================================
@@ -65,9 +65,14 @@ class OwnershipType(str, Enum):
 
 class ParcelInfoInput(BaseModel):
     """Geospatial boundary, cadastral identifiers, soil classification, and land legal attributes."""
-    parcel_id: str = Field(..., description="Unique internal or farm parcel identifier (e.g. 'PRCL-2026-08')")
+    parcel_id: str = Field(
+        ...,
+        validation_alias=AliasChoices("parcel_id", "cadastral_id", "cadastral_number"),
+        description="Unique internal or farm parcel identifier (e.g. 'PRCL-2026-08')"
+    )
     field_name: Optional[str] = Field(None, description="Human-readable field name (e.g. 'North 40 Valley')")
     cadastral_number: Optional[str] = Field(None, description="Official government land registry / cadastral ID")
+    cadastral_id: Optional[str] = Field(None, description="Alias for parcel_id")
     country_code: Optional[str] = Field(default="US", description="ISO 2-letter country code")
     state_or_province: Optional[str] = Field(None, description="State, province, or region")
 
@@ -82,15 +87,24 @@ class ParcelInfoInput(BaseModel):
     area_hectares: Optional[float] = Field(None, gt=0.0, description="Total field area in hectares")
     area_acres: Optional[float] = Field(None, gt=0.0, description="Field area in acres (auto-converted if provided)")
 
-    # Baseline Soil Type
+    # Baseline Soil Type & Topography
     soil_type: Optional[str] = Field(
         None,
         description="Declared soil type or classification (e.g. 'Silt Loam', 'Clay Loam', 'Loam', 'Chernozem')"
     )
+    elevation_m: Optional[float] = Field(None, description="Elevation in meters above sea level")
+    slope_pct: Optional[float] = Field(None, description="Average terrain slope in percent")
 
-    # Legal & Water Rights
+    # Legal, Infrastructure & Water Rights
+    greenhouse_available: Optional[bool] = Field(default=False, description="Whether greenhouse/protected facility is available")
     ownership_type: Optional[OwnershipType] = Field(default=OwnershipType.OWNED)
-    annual_water_quota_m3: Optional[float] = Field(None, ge=0.0, description="Legal water allocation limit (m^3/year)")
+    annual_water_quota_m3: Optional[float] = Field(
+        None,
+        validation_alias=AliasChoices("annual_water_quota_m3", "legal_water_quota_m3"),
+        ge=0.0,
+        description="Legal water allocation limit (m^3/year)"
+    )
+    legal_water_quota_m3: Optional[float] = Field(None, description="Alias for annual_water_quota_m3")
 
     @model_validator(mode="after")
     def harmonize_area_and_coordinates(self) -> "ParcelInfoInput":
@@ -120,14 +134,25 @@ class ParcelInfoInput(BaseModel):
 
 class SeasonalCropRecord(BaseModel):
     """Detailed observation of a single historical cultivation season."""
-    year: int = Field(..., ge=1990, le=2035, description="Harvest calendar year")
+    year: int = Field(
+        ...,
+        validation_alias=AliasChoices("year", "season_year"),
+        ge=1990,
+        le=2035,
+        description="Harvest calendar year"
+    )
     season: Optional[str] = Field("Main Season", description="Growing season: 'Main Season', 'Spring', 'Fall', 'Winter Cover'")
     crop_name: str = Field(..., description="Crop planted (e.g. 'Corn (Maize)', 'Soybeans', 'Winter Wheat')")
     variety_or_hybrid: Optional[str] = Field(None, description="Specific seed variety, GMO trait, or hybrid tag")
     botanical_family: Optional[str] = Field(None, description="Family (e.g. 'Poaceae', 'Fabaceae', 'Solanaceae')")
 
     # Harvest & Yield
-    yield_harvested_tons_ha: Optional[float] = Field(None, ge=0.0, description="Harvested crop yield (metric tons / hectare)")
+    yield_harvested_tons_ha: Optional[float] = Field(
+        None,
+        validation_alias=AliasChoices("yield_harvested_tons_ha", "yield_tons_ha"),
+        ge=0.0,
+        description="Harvested crop yield (metric tons / hectare)"
+    )
     yield_harvested_bushels_acre: Optional[float] = Field(None, ge=0.0, description="Yield in bushels/acre (optional)")
     planting_date: Optional[str] = Field(None, description="ISO Date YYYY-MM-DD of seeding")
     harvest_date: Optional[str] = Field(None, description="ISO Date YYYY-MM-DD of harvest")
@@ -152,8 +177,16 @@ class HarvestAndCropHistoryInput(BaseModel):
     """Flexible history of past harvests (max 5 years)."""
     historical_seasons: List[SeasonalCropRecord] = Field(
         ...,
+        validation_alias=AliasChoices("historical_seasons", "historical_harvests", "seasons"),
         description="Chronological past cultivation records (minimum 1, maximum 5 years recommended)"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_bare_list(cls, data: Any) -> Any:
+        if isinstance(data, list):
+            return {"historical_seasons": data}
+        return data
 
     @field_validator("historical_seasons")
     @classmethod
@@ -298,25 +331,40 @@ class SeedDataInput(BaseModel):
 class EconomicPricesInput(BaseModel):
     """Market prices for agricultural inputs and consumables."""
     diesel_fuel_price_usd_liter: float = Field(
-        default=1.15, gt=0.0, description="Agricultural off-road diesel fuel price ($/liter)"
+        default=1.15,
+        validation_alias=AliasChoices("diesel_fuel_price_usd_liter", "diesel_price_per_liter_usd", "oil_price_per_liter_usd"),
+        gt=0.0,
+        description="Agricultural off-road diesel fuel price ($/liter)"
     )
     engine_lubricant_oil_price_usd_liter: Optional[float] = Field(
         default=5.50, gt=0.0, description="Engine/hydraulic machinery oil price ($/liter)"
     )
     irrigation_water_price_usd_m3: float = Field(
-        default=0.08, ge=0.0, description="Irrigation water tariff per cubic meter ($/m^3)"
+        default=0.08,
+        validation_alias=AliasChoices("irrigation_water_price_usd_m3", "water_price_per_m3_usd"),
+        ge=0.0,
+        description="Irrigation water tariff per cubic meter ($/m^3)"
     )
     electricity_pumping_tariff_usd_kwh: Optional[float] = Field(
         default=0.12, ge=0.0, description="Grid electricity price for irrigation pump motors ($/kWh)"
     )
     nitrogen_price_usd_kg: Optional[float] = Field(
-        default=1.35, gt=0.0, description="Cost of pure elemental Nitrogen equivalent ($/kg N)"
+        default=1.35,
+        validation_alias=AliasChoices("nitrogen_price_usd_kg", "fertilizer_n_per_kg_usd"),
+        gt=0.0,
+        description="Cost of pure elemental Nitrogen equivalent ($/kg N)"
     )
     phosphorus_price_usd_kg: Optional[float] = Field(
-        default=1.65, gt=0.0, description="Cost of P2O5 fertilizer equivalent ($/kg P2O5)"
+        default=1.65,
+        validation_alias=AliasChoices("phosphorus_price_usd_kg", "fertilizer_p_per_kg_usd"),
+        gt=0.0,
+        description="Cost of P2O5 fertilizer equivalent ($/kg P2O5)"
     )
     potassium_price_usd_kg: Optional[float] = Field(
-        default=0.95, gt=0.0, description="Cost of K2O fertilizer equivalent ($/kg K2O)"
+        default=0.95,
+        validation_alias=AliasChoices("potassium_price_usd_kg", "fertilizer_k_per_kg_usd"),
+        gt=0.0,
+        description="Cost of K2O fertilizer equivalent ($/kg K2O)"
     )
     seed_prices_usd_per_ha: Optional[Dict[str, float]] = Field(
         default=None,
@@ -327,7 +375,10 @@ class EconomicPricesInput(BaseModel):
         description="Detailed seed varieties specification: greenhouse requirement, cost, and resistance to extreme events"
     )
     labor_hourly_wage_usd: Optional[float] = Field(
-        default=22.0, ge=0.0, description="Farm equipment operator / laborer hourly wage ($/hour)"
+        default=22.0,
+        validation_alias=AliasChoices("labor_hourly_wage_usd", "labor_hourly_rate_usd"),
+        ge=0.0,
+        description="Farm equipment operator / laborer hourly wage ($/hour)"
     )
 
 
@@ -622,14 +673,46 @@ class GraceGroundwaterPayload(BaseModel):
 
 class NasaDataPayload(BaseModel):
     """Unified container for all 11 NASA Earth Observation datasets."""
-    nasa_power: Optional[NasaPowerPayload] = Field(None, description="NASA POWER agroclimatology")
-    gpm_imerg: Optional[GpmImergPayload] = Field(None, description="NASA GPM satellite precipitation")
-    smap_moisture: Optional[SmapMoisturePayload] = Field(None, description="NASA SMAP root-zone moisture")
-    openet_water: Optional[OpenEtPayload] = Field(None, description="NASA OpenET actual evapotranspiration")
-    ecostress: Optional[EcostressPayload] = Field(None, description="NASA ECOSTRESS thermal stress")
-    hls_vegetation: Optional[HlsSpectralPayload] = Field(None, description="Harmonized Landsat-Sentinel spectral indices")
-    soilgrids: Optional[SoilGridsPayload] = Field(None, description="SoilGrids / gSSURGO topsoil properties")
-    grace_groundwater: Optional[GraceGroundwaterPayload] = Field(None, description="NASA GRACE deep groundwater anomalies")
+    nasa_power: Optional[NasaPowerPayload] = Field(
+        None,
+        validation_alias=AliasChoices("nasa_power", "power_agroclimatology", "power"),
+        description="NASA POWER agroclimatology"
+    )
+    gpm_imerg: Optional[GpmImergPayload] = Field(
+        None,
+        validation_alias=AliasChoices("gpm_imerg", "gpm_precipitation", "gpm"),
+        description="NASA GPM satellite precipitation"
+    )
+    smap_moisture: Optional[SmapMoisturePayload] = Field(
+        None,
+        validation_alias=AliasChoices("smap_moisture", "smap_soil_moisture", "smap"),
+        description="NASA SMAP root-zone moisture"
+    )
+    openet_water: Optional[OpenEtPayload] = Field(
+        None,
+        validation_alias=AliasChoices("openet_water", "openet_evapotranspiration", "openet"),
+        description="NASA OpenET actual evapotranspiration"
+    )
+    ecostress: Optional[EcostressPayload] = Field(
+        None,
+        validation_alias=AliasChoices("ecostress", "ecostress_thermal_stress"),
+        description="NASA ECOSTRESS thermal stress"
+    )
+    hls_vegetation: Optional[HlsSpectralPayload] = Field(
+        None,
+        validation_alias=AliasChoices("hls_vegetation", "hls_spectral", "hls"),
+        description="Harmonized Landsat-Sentinel spectral indices"
+    )
+    soilgrids: Optional[SoilGridsPayload] = Field(
+        None,
+        validation_alias=AliasChoices("soilgrids", "soilgrids_stratified_layers", "isric_soilgrids"),
+        description="SoilGrids / gSSURGO topsoil properties"
+    )
+    grace_groundwater: Optional[GraceGroundwaterPayload] = Field(
+        None,
+        validation_alias=AliasChoices("grace_groundwater", "grace"),
+        description="NASA GRACE deep groundwater anomalies"
+    )
     appeears_task_id: Optional[str] = Field(None, description="Optional NASA AppEEARS sample extraction reference ID")
 
 
@@ -788,9 +871,14 @@ class FullFieldIngestionPayload(BaseModel):
     - Elevation Maps
     """
     parcel_info: ParcelInfoInput = Field(..., description="1. Parcel cadastral, geometry, coordinates, and soil type")
-    harvest_history: HarvestAndCropHistoryInput = Field(..., description="2. Last couple years (max 5) harvest records")
+    harvest_history: HarvestAndCropHistoryInput = Field(
+        ...,
+        validation_alias=AliasChoices("harvest_history", "historical_harvests"),
+        description="2. Last couple years (max 5) harvest records"
+    )
     economic_prices: EconomicPricesInput = Field(
         default_factory=EconomicPricesInput,
+        validation_alias=AliasChoices("economic_prices", "input_prices"),
         description="3. Seed, Water, Oil/Diesel, fertilizer prices, and seed characteristics"
     )
     seed_data: Optional[List[SeedDataInput]] = Field(

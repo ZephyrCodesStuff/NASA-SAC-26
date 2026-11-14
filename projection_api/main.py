@@ -1,20 +1,23 @@
 """
-Main FastAPI Application for Field Input Ingestion & Parser API.
+Main FastAPI Application for Field Ingestion, 3-Year Plan Optimization & Gemini Advisory API.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from projection_api.api.parser_routes import router as parser_router
+from projection_api.api.projection_routes import projection_router
 from projection_api.config import API_HOST, API_PORT, DEBUG
 
 app = FastAPI(
-    title="Field Ingestion & Input Parser API",
+    title="Agricultural Ingestion, 3-Year Plan Optimization & Gemini Advisory API",
     description=(
-        "Standardized agricultural ingestion API. "
-        "Normalizes parcel info, 1-5 year historical harvest records, economic input prices, "
-        "seed characteristics (Greenhouse Need & Extreme Event Resistances), NASA Earth observations, "
-        "long-term weather projections, local user telemetry, and elevation maps."
+        "Standardized agricultural ingestion and multi-objective 3-year planting plan solver. "
+        "Ingests raw NASA Earth observations, dated in-situ sensors, elevation maps, and input prices. "
+        "Simulates year-by-year physical ground impact (NPK balances, Henin-Dupuis SOC %, ASAE compaction PSI, "
+        "FAO-56 ETc deficits, RUSLE erosion) and generates 5 distinct farmer strategies: "
+        "Most Income, Best Soil Health, Least Effort, Highest ROI %, and Least Risk, "
+        "accompanied by grounded Google Gemini 3.8 Flash AI advisory."
     ),
     version="1.0.0",
     docs_url="/docs",
@@ -30,15 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include parser API routes
+# Include API routes
 app.include_router(parser_router)
+app.include_router(projection_router)
 
 
 @app.get("/", tags=["General"])
 def root_info():
     """Returns high-level API metadata and quickstart endpoints."""
     return {
-        "title": "Field Ingestion & Input Parser API",
+        "title": "Agricultural Ingestion, 3-Year Plan Optimization & Gemini Advisory API",
         "version": "1.0.0",
         "documentation": "/docs",
         "redoc": "/redoc",
@@ -46,17 +50,19 @@ def root_info():
             "ingest": "POST /api/parser/ingest",
             "validate": "POST /api/parser/validate",
             "seed_templates": "GET /api/parser/seed-templates",
-            "soil_types": "GET /api/parser/soil-types"
+            "soil_types": "GET /api/parser/soil-types",
+            "plan_3year": "POST /api/projections/plan-3year",
+            "crops_catalog": "GET /api/projections/crops-catalog",
+            "soil_profiles": "GET /api/projections/soil-profiles"
         },
-        "domains_supported": [
-            "Parcel Info & Soil Type",
-            "Last 1-5 Years Harvest & Crop History",
-            "Seed / Water / Oil Prices & Seed Characteristics (Greenhouse Need & Extreme Event Resistance)",
-            "NASA Earth Observations (11 datasets)",
-            "Long-Term Weather Projections",
-            "Local User Telemetry (In-situ sensors, soil override, tillage, irrigation)",
-            "Elevation Maps (DEM, slope, aspect, waterlogging)"
-        ]
+        "supported_strategies": [
+            "most_income",
+            "best_soil_health",
+            "least_effort",
+            "highest_roi",
+            "least_crop_loss_risk"
+        ],
+        "ai_advisory": "Google Gemini 3.8 Flash via official google-genai SDK (with deterministic offline fallback)"
     }
 
 

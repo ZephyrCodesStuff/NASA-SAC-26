@@ -1,0 +1,3337 @@
+{
+  "$defs": {
+    "AspectCompass": {
+      "enum": [
+        "North-Facing",
+        "Northeast-Facing",
+        "East-Facing",
+        "Southeast-Facing",
+        "South-Facing (Maximum Solar Irradiance)",
+        "Southwest-Facing",
+        "West-Facing",
+        "Northwest-Facing",
+        "Flat / Level Terrain"
+      ],
+      "title": "AspectCompass",
+      "type": "string"
+    },
+    "ClimateProjectionScenario": {
+      "enum": [
+        "Historical Persistence (Past 5-10yr Trend)",
+        "CMIP6 Moderate Mitigation (SSP2-4.5)",
+        "CMIP6 High Emissions / Extreme Warming (SSP5-8.5)",
+        "Custom Grower Projected Scenario"
+      ],
+      "title": "ClimateProjectionScenario",
+      "type": "string"
+    },
+    "DatedDailyWeatherRecord": {
+      "description": "Daily meteorological observation with explicit date signature (NASA POWER).",
+      "properties": {
+        "date": {
+          "description": "Date of observation YYYY-MM-DD or YYYYMMDD",
+          "title": "Date",
+          "type": "string"
+        },
+        "t2m_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "2m daily mean air temperature (\u00b0C)",
+          "title": "T2M C"
+        },
+        "t2m_max_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily max air temperature (\u00b0C)",
+          "title": "T2M Max C"
+        },
+        "t2m_min_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily min air temperature (\u00b0C)",
+          "title": "T2M Min C"
+        },
+        "precipitation_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily precipitation accumulation (mm)",
+          "title": "Precipitation Mm"
+        },
+        "solar_radiation_mj_m2": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily all-sky surface insolation (MJ/m^2/day)",
+          "title": "Solar Radiation Mj M2"
+        },
+        "relative_humidity_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily mean relative humidity (%)",
+          "title": "Relative Humidity Pct"
+        },
+        "wind_speed_2m_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily 2m wind speed (m/s)",
+          "title": "Wind Speed 2M Ms"
+        },
+        "dew_point_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dew point temperature (\u00b0C)",
+          "title": "Dew Point C"
+        },
+        "surface_pressure_kpa": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Atmospheric surface pressure (kPa)",
+          "title": "Surface Pressure Kpa"
+        }
+      },
+      "required": [
+        "date"
+      ],
+      "title": "DatedDailyWeatherRecord",
+      "type": "object"
+    },
+    "DatedInSituSensorReading": {
+      "description": "Ground-level sensor observation with explicit date and time signature.\nEnables tracking of temporal depletion, compaction build-up, and moisture draw-down.",
+      "properties": {
+        "timestamp": {
+          "description": "ISO-8601 Date/Time signature (e.g. '2025-05-15T09:30:00Z' or '2025-05-15')",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "sensor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unique hardware probe or field station identifier",
+          "title": "Sensor Id"
+        },
+        "depth_cm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 15.0,
+          "description": "Depth of probe insertion (cm)",
+          "title": "Depth Cm"
+        },
+        "location_latitude": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Specific probe GPS latitude",
+          "title": "Location Latitude"
+        },
+        "location_longitude": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Specific probe GPS longitude",
+          "title": "Location Longitude"
+        },
+        "soil_nitrogen_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Nitrate/Ammonium (ppm)",
+          "title": "Soil Nitrogen Ppm"
+        },
+        "soil_phosphorus_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Phosphorus (ppm)",
+          "title": "Soil Phosphorus Ppm"
+        },
+        "soil_potassium_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Potassium (ppm)",
+          "title": "Soil Potassium Ppm"
+        },
+        "soil_moisture_vol_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Volumetric Soil Moisture (%)",
+          "title": "Soil Moisture Vol Pct"
+        },
+        "soil_ph": {
+          "anyOf": [
+            {
+              "maximum": 11.0,
+              "minimum": 3.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "In-situ glass/ISFET pH reading",
+          "title": "Soil Ph"
+        },
+        "soil_ec_salinity_ds_m": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Electrical Conductivity in dS/m",
+          "title": "Soil Ec Salinity Ds M"
+        },
+        "soil_organic_matter_pct": {
+          "anyOf": [
+            {
+              "maximum": 30.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SOM % from portable NIR/LOI",
+          "title": "Soil Organic Matter Pct"
+        },
+        "soil_compaction_psi": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cone penetrometer resistance (PSI)",
+          "title": "Soil Compaction Psi"
+        },
+        "soil_temperature_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soil temperature at sensor depth (\u00b0C)",
+          "title": "Soil Temperature C"
+        },
+        "device_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hardware make/model (e.g. 'Spectrum FieldScout TDR-350')",
+          "title": "Device Model"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Agronomist field notes for this reading",
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "timestamp"
+      ],
+      "title": "DatedInSituSensorReading",
+      "type": "object"
+    },
+    "DatedPrecipitationObservation": {
+      "description": "Timestamped precipitation record from NASA GPM IMERG.",
+      "properties": {
+        "date": {
+          "description": "Observation date YYYY-MM-DD",
+          "title": "Date",
+          "type": "string"
+        },
+        "precipitation_mm": {
+          "description": "Daily precipitation depth (mm)",
+          "minimum": 0.0,
+          "title": "Precipitation Mm",
+          "type": "number"
+        },
+        "rain_rate_max_mm_hr": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Peak storm precipitation rate (mm/hr)",
+          "title": "Rain Rate Max Mm Hr"
+        },
+        "storm_duration_hours": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Estimated rainfall duration (hours)",
+          "title": "Storm Duration Hours"
+        }
+      },
+      "required": [
+        "date",
+        "precipitation_mm"
+      ],
+      "title": "DatedPrecipitationObservation",
+      "type": "object"
+    },
+    "DatedSoilMoistureRecord": {
+      "description": "Dated soil moisture observation from NASA SMAP L4.",
+      "properties": {
+        "date": {
+          "description": "Observation date YYYY-MM-DD",
+          "title": "Date",
+          "type": "string"
+        },
+        "surface_moisture_m3_m3": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "0-5 cm surface volumetric moisture (m^3/m^3)",
+          "title": "Surface Moisture M3 M3"
+        },
+        "rootzone_moisture_m3_m3": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "0-100 cm root-zone volumetric moisture (m^3/m^3)",
+          "title": "Rootzone Moisture M3 M3"
+        },
+        "surface_soil_temp_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soil surface temperature (\u00b0C)",
+          "title": "Surface Soil Temp C"
+        },
+        "rootzone_depletion_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available water capacity depletion (%)",
+          "title": "Rootzone Depletion Pct"
+        }
+      },
+      "required": [
+        "date"
+      ],
+      "title": "DatedSoilMoistureRecord",
+      "type": "object"
+    },
+    "EconomicPricesInput": {
+      "description": "Market prices for agricultural inputs and consumables.",
+      "properties": {
+        "diesel_fuel_price_usd_liter": {
+          "default": 1.15,
+          "description": "Agricultural off-road diesel fuel price ($/liter)",
+          "exclusiveMinimum": 0.0,
+          "title": "Diesel Fuel Price Usd Liter",
+          "type": "number"
+        },
+        "engine_lubricant_oil_price_usd_liter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 5.5,
+          "description": "Engine/hydraulic machinery oil price ($/liter)",
+          "title": "Engine Lubricant Oil Price Usd Liter"
+        },
+        "irrigation_water_price_usd_m3": {
+          "default": 0.08,
+          "description": "Irrigation water tariff per cubic meter ($/m^3)",
+          "minimum": 0.0,
+          "title": "Irrigation Water Price Usd M3",
+          "type": "number"
+        },
+        "electricity_pumping_tariff_usd_kwh": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0.12,
+          "description": "Grid electricity price for irrigation pump motors ($/kWh)",
+          "title": "Electricity Pumping Tariff Usd Kwh"
+        },
+        "nitrogen_price_usd_kg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.35,
+          "description": "Cost of pure elemental Nitrogen equivalent ($/kg N)",
+          "title": "Nitrogen Price Usd Kg"
+        },
+        "phosphorus_price_usd_kg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.65,
+          "description": "Cost of P2O5 fertilizer equivalent ($/kg P2O5)",
+          "title": "Phosphorus Price Usd Kg"
+        },
+        "potassium_price_usd_kg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0.95,
+          "description": "Cost of K2O fertilizer equivalent ($/kg K2O)",
+          "title": "Potassium Price Usd Kg"
+        },
+        "seed_prices_usd_per_ha": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional seed price mapping per hectare (e.g. {'Corn (Maize)': 280.0, 'Soybeans': 160.0})",
+          "title": "Seed Prices Usd Per Ha"
+        },
+        "seed_data": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SeedDataInput"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Detailed seed varieties specification: greenhouse requirement, cost, and resistance to extreme events",
+          "title": "Seed Data"
+        },
+        "labor_hourly_wage_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 22.0,
+          "description": "Farm equipment operator / laborer hourly wage ($/hour)",
+          "title": "Labor Hourly Wage Usd"
+        }
+      },
+      "title": "EconomicPricesInput",
+      "type": "object"
+    },
+    "EcostressPayload": {
+      "description": "Plant thermal and canopy stress from NASA ECOSTRESS.\nAccepts raw official response or dated scene overpass records.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official ECOSTRESS LP DAAC / AppEEARS scene response",
+          "title": "Raw Official Response"
+        },
+        "scenes": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EcostressSceneRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dated canopy thermal infrared scenes and Evaporative Stress Index",
+          "title": "Scenes"
+        },
+        "canopy_surface_temp_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Thermal infrared canopy temperature (\u00b0C)",
+          "title": "Canopy Surface Temp C"
+        },
+        "evaporative_stress_index": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Evaporative Stress Index ESI",
+          "title": "Evaporative Stress Index"
+        }
+      },
+      "title": "EcostressPayload",
+      "type": "object"
+    },
+    "EcostressSceneRecord": {
+      "description": "Dated canopy thermal stress overpass from NASA ECOSTRESS.",
+      "properties": {
+        "timestamp": {
+          "description": "Overpass timestamp ISO-8601 YYYY-MM-DDTHH:MM:SSZ",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "canopy_surface_temp_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Canopy surface thermal infrared temperature (\u00b0C)",
+          "title": "Canopy Surface Temp C"
+        },
+        "evaporative_stress_index": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Evaporative Stress Index (ESI)",
+          "title": "Evaporative Stress Index"
+        },
+        "water_deficit_index": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Water Deficit Index (WDI)",
+          "title": "Water Deficit Index"
+        },
+        "quality_flag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Clear",
+          "description": "Quality flag / cloud interference",
+          "title": "Quality Flag"
+        }
+      },
+      "required": [
+        "timestamp"
+      ],
+      "title": "EcostressSceneRecord",
+      "type": "object"
+    },
+    "ElevationMapsInput": {
+      "description": "High-resolution Digital Elevation Model (DEM) and terrain slope metrics.",
+      "properties": {
+        "elevation_mean_m": {
+          "anyOf": [
+            {
+              "maximum": 8848.0,
+              "minimum": -400.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean surface elevation (m)",
+          "title": "Elevation Mean M"
+        },
+        "elevation_min_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lowest spot elevation (m)",
+          "title": "Elevation Min M"
+        },
+        "elevation_max_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Highest crest elevation (m)",
+          "title": "Elevation Max M"
+        },
+        "slope_mean_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean topographic slope (%)",
+          "title": "Slope Mean Pct"
+        },
+        "slope_max_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum slope gradient on parcel (%)",
+          "title": "Slope Max Pct"
+        },
+        "aspect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AspectCompass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Flat / Level Terrain",
+          "description": "Sun exposure slope direction"
+        },
+        "topographic_wetness_index": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "TWI: wetness accumulation potential",
+          "title": "Topographic Wetness Index"
+        },
+        "waterlogging_depression_present": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": false,
+          "description": "True if parcel has low spot prone to water stagnation after storms",
+          "title": "Waterlogging Depression Present"
+        },
+        "soil_erosion_susceptibility": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'Low (Stable Flat)', 'Moderate (Terracing Recommended)', 'High (Washout Risk)'",
+          "title": "Soil Erosion Susceptibility"
+        },
+        "elevation_raster_url_or_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional URL or GeoTIFF reference to SRTM/NASADEM 30m raster",
+          "title": "Elevation Raster Url Or Ref"
+        }
+      },
+      "title": "ElevationMapsInput",
+      "type": "object"
+    },
+    "ExtremeEventResistance": {
+      "description": "Agronomic resistance and tolerance metrics to severe abiotic weather shocks:\nDrought, flood/waterlogging, high winds/lodging, frost/freezing, and extreme heat.",
+      "properties": {
+        "drought_resistance": {
+          "$ref": "#/$defs/ExtremeResistanceLevel",
+          "default": "Moderate (Average Resilience)",
+          "description": "Resilience against soil moisture deficits and prolonged dry spells"
+        },
+        "drought_tolerance_score": {
+          "default": 3.0,
+          "description": "Quantitative drought rating (1.0 = wilts and dies quickly, 5.0 = arid/deep taproot adapted)",
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "title": "Drought Tolerance Score",
+          "type": "number"
+        },
+        "flood_waterlogging_resistance": {
+          "$ref": "#/$defs/ExtremeResistanceLevel",
+          "default": "Moderate (Average Resilience)",
+          "description": "Resilience against root-zone hypoxia, ponding, standing water, and anaerobic saturation"
+        },
+        "flood_tolerance_score": {
+          "default": 3.0,
+          "description": "Quantitative flood rating (1.0 = root rot in 24h, 5.0 = wetland/aerenchyma adapted)",
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "title": "Flood Tolerance Score",
+          "type": "number"
+        },
+        "wind_lodging_resistance": {
+          "$ref": "#/$defs/ExtremeResistanceLevel",
+          "default": "Moderate (Average Resilience)",
+          "description": "Resistance against gale winds, stem snapping, root uprooting, and crop lodging"
+        },
+        "wind_tolerance_score": {
+          "default": 3.0,
+          "description": "Quantitative wind/lodging score (1.0 = tall brittle stalks lodging easily, 5.0 = prostrate or storm-resilient)",
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "title": "Wind Tolerance Score",
+          "type": "number"
+        },
+        "frost_cold_resistance": {
+          "$ref": "#/$defs/ExtremeResistanceLevel",
+          "default": "Moderate (Average Resilience)",
+          "description": "Resilience to sudden late spring frost, early autumn freezes, or harsh overwintering temperatures"
+        },
+        "frost_tolerance_score": {
+          "default": 3.0,
+          "description": "Quantitative frost score (1.0 = tender killed at 0\u00b0C, 5.0 = survives below -20\u00b0C dormancy)",
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "title": "Frost Tolerance Score",
+          "type": "number"
+        },
+        "extreme_heat_resistance": {
+          "$ref": "#/$defs/ExtremeResistanceLevel",
+          "default": "Moderate (Average Resilience)",
+          "description": "Resilience to canopy scorching, pollen sterilization, and heat shock above 35\u00b0C"
+        },
+        "heat_tolerance_score": {
+          "default": 3.0,
+          "description": "Quantitative heat score (1.0 = flower abortion at 30\u00b0C, 5.0 = high C4/tropical heat performance)",
+          "maximum": 5.0,
+          "minimum": 1.0,
+          "title": "Heat Tolerance Score",
+          "type": "number"
+        },
+        "salinity_tolerance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Moderate",
+          "description": "Tolerance to soil electrical conductivity (EC) / salt accumulation: 'Low', 'Moderate', 'High'",
+          "title": "Salinity Tolerance"
+        },
+        "extreme_event_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Breeder or field observation notes on extreme event resilience",
+          "title": "Extreme Event Notes"
+        }
+      },
+      "title": "ExtremeEventResistance",
+      "type": "object"
+    },
+    "ExtremeResistanceLevel": {
+      "enum": [
+        "Very Low (Highly Susceptible)",
+        "Low",
+        "Moderate (Average Resilience)",
+        "High",
+        "Very High (Extreme Tolerance)"
+      ],
+      "title": "ExtremeResistanceLevel",
+      "type": "string"
+    },
+    "GpmImergPayload": {
+      "description": "Precipitation metrics from NASA GPM IMERG.\nAccepts raw official response, daily precipitation list, or date-to-rain map.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official NASA GPM IMERG STAC / timeseries response",
+          "title": "Raw Official Response"
+        },
+        "daily_records": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DatedPrecipitationObservation"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chronological daily precipitation observations with storm rates",
+          "title": "Daily Records"
+        },
+        "daily_rainfall_series": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapping of date string 'YYYY-MM-DD' to rainfall accumulation in mm",
+          "title": "Daily Rainfall Series"
+        },
+        "annual_rainfall_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Annual rainfall total (mm)",
+          "title": "Annual Rainfall Mm"
+        },
+        "growing_season_rainfall_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rainfall during active growth season (mm)",
+          "title": "Growing Season Rainfall Mm"
+        },
+        "peak_daily_rainfall_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Max 24h storm accumulation (mm)",
+          "title": "Peak Daily Rainfall Mm"
+        },
+        "rainfall_deficit_percentage": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anomaly vs 30-year climatological normal (%)",
+          "title": "Rainfall Deficit Percentage"
+        }
+      },
+      "title": "GpmImergPayload",
+      "type": "object"
+    },
+    "GraceGroundwaterPayload": {
+      "description": "Deep aquifer water storage anomalies from NASA GRACE / GRACE-FO.\nAccepts raw official response, monthly dated records, or date-to-anomaly dict.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official NASA GRACE Tellus / Earthdata groundwater anomaly payload",
+          "title": "Raw Official Response"
+        },
+        "monthly_records": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/GraceMonthlyRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Monthly Liquid Water Equivalent (LWE) thickness anomaly timeseries",
+          "title": "Monthly Records"
+        },
+        "monthly_series": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Month 'YYYY-MM' to LWE thickness anomaly (cm) mapping",
+          "title": "Monthly Series"
+        },
+        "terrestrial_water_storage_trend": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'Stable', 'Depleting (-1.2 cm/yr)', 'Recharging (+0.8 cm/yr)'",
+          "title": "Terrestrial Water Storage Trend"
+        },
+        "water_table_depth_meters": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Depth to regional aquifer (m)",
+          "title": "Water Table Depth Meters"
+        },
+        "aquifer_security_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'Secure', 'Vulnerable', 'Severely Depleted'",
+          "title": "Aquifer Security Status"
+        }
+      },
+      "title": "GraceGroundwaterPayload",
+      "type": "object"
+    },
+    "GraceMonthlyRecord": {
+      "description": "Monthly deep aquifer groundwater storage anomaly from NASA GRACE / GRACE-FO.",
+      "properties": {
+        "date": {
+          "description": "Observation month YYYY-MM",
+          "title": "Date",
+          "type": "string"
+        },
+        "lwe_thickness_anomaly_cm": {
+          "description": "Liquid Water Equivalent thickness anomaly (cm)",
+          "title": "Lwe Thickness Anomaly Cm",
+          "type": "number"
+        },
+        "groundwater_percentile": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Drought/recharge historical percentile (0-100%)",
+          "title": "Groundwater Percentile"
+        },
+        "trend_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'Recharging', 'Stable', 'Depleting'",
+          "title": "Trend Status"
+        }
+      },
+      "required": [
+        "date",
+        "lwe_thickness_anomaly_cm"
+      ],
+      "title": "GraceMonthlyRecord",
+      "type": "object"
+    },
+    "GreenhouseRequirement": {
+      "enum": [
+        "Open Field Only",
+        "Open Field or Greenhouse Compatible",
+        "Greenhouse Recommended",
+        "Greenhouse Required (Protected Cultivation)"
+      ],
+      "title": "GreenhouseRequirement",
+      "type": "string"
+    },
+    "HarvestAndCropHistoryInput": {
+      "description": "Flexible history of past harvests (max 5 years).",
+      "properties": {
+        "historical_seasons": {
+          "description": "Chronological past cultivation records (minimum 1, maximum 5 years recommended)",
+          "items": {
+            "$ref": "#/$defs/SeasonalCropRecord"
+          },
+          "title": "Historical Seasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "historical_seasons"
+      ],
+      "title": "HarvestAndCropHistoryInput",
+      "type": "object"
+    },
+    "HlsOverpassRecord": {
+      "description": "Dated multispectral vegetation scene from Harmonized Landsat-Sentinel (HLS).",
+      "properties": {
+        "date": {
+          "description": "Observation date YYYY-MM-DD",
+          "title": "Date",
+          "type": "string"
+        },
+        "sensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "HLS",
+          "description": "'Landsat-8/9 OLI' (L30) or 'Sentinel-2 MSI' (S30)",
+          "title": "Sensor"
+        },
+        "ndvi": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Normalized Difference Vegetation Index",
+          "title": "Ndvi"
+        },
+        "ndre": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Red Edge Chlorophyll Index",
+          "title": "Ndre"
+        },
+        "ndwi": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Normalized Difference Water Index",
+          "title": "Ndwi"
+        },
+        "cloud_cover_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scene cloud cover percentage",
+          "title": "Cloud Cover Pct"
+        }
+      },
+      "required": [
+        "date"
+      ],
+      "title": "HlsOverpassRecord",
+      "type": "object"
+    },
+    "HlsSpectralPayload": {
+      "description": "Harmonized Landsat-Sentinel 30m multispectral vegetation health.\nAccepts raw STAC response or chronological satellite overpasses.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official NASA STAC / Earthdata HLS surface reflectance items",
+          "title": "Raw Official Response"
+        },
+        "overpasses": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/HlsOverpassRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chronological dated multispectral satellite overpasses",
+          "title": "Overpasses"
+        },
+        "ndvi_peak": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Peak Normalized Difference Vegetation Index",
+          "title": "Ndvi Peak"
+        },
+        "ndre_peak": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Red Edge Index (canopy chlorophyll)",
+          "title": "Ndre Peak"
+        },
+        "ndwi_peak": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Canopy water hydration index",
+          "title": "Ndwi Peak"
+        }
+      },
+      "title": "HlsSpectralPayload",
+      "type": "object"
+    },
+    "InSituPortableSensorReading": {
+      "description": "Single handheld or mounted sensor observation snapshot (backward compatible).",
+      "properties": {
+        "measurement_timestamp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO timestamp YYYY-MM-DD",
+          "title": "Measurement Timestamp"
+        },
+        "soil_nitrogen_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Soil Nitrate/Ammonium (ppm)",
+          "title": "Soil Nitrogen Ppm"
+        },
+        "soil_phosphorus_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Bray/Olsen Phosphorus (ppm)",
+          "title": "Soil Phosphorus Ppm"
+        },
+        "soil_potassium_ppm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available Potassium (ppm)",
+          "title": "Soil Potassium Ppm"
+        },
+        "soil_moisture_vol_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "TDR Volumetric Soil Moisture (%)",
+          "title": "Soil Moisture Vol Pct"
+        },
+        "soil_ph": {
+          "anyOf": [
+            {
+              "maximum": 11.0,
+              "minimum": 3.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "In-situ glass/ISFET pH reading",
+          "title": "Soil Ph"
+        },
+        "soil_ec_salinity_ds_m": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Electrical Conductivity in dS/m",
+          "title": "Soil Ec Salinity Ds M"
+        },
+        "soil_organic_matter_pct": {
+          "anyOf": [
+            {
+              "maximum": 30.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SOM % from portable NIR/LOI",
+          "title": "Soil Organic Matter Pct"
+        },
+        "soil_compaction_psi": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cone penetrometer resistance (PSI)",
+          "title": "Soil Compaction Psi"
+        },
+        "device_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hardware make/model",
+          "title": "Device Model"
+        }
+      },
+      "title": "InSituPortableSensorReading",
+      "type": "object"
+    },
+    "IrrigationSystemType": {
+      "enum": [
+        "Rainfed / Dryland (No Irrigation)",
+        "Center Pivot Sprinkler",
+        "Precision Drip / Micro-Irrigation",
+        "Furrow / Gravity Surface Flood",
+        "Sub-surface Drainage Tile Irrigation"
+      ],
+      "title": "IrrigationSystemType",
+      "type": "string"
+    },
+    "LocalUserDataInput": {
+      "description": "Farm-specific operational parameters, machinery constraints, soil override, and ground sensors.",
+      "properties": {
+        "soil_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Local farmer/lab verified soil type (overrides satellite SoilGrids data, e.g. 'Sandy Loam', 'Clay Loam')",
+          "title": "Soil Type"
+        },
+        "dated_sensor_readings": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DatedInSituSensorReading"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chronological in-situ ground sensor readings with exact date/time signatures",
+          "title": "Dated Sensor Readings"
+        },
+        "portable_sensors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InSituPortableSensorReading"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Single handheld sensor observation snapshot (if timeseries not provided)"
+        },
+        "irrigation_system": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IrrigationSystemType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Center Pivot Sprinkler",
+          "description": "Field irrigation technology installed"
+        },
+        "tillage_practice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TillagePractice"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Strip-Till / Reduced Tillage",
+          "description": "Soil management tillage system"
+        },
+        "is_organic_certified": {
+          "default": false,
+          "description": "Strict organic protocol (disallows synthetic NPK/chem)",
+          "title": "Is Organic Certified",
+          "type": "boolean"
+        },
+        "labor_availability_rating": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Standard",
+          "description": "'Abundant Full-Time', 'Standard', 'Constrained / Part-Time'",
+          "title": "Labor Availability Rating"
+        },
+        "preferred_candidate_crops": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional whitelist of candidate crops for rotation",
+          "title": "Preferred Candidate Crops"
+        },
+        "excluded_crops": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Blacklist of crops farmer refuses to grow (e.g. ['Cotton'])",
+          "title": "Excluded Crops"
+        },
+        "farm_management_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Free-text operational instructions or notes for the agronomist",
+          "title": "Farm Management Notes"
+        }
+      },
+      "title": "LocalUserDataInput",
+      "type": "object"
+    },
+    "LongTermWeatherProjectionsInput": {
+      "description": "Multi-year climatological projections and decadal climate shifts.",
+      "properties": {
+        "scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClimateProjectionScenario"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Historical Persistence (Past 5-10yr Trend)",
+          "description": "Underlying climate trajectory model"
+        },
+        "projection_horizon_years": {
+          "default": 5,
+          "description": "Projection duration horizon in years",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Projection Horizon Years",
+          "type": "integer"
+        },
+        "projected_annual_temp_shift_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anticipated mean temperature rise (\u00b0C) over horizon (e.g. +0.8\u00b0C)",
+          "title": "Projected Annual Temp Shift C"
+        },
+        "projected_annual_precipitation_delta_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anticipated precipitation shift (%) (e.g. -6.5% for drying, +4.0% for wetter)",
+          "title": "Projected Annual Precipitation Delta Pct"
+        },
+        "heat_wave_days_increase_per_year": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional days per year exceeding crop heat threshold (>32\u00b0C)",
+          "title": "Heat Wave Days Increase Per Year"
+        },
+        "drought_frequency_rating": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'Low (1 in 10 yr)', 'Moderate (1 in 4 yr)', 'Severe (Annual summer drought)'",
+          "title": "Drought Frequency Rating"
+        }
+      },
+      "title": "LongTermWeatherProjectionsInput",
+      "type": "object"
+    },
+    "NasaDataPayload": {
+      "description": "Unified container for all 11 NASA Earth Observation datasets.",
+      "properties": {
+        "nasa_power": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NasaPowerPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA POWER agroclimatology"
+        },
+        "gpm_imerg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GpmImergPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA GPM satellite precipitation"
+        },
+        "smap_moisture": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SmapMoisturePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA SMAP root-zone moisture"
+        },
+        "openet_water": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenEtPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA OpenET actual evapotranspiration"
+        },
+        "ecostress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EcostressPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA ECOSTRESS thermal stress"
+        },
+        "hls_vegetation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HlsSpectralPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Harmonized Landsat-Sentinel spectral indices"
+        },
+        "soilgrids": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoilGridsPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SoilGrids / gSSURGO topsoil properties"
+        },
+        "grace_groundwater": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraceGroundwaterPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NASA GRACE deep groundwater anomalies"
+        },
+        "appeears_task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional NASA AppEEARS sample extraction reference ID",
+          "title": "Appeears Task Id"
+        }
+      },
+      "title": "NasaDataPayload",
+      "type": "object"
+    },
+    "NasaPowerPayload": {
+      "description": "Weather & Climate series from NASA POWER AG Community.\nAccepts:\n1. Official raw JSON point query response (Feature with properties.parameter)\n2. Explicit daily dated timeseries records (daily_timeseries)\n3. Parameter-to-date mapping dictionaries (daily_parameters: {\"T2M\": {\"20230101\": -2.3, ...}})\n4. Optional summary scalar fallbacks",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official NASA POWER API point response containing 'properties.parameter'",
+          "title": "Raw Official Response"
+        },
+        "daily_timeseries": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DatedDailyWeatherRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit list of dated daily weather observations",
+          "title": "Daily Timeseries"
+        },
+        "daily_parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dictionary of parameter name to date-value map (e.g. {'T2M': {'20230101': -2.3}})",
+          "title": "Daily Parameters"
+        },
+        "t2m_mean_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "2m annual mean air temperature (\u00b0C)",
+          "title": "T2M Mean C"
+        },
+        "t2m_max_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Summer peak daily air temperature (\u00b0C)",
+          "title": "T2M Max C"
+        },
+        "t2m_min_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Winter lowest daily air temperature (\u00b0C)",
+          "title": "T2M Min C"
+        },
+        "solar_radiation_mj_m2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Daily all-sky surface insolation (MJ/m^2/day)",
+          "title": "Solar Radiation Mj M2"
+        },
+        "relative_humidity_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Relative humidity (%)",
+          "title": "Relative Humidity Pct"
+        },
+        "wind_speed_2m_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "2m wind speed (m/s)",
+          "title": "Wind Speed 2M Ms"
+        },
+        "growing_degree_days_base10": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Annual accumulated GDD (Base 10\u00b0C)",
+          "title": "Growing Degree Days Base10"
+        },
+        "fao56_et0_annual_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Annual Penman-Monteith reference ET0 (mm)",
+          "title": "Fao56 Et0 Annual Mm"
+        }
+      },
+      "title": "NasaPowerPayload",
+      "type": "object"
+    },
+    "OpenEtPayload": {
+      "description": "Actual crop evapotranspiration from NASA OpenET.\nAccepts official OpenET API array (`[{'date': 'YYYY-MM-DD', 'et': mm}, ...]`), timeseries list, or date-to-ET dict.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official OpenET REST API timeseries response array",
+          "title": "Raw Official Response"
+        },
+        "timeseries": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/OpenEtTimeseriesRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dated actual crop evapotranspiration records",
+          "title": "Timeseries"
+        },
+        "daily_et_series": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Date to ET (mm) mapping",
+          "title": "Daily Et Series"
+        },
+        "actual_et_annual_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Field actual ET consumed by vegetation (mm)",
+          "title": "Actual Et Annual Mm"
+        },
+        "crop_coefficient_kc_mid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Peak mid-season crop coefficient Kc",
+          "title": "Crop Coefficient Kc Mid"
+        }
+      },
+      "title": "OpenEtPayload",
+      "type": "object"
+    },
+    "OpenEtTimeseriesRecord": {
+      "description": "Dated crop actual evapotranspiration from NASA OpenET.",
+      "properties": {
+        "date": {
+          "description": "Observation date YYYY-MM-DD",
+          "title": "Date",
+          "type": "string"
+        },
+        "et_actual_mm": {
+          "description": "Actual evapotranspiration consumed by crop (mm)",
+          "minimum": 0.0,
+          "title": "Et Actual Mm",
+          "type": "number"
+        },
+        "et_reference_et0_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference grass ET0 (mm)",
+          "title": "Et Reference Et0 Mm"
+        },
+        "crop_coefficient_kc": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Derived crop coefficient Kc",
+          "title": "Crop Coefficient Kc"
+        },
+        "model_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Ensemble",
+          "description": "OpenET model algorithm",
+          "title": "Model Name"
+        }
+      },
+      "required": [
+        "date",
+        "et_actual_mm"
+      ],
+      "title": "OpenEtTimeseriesRecord",
+      "type": "object"
+    },
+    "OwnershipType": {
+      "enum": [
+        "Owned",
+        "Leased",
+        "Communal / Shared",
+        "Public / State"
+      ],
+      "title": "OwnershipType",
+      "type": "string"
+    },
+    "ParcelInfoInput": {
+      "description": "Geospatial boundary, cadastral identifiers, soil classification, and land legal attributes.",
+      "properties": {
+        "parcel_id": {
+          "description": "Unique internal or farm parcel identifier (e.g. 'PRCL-2026-08')",
+          "title": "Parcel Id",
+          "type": "string"
+        },
+        "field_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable field name (e.g. 'North 40 Valley')",
+          "title": "Field Name"
+        },
+        "cadastral_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Official government land registry / cadastral ID",
+          "title": "Cadastral Number"
+        },
+        "cadastral_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alias for parcel_id",
+          "title": "Cadastral Id"
+        },
+        "country_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "US",
+          "description": "ISO 2-letter country code",
+          "title": "Country Code"
+        },
+        "state_or_province": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "State, province, or region",
+          "title": "State Or Province"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Centroid Latitude (WGS84)",
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Centroid Longitude (WGS84)",
+          "title": "Longitude"
+        },
+        "boundary_geojson": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GeoJSON Geometry (Polygon or MultiPolygon) defining field borders",
+          "title": "Boundary Geojson"
+        },
+        "area_hectares": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total field area in hectares",
+          "title": "Area Hectares"
+        },
+        "area_acres": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Field area in acres (auto-converted if provided)",
+          "title": "Area Acres"
+        },
+        "soil_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Declared soil type or classification (e.g. 'Silt Loam', 'Clay Loam', 'Loam', 'Chernozem')",
+          "title": "Soil Type"
+        },
+        "elevation_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Elevation in meters above sea level",
+          "title": "Elevation M"
+        },
+        "slope_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Average terrain slope in percent",
+          "title": "Slope Pct"
+        },
+        "greenhouse_available": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": false,
+          "description": "Whether greenhouse/protected facility is available",
+          "title": "Greenhouse Available"
+        },
+        "ownership_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OwnershipType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Owned"
+        },
+        "annual_water_quota_m3": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legal water allocation limit (m^3/year)",
+          "title": "Annual Water Quota M3"
+        },
+        "legal_water_quota_m3": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alias for annual_water_quota_m3",
+          "title": "Legal Water Quota M3"
+        }
+      },
+      "required": [
+        "parcel_id"
+      ],
+      "title": "ParcelInfoInput",
+      "type": "object"
+    },
+    "SeasonalCropRecord": {
+      "description": "Detailed observation of a single historical cultivation season.",
+      "properties": {
+        "year": {
+          "description": "Harvest calendar year",
+          "maximum": 2035,
+          "minimum": 1990,
+          "title": "Year",
+          "type": "integer"
+        },
+        "season": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Main Season",
+          "description": "Growing season: 'Main Season', 'Spring', 'Fall', 'Winter Cover'",
+          "title": "Season"
+        },
+        "crop_name": {
+          "description": "Crop planted (e.g. 'Corn (Maize)', 'Soybeans', 'Winter Wheat')",
+          "title": "Crop Name",
+          "type": "string"
+        },
+        "variety_or_hybrid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Specific seed variety, GMO trait, or hybrid tag",
+          "title": "Variety Or Hybrid"
+        },
+        "botanical_family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Family (e.g. 'Poaceae', 'Fabaceae', 'Solanaceae')",
+          "title": "Botanical Family"
+        },
+        "yield_harvested_tons_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Harvested crop yield (metric tons / hectare)",
+          "title": "Yield Harvested Tons Ha"
+        },
+        "yield_harvested_bushels_acre": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Yield in bushels/acre (optional)",
+          "title": "Yield Harvested Bushels Acre"
+        },
+        "planting_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO Date YYYY-MM-DD of seeding",
+          "title": "Planting Date"
+        },
+        "harvest_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO Date YYYY-MM-DD of harvest",
+          "title": "Harvest Date"
+        },
+        "nitrogen_applied_kg_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Synthetic or organic N applied (kg/ha)",
+          "title": "Nitrogen Applied Kg Ha"
+        },
+        "phosphorus_applied_kg_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "P2O5 applied (kg/ha)",
+          "title": "Phosphorus Applied Kg Ha"
+        },
+        "potassium_applied_kg_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "K2O applied (kg/ha)",
+          "title": "Potassium Applied Kg Ha"
+        },
+        "irrigation_applied_mm": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total depth of irrigation applied (mm)",
+          "title": "Irrigation Applied Mm"
+        },
+        "soil_amendments": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applied amendments: 'Lime (CaCO3)', 'Composted Manure', 'Biochar', 'Gypsum'",
+          "title": "Soil Amendments"
+        },
+        "pest_disease_incidents": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Notable pest/pathogen outbreaks: 'Corn Borer', 'Soybean Cyst Nematode', 'Rust'",
+          "title": "Pest Disease Incidents"
+        },
+        "gross_revenue_usd_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Realized revenue per hectare",
+          "title": "Gross Revenue Usd Ha"
+        }
+      },
+      "required": [
+        "year",
+        "crop_name"
+      ],
+      "title": "SeasonalCropRecord",
+      "type": "object"
+    },
+    "SeedDataInput": {
+      "description": "Comprehensive seed variety specification.",
+      "properties": {
+        "crop_name": {
+          "description": "Target crop (e.g. 'Corn (Maize)', 'Processing Tomatoes', 'Winter Wheat')",
+          "title": "Crop Name",
+          "type": "string"
+        },
+        "variety_or_hybrid_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Commercial variety, hybrid code, or GMO trait (e.g. 'Pioneer P1197AM', 'Sub1 Rice')",
+          "title": "Variety Or Hybrid Name"
+        },
+        "seed_cost_usd_per_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cost of seed per hectare ($/ha)",
+          "title": "Seed Cost Usd Per Ha"
+        },
+        "seed_cost_usd_per_kg": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cost of seed per kilogram ($/kg)",
+          "title": "Seed Cost Usd Per Kg"
+        },
+        "seeding_rate_kg_ha": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Standard seeding density (kg/ha)",
+          "title": "Seeding Rate Kg Ha"
+        },
+        "greenhouse_need": {
+          "$ref": "#/$defs/GreenhouseRequirement",
+          "default": "Open Field Only",
+          "description": "Cultivation environment requirement"
+        },
+        "can_grow_in_greenhouse": {
+          "default": false,
+          "description": "True if variety can be cultivated inside protected greenhouse or tunnel structure",
+          "title": "Can Grow In Greenhouse",
+          "type": "boolean"
+        },
+        "requires_greenhouse": {
+          "default": false,
+          "description": "True if variety strictly requires a greenhouse/climate-controlled structure",
+          "title": "Requires Greenhouse",
+          "type": "boolean"
+        },
+        "extreme_event_resistance": {
+          "$ref": "#/$defs/ExtremeEventResistance",
+          "description": "Physiological resistance profile against drought, floods, wind storms, frost, and extreme heat"
+        }
+      },
+      "required": [
+        "crop_name"
+      ],
+      "title": "SeedDataInput",
+      "type": "object"
+    },
+    "SmapMoisturePayload": {
+      "description": "Surface and root-zone soil moisture from NASA SMAP L4.\nAccepts raw official response or chronological dated moisture records.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official NASA SMAP L4 timeseries payload",
+          "title": "Raw Official Response"
+        },
+        "daily_records": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DatedSoilMoistureRecord"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dated surface (0-5cm) and root-zone (0-100cm) volumetric moisture readings",
+          "title": "Daily Records"
+        },
+        "surface_moisture_m3_m3": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Surface volumetric moisture",
+          "title": "Surface Moisture M3 M3"
+        },
+        "rootzone_moisture_m3_m3": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Root-zone volumetric moisture",
+          "title": "Rootzone Moisture M3 M3"
+        },
+        "rootzone_depletion_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Available water capacity depletion (%)",
+          "title": "Rootzone Depletion Pct"
+        }
+      },
+      "title": "SmapMoisturePayload",
+      "type": "object"
+    },
+    "SoilGridsDepthLayer": {
+      "description": "Depth-stratified soil horizon property from ISRIC SoilGrids 2.0 / gSSURGO.",
+      "properties": {
+        "depth_interval": {
+          "description": "Horizon depth tag (e.g. '0-5cm', '5-15cm', '15-30cm', '30-60cm', '60-100cm')",
+          "title": "Depth Interval",
+          "type": "string"
+        },
+        "top_depth_cm": {
+          "description": "Top boundary depth (cm)",
+          "minimum": 0.0,
+          "title": "Top Depth Cm",
+          "type": "number"
+        },
+        "bottom_depth_cm": {
+          "description": "Bottom boundary depth (cm)",
+          "exclusiveMinimum": 0.0,
+          "title": "Bottom Depth Cm",
+          "type": "number"
+        },
+        "clay_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clay fraction (%)",
+          "title": "Clay Pct"
+        },
+        "sand_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sand fraction (%)",
+          "title": "Sand Pct"
+        },
+        "silt_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Silt fraction (%)",
+          "title": "Silt Pct"
+        },
+        "soil_organic_carbon_pct": {
+          "anyOf": [
+            {
+              "maximum": 30.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SOC percentage (%)",
+          "title": "Soil Organic Carbon Pct"
+        },
+        "soc_pct": {
+          "anyOf": [
+            {
+              "maximum": 30.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SOC percentage alias (%)",
+          "title": "Soc Pct"
+        },
+        "soil_ph_h2o": {
+          "anyOf": [
+            {
+              "maximum": 11.0,
+              "minimum": 3.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "pH in H2O",
+          "title": "Soil Ph H2O"
+        },
+        "bulk_density_g_cm3": {
+          "anyOf": [
+            {
+              "maximum": 2.5,
+              "minimum": 0.5,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fine earth bulk density (g/cm^3)",
+          "title": "Bulk Density G Cm3"
+        },
+        "cation_exchange_capacity_cmol_kg": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CEC (cmol(+)/kg)",
+          "title": "Cation Exchange Capacity Cmol Kg"
+        },
+        "total_nitrogen_g_kg": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total nitrogen (g/kg)",
+          "title": "Total Nitrogen G Kg"
+        }
+      },
+      "required": [
+        "depth_interval",
+        "top_depth_cm",
+        "bottom_depth_cm"
+      ],
+      "title": "SoilGridsDepthLayer",
+      "type": "object"
+    },
+    "SoilGridsPayload": {
+      "description": "Static soil physical & chemical traits from ISRIC SoilGrids 2.0 / gSSURGO.\nAccepts official ISRIC REST JSON format, depth-stratified horizon layers, or topsoil scalars.",
+      "properties": {
+        "raw_official_response": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw official ISRIC SoilGrids 2.0 REST API response containing 'properties.layers'",
+          "title": "Raw Official Response"
+        },
+        "depth_layers": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SoilGridsDepthLayer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Depth-stratified soil horizon intervals (0-5cm, 5-15cm, 15-30cm, 30-60cm, 60-100cm)",
+          "title": "Depth Layers"
+        },
+        "texture_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "USDA texture (e.g. 'Clay Loam', 'Silt Loam', 'Sandy Loam')",
+          "title": "Texture Class"
+        },
+        "soil_order": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soil taxonomic order (e.g. 'Mollisol', 'Alfisol', 'Inceptisol')",
+          "title": "Soil Order"
+        },
+        "sand_percentage": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sand Percentage"
+        },
+        "silt_percentage": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Silt Percentage"
+        },
+        "clay_percentage": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clay Percentage"
+        },
+        "soil_organic_carbon_pct": {
+          "anyOf": [
+            {
+              "maximum": 30.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Topsoil SOC (%)",
+          "title": "Soil Organic Carbon Pct"
+        },
+        "soil_ph_h2o": {
+          "anyOf": [
+            {
+              "maximum": 11.0,
+              "minimum": 3.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Soil Ph H2O"
+        },
+        "total_nitrogen_g_kg": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Nitrogen G Kg"
+        },
+        "bulk_density_g_cm3": {
+          "anyOf": [
+            {
+              "maximum": 2.5,
+              "minimum": 0.5,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bulk Density G Cm3"
+        },
+        "cation_exchange_capacity_cmol_kg": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cation Exchange Capacity Cmol Kg"
+        }
+      },
+      "title": "SoilGridsPayload",
+      "type": "object"
+    },
+    "TillagePractice": {
+      "enum": [
+        "Continuous No-Till",
+        "Strip-Till / Reduced Tillage",
+        "Conventional Inversion Plow"
+      ],
+      "title": "TillagePractice",
+      "type": "string"
+    }
+  },
+  "description": "Unified Ingestion Payload accepted by the Input Parser API.\nEncompasses all core agronomic domains:\n- Parcel Info (with Soil Type)\n- Last couple years harvest/crop info (1-5 flexible)\n- Seed / Water / Oil Prices (with Greenhouse need & Extreme Event resistance inside seed data)\n- NASA data (Official raw database responses & full dated daily/scene timeseries)\n- Long Term Weather Projections (optional)\n- Local User Data (with dated in-situ sensor readings & soil type override)\n- Elevation Maps",
+  "properties": {
+    "parcel_info": {
+      "$ref": "#/$defs/ParcelInfoInput",
+      "description": "1. Parcel cadastral, geometry, coordinates, and soil type"
+    },
+    "harvest_history": {
+      "$ref": "#/$defs/HarvestAndCropHistoryInput",
+      "description": "2. Last couple years (max 5) harvest records"
+    },
+    "economic_prices": {
+      "$ref": "#/$defs/EconomicPricesInput",
+      "description": "3. Seed, Water, Oil/Diesel, fertilizer prices, and seed characteristics"
+    },
+    "seed_data": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/SeedDataInput"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional top-level seed data list (can also be provided inside economic_prices.seed_data)",
+      "title": "Seed Data"
+    },
+    "nasa_data": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NasaDataPayload"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "4. NASA Earth Observations (POWER, GPM, SMAP, OpenET, ECOSTRESS, HLS, etc.)"
+    },
+    "long_term_projections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LongTermWeatherProjectionsInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "5. Optional long-term climate scenario projections"
+    },
+    "local_user_data": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalUserDataInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "6. Local in-situ sensor data with date signatures, equipment, soil override, and farm constraints"
+    },
+    "elevation_maps": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ElevationMapsInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "7. Elevation, terrain slope, aspect, and waterlogging metrics"
+    }
+  },
+  "required": [
+    "parcel_info",
+    "harvest_history"
+  ],
+  "title": "FullFieldIngestionPayload",
+  "type": "object"
+}
