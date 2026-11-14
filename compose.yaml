@@ -2,8 +2,8 @@ services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
     restart: unless-stopped
-    ports:
-      - "8090:8090"
+    networks:
+      - app_net
     volumes:
       - ./pocketbase/pb_data:/pb_data
       - ./pocketbase/pb_migrations:/pb_migrations
@@ -14,15 +14,15 @@ services:
       retries: 5
       start_period: 5s
 
-  web:
+  web-old:
     build:
       context: ./web/app-old
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    networks:
+      - app_net
     environment:
       PB_URL: http://pocketbase:8090
-      PB_PUBLIC_URL: http://localhost:8090
+      PB_PUBLIC_URL: http://pocketbase:8090
       PORT: "8080"
       RELOAD: "0"
       DATA_API_URL: http://data-api:8070
@@ -36,6 +36,8 @@ services:
     build:
       context: ./api/web-api
     restart: unless-stopped
+    networks:
+      - app_net
     ports:
       - "8081:8081"
     environment:
@@ -48,12 +50,25 @@ services:
       data-api:
         condition: service_healthy
 
+  web:
+    build:
+      context: ./web/app
+    restart: unless-stopped
+    networks:
+      - app_net
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      WEB_API_INTERNAL_URL: http://web-api:8081
+    depends_on:
+      - web-api
+
   data-api:
     build:
       context: ./api/data-api
     restart: unless-stopped
-    ports:
-      - "8070:8070"
+    networks:
+      - app_net
     environment:
       # NASA Earthdata Login (free: https://urs.earthdata.nasa.gov). Put them in ./.env (gitignored).
       # The account must also approve the "NASA GESDISC DATA ARCHIVE" application (for IMERG rainfall).
@@ -61,6 +76,10 @@ services:
       EARTHDATA_PASSWORD: ${EARTHDATA_PASSWORD:-}
     volumes:
       - data_api_cache:/cache
+
+networks:
+  app_net:
+    driver: bridge
 
 volumes:
   data_api_cache:

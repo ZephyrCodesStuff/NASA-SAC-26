@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist_Mono, Lexend } from "next/font/google";
 import { Toaster } from "sonner";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const lexendSans = Lexend({
@@ -35,7 +36,7 @@ export default function RootLayout({
       className={`${lexendSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#faf9f5] text-[#1f1915]">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <Toaster position="bottom-right" richColors />
       </body>
     </html>

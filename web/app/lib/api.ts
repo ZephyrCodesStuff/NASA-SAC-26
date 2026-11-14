@@ -1,5 +1,5 @@
 export const WEB_API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080/api"
+  process.env.NEXT_PUBLIC_API_URL || "/api"
 ).replace(/\/$/, "");
 
 export interface ApiUser {
@@ -73,9 +73,43 @@ export const webApi = {
       method: "POST",
       body: JSON.stringify({ email, name, password, role }),
     }),
+  me: (token: string) => apiFetch<{ user: ApiUser }>("/auth/me", {}, token),
   listFarms: (token: string) => apiFetch<{ farms: FarmRecord[] }>("/farms", {}, token),
+  createFarm: (name: string, token: string, constraints: Record<string, unknown> = {}) =>
+    apiFetch<{ farm: FarmRecord }>(
+      "/farms",
+      { method: "POST", body: JSON.stringify({ name, constraints }) },
+      token
+    ),
   listPlots: (farmId: string, token: string) =>
     apiFetch<{ plots: PlotRecord[] }>(`/farms/${farmId}/plots`, {}, token),
+  createPlot: (
+    farmId: string,
+    payload: {
+      features: Array<Record<string, unknown>>;
+      label?: string;
+      crop?: string;
+      use_catasto_names?: boolean;
+    },
+    token: string
+  ) =>
+    apiFetch<{ plot: PlotRecord }>(
+      `/farms/${farmId}/plots`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token
+    ),
+  deletePlot: (plotId: string, token: string) =>
+    apiFetch<{ deleted: boolean }>(`/plots/${plotId}`, { method: "DELETE" }, token),
+  catastoDiscover: (
+    geometry: Record<string, unknown>,
+    centroid: number[] | undefined,
+    token: string
+  ) =>
+    apiFetch<{ parcels: Array<Record<string, unknown>> }>(
+      "/catasto/discover",
+      { method: "POST", body: JSON.stringify({ geometry, centroid }) },
+      token
+    ),
   getPlot: (plotId: string, token: string) =>
     apiFetch<{ plot: PlotRecord; farm: FarmRecord; is_owner: boolean; bounds: number[][] | null }>(
       `/plots/${plotId}`,
