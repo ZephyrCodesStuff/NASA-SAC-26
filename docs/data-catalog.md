@@ -1,5 +1,7 @@
 # Data catalog — everything `data-api` can return
 
+Spreadsheet version: [data-catalog.csv](data-catalog.csv).
+
 One page listing every piece of data the backend can get for a farm parcel: where it comes from, how
 detailed it is and what each field means. For how to call the API from `web/`, see
 [data-api-for-web.md](data-api-for-web.md).

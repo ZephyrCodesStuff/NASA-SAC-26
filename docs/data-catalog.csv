@@ -1,0 +1,185 @@
+dataset,field,unit,meaning,scale,resolution,source,freshness,access,request
+weather,latest,,newest complete day (all daily fields below),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,today.daylight_h,h,sunrise to sunset today (astronomical),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,today.daylight_h_longest_day,h,day length on 21 June,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,today.daylight_h_shortest_day,h,day length on 21 December,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.precip_mm,mm,rain last 7 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.t_max_c,°C,highest max temperature last 7 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.t_min_c,°C,lowest min temperature last 7 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.rh_mean_pct,%,mean relative humidity last 7 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.frost_days,days,days with min ≤ 0 °C,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_7_days.heat_days_over_35c,days,days with max ≥ 35 °C,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.precip_mm,mm,rain last 30 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.evapotranspiration_mm,mm,model ET last 30 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.t_mean_c,°C,mean temperature last 30 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.rh_mean_pct,%,mean humidity last 30 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.sunshine_fraction,0-1,mean cloudiness proxy (1 = clear),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.normal_t_mean_c_this_month,°C,1991-2020 normal for this month,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,last_30_days.normal_precip_mm_per_day_this_month,mm/day,1991-2020 normal rain for this month,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,gdd_since_jan1.value,°C·day,"growing degree days since 1 Jan, base 10 °C",area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.hottest_day,"date, °C",hottest day and its max temperature,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.coldest_night,"date, °C",coldest night and its min temperature,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.wettest_day,"date, mm",wettest day and its rain,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.windiest_day,"date, m/s",windiest day and its max wind,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.frost_days,days,frost days in last year,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.heat_days_over_35c,days,heat days in last year,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.heavy_rain_days_over_30mm,days,heavy-rain days (flood risk),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.gale_days_wind_over_10_8ms,days,strong-wind days (lodging risk),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.longest_dry_spell_days,days,longest run of days < 1 mm,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,extremes_last_365_days.total_precip_mm,mm,rain in last 365 days,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,"normals_1991_2020.{jan..dec,ann}.T2M / T2M_MAX / T2M_MIN",°C,30-year monthly mean temperatures,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,"normals_1991_2020.{jan..dec,ann}.PRECTOTCORR",mm/day,30-year monthly mean rain,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,"normals_1991_2020.{jan..dec,ann}.RH2M",%,30-year monthly mean humidity,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,"normals_1991_2020.{jan..dec,ann}.ALLSKY_SFC_SW_DWN",MJ/m²/day,30-year monthly mean solar radiation,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].T2M / T2M_MAX / T2M_MIN,°C,"daily air temperature at 2 m: mean, max, min",area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].T2MDEW,°C,daily dew point,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].RH2M,%,daily relative humidity,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].PRECTOTCORR,mm/day,daily rain (bias-corrected),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].ALLSKY_SFC_SW_DWN,MJ/m²/day,daily solar radiation,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].WS2M / WS2M_MAX,m/s,"daily wind at 2 m: mean, max",area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].EVPTRNS,mm/day,daily evapotranspiration (model),area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].daylight_h,h,day length,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].sunshine_fraction,0-1,radiation / FAO-56 clear-sky radiation,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].gdd,°C·day,growing degree days that day,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,history[].frost_days / heat_days_over_35c,0/1,daily flags,area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+weather,periods[],per half-month,"24 half-month summaries with year=true: rain/ET/GDD/day counts summed, *_MAX max, *_MIN min, rest averaged",area,~55 km,NASA POWER daily + climatology,2-3 days,no login,POST /geojson | POST /parcel | GET /point
+rainfall,latest_day,"date, mm",last day of rain,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,total_3d_mm,mm,rain last 3 days,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,total_7d_mm,mm,rain last 7 days,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,total_30d_mm,mm,rain last 30 days,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,consecutive_dry_days,days,days in a row < 1 mm up to latest,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,history[].precip_mm,mm/day,daily rain,area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+rainfall,periods[].precip_mm,mm,rain per half-month (year=true),area,~11 km,NASA GPM IMERG Late V07 daily,~1 day,Earthdata (GES DISC),POST /geojson | POST /parcel | GET /point
+soil_moisture,surface_m3m3,m³/m³,water in top 0-5 cm,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+soil_moisture,rootzone_m3m3,m³/m³,water in 0-100 cm,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+soil_moisture,rootzone_wetness,0-1,fraction of saturation,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+soil_moisture,time,,granule time,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+soil_moisture,cell_center,"lat, lon",9 km cell centre,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+soil_moisture,history[] / periods[],m³/m³,surface and root-zone moisture over time,area,9 km,NASA SMAP L4 SPL4SMGP v8,3-4 days,Earthdata,POST /geojson | POST /parcel | GET /point
+evapotranspiration_field,"et_daily.{mean,min,max,pixels,datetime}",mm/day,actual crop water use on the overpass day,field,70 m,"NASA ECOSTRESS v2 (JET, ESI, LSTE)",irregular overpasses,Earthdata,POST /geojson | POST /parcel | GET /point
+evapotranspiration_field,"esi.{mean,min,max,pixels,datetime}",0-1,evaporative stress index; low = water stress,field,70 m,"NASA ECOSTRESS v2 (JET, ESI, LSTE)",irregular overpasses,Earthdata,POST /geojson | POST /parcel | GET /point
+evapotranspiration_field,"lst.{mean,min,max,pixels,datetime}",°C,"land-surface temperature, cloud-masked",field,70 m,"NASA ECOSTRESS v2 (JET, ESI, LSTE)",irregular overpasses,Earthdata,POST /geojson | POST /parcel | GET /point
+evapotranspiration_field,"history.{et_daily,esi,lst}[] / periods[]",,all valid overpasses / half-month means,field,70 m,"NASA ECOSTRESS v2 (JET, ESI, LSTE)",irregular overpasses,Earthdata,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,date,,start of 8-day composite,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,et_mm_8day,mm/8 days,actual ET,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,pet_mm_8day,mm/8 days,potential ET,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,et_mm_per_day,mm/day,actual ET per day,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,et_pet_ratio,0-1,low = water-limited,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+evapotranspiration_area,history[] / periods[],,8-day series / half-month means,area,500 m,NASA MODIS MOD16A2 v6.1 (ORNL DAAC),2-4 weeks,no login,POST /geojson | POST /parcel | GET /point
+crop_health,date / scene / sensor,,scene used,field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,clear_fraction,0-1,cloud-free share of the parcel,field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,pixels,count,valid 30 m pixels,field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,"ndvi.{mean,min,max,std}",-1..1,vegetation vigour,field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,"ndmi.{mean,min,max,std}",-1..1,canopy water content,field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,"ndre.{mean,min,max,std}",-1..1,chlorophyll / nitrogen (Sentinel-2 only),field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,low_vigor_fraction,0-1,share of field with NDVI 0.1 below field median (patchiness),field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+crop_health,history[] / periods[],,"ndvi, ndmi, ndre per clear scene / half-month",field,30 m,NASA HLS v2.0 (Landsat 8/9 + Sentinel-2),"2-5 days, needs clear sky",Earthdata,POST /geojson | POST /parcel | GET /point
+soil,{depth}.clay / sand / silt,%,"texture at 0-5, 5-15, 15-30, 30-60 cm",area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.texture_class,,USDA texture class,area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.soc,g/kg,soil organic carbon,area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.phh2o,pH,acidity,area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.nitrogen,g/kg,total nitrogen,area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.cec,cmol(c)/kg,nutrient-holding capacity,area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+soil,{depth}.bdod,g/cm³,bulk density (compaction),area,250 m,ISRIC SoilGrids 2.0,static,no login,POST /geojson | POST /parcel | GET /point
+groundwater,"latest.{month,anomaly_cm}",cm,water storage vs 2004-2009 mean,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
+groundwater,trend_last_12_months_cm,cm,12-month change,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
+groundwater,percentile_vs_same_month_all_years,0-100,low = drier than usual,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
+groundwater,interpretation,,drier than usual / near normal / wetter than usual,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
+groundwater,history[],cm,monthly anomaly since 2002,area,~300 km,NASA/JPL GRACE-FO mascon RL06.3,2-4 months,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,"elevation_m.{mean,min,max}",m,altitude,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,"slope_deg.{mean,max}",°,steepness,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,aspect_deg,°,"direction slope faces, 0 = north",field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,share_steeper_than_8deg,0-1,steep share of parcel,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,relative_elevation_m,m,parcel minus ~300 m surroundings; negative = lower,field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+terrain,low_spot,bool,> 1 m below surroundings (waterlogging / frost pocket),field,30 m,NASA NASADEM,static,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].year / complete / observations,,"year, finished?, cloud-free half-months out of 24",field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].crop_group,,winter cereal / summer crop / rice / double crop / grassland / orchard-vineyard / bare / unclear,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].confidence,,medium / low / none,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].peak_ndvi / peak_period,"-1..1, MM-H1/H2",greenest value and when,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].green_season,period → period,green-up to harvest,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,seasons[].flooded_in_spring,bool,water under young crop in Apr-May (rice),field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,most_common_crop_group,,dominant group over complete years,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,rotates,bool,group changes between years,field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+crop_history,history[].ndvi_by_period[],-1..1,"24 points per year {period, date, ndvi, ndmi}",field,30 m,NASA HLS v2.0 NDVI phenology,cached 30 days,Earthdata,POST /geojson | POST /parcel | GET /point
+climate_projection,"baseline_2000s / projections.{ssp245,ssp585}_{near_2030s,mid_2050s}.precip_mm",mm/yr,annual rain,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….pet_mm,mm/yr,reference ET (Hargreaves),area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….water_balance_mm,mm/yr,rain − PET; negative = deficit,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….summer_precip_mm,mm,June-August rain,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….t_max_summer_c,°C,mean Jun-Aug daily max,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….heat_days_over_35c / frost_days,days/yr,extreme temperature days,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….longest_dry_spell_days,days,longest run < 1 mm,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,….max_1day_precip_mm,mm,wettest day (flood proxy),area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,projections.*.water_balance_change_mm / summer_precip_change_pct / dry_spell_change_days / heat_days_change,,change vs baseline,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,projections.*.drought_risk,,low / moderate / high / very high,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,headline,,drought risk SSP2-4.5 2050s,area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+climate_projection,periods[],"mm, °C","24 half-months: precip, t_max, water balance — baseline vs 2050s (two scenarios)",area,25 km,"NASA NEX-GDDP-CMIP6 (ACCESS-CM2, MPI-ESM1-2-HR)",projection,no login,POST /geojson | POST /parcel | GET /point
+erosion,r_factor,MJ·mm/(ha·h·yr),rainfall erosivity from 30-yr rain,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,k_factor,t·ha·h/(ha·MJ·mm),soil erodibility from texture + organic carbon,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,ls_factor,,slope length-steepness,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,c_factor_current,0-1,cover factor from current NDVI,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,p_factor,,conservation practice (1 = none),field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,soil_loss_bare_t_ha_yr / risk_bare,t/ha/yr,"worst case, bare soil",field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,soil_loss_current_cover_t_ha_yr / risk_current_cover,t/ha/yr,with today's vegetation,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+erosion,annual_precip_mm / slope_deg / slope_length_m,,inputs used,field,30 m,RUSLE from soil + terrain + weather + crop_health,as inputs,derived,POST /geojson | POST /parcel | GET /point
+regional_production,"country.{name,iso2,iso3,m49}",,country of the parcel,country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].crop,,FAO crop name (top 30 by harvested area),country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].years[].area_harvested_ha,ha,"national harvested area, last 10 years",country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].years[].yield_kg_per_ha,kg/ha,national yield,country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].years[].production_t,t,national production,country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].years[].producer_price_usd_per_t,USD/t,farm-gate price,country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+regional_production,crops[].years[].producer_price_lcu_per_t,local currency/t,farm-gate price (EUR in Italy),country,national,FAOSTAT QCL + PP bulk,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+market_prices,crude_oil_avg.latest / change_12m_pct / history[60 months],USD/bbl,"Crude oil, average: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,crude_oil_brent.latest / change_12m_pct / history[60 months],USD/bbl,"Crude oil, Brent: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,natural_gas_europe.latest / change_12m_pct / history[60 months],USD/mmbtu,"Natural gas, Europe: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,urea.latest / change_12m_pct / history[60 months],USD/mt,"Urea: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,dap.latest / change_12m_pct / history[60 months],USD/mt,"DAP fertilizer: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,tsp.latest / change_12m_pct / history[60 months],USD/mt,"TSP fertilizer: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,potassium_chloride.latest / change_12m_pct / history[60 months],USD/mt,"Potassium chloride: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,phosphate_rock.latest / change_12m_pct / history[60 months],USD/mt,"Phosphate rock: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,maize.latest / change_12m_pct / history[60 months],USD/mt,"Maize: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,wheat_us_hrw.latest / change_12m_pct / history[60 months],USD/mt,"Wheat, US HRW: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,wheat_us_srw.latest / change_12m_pct / history[60 months],USD/mt,"Wheat, US SRW: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,barley.latest / change_12m_pct / history[60 months],USD/mt,"Barley: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,sorghum.latest / change_12m_pct / history[60 months],USD/mt,"Sorghum: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,rice_thai_5pct.latest / change_12m_pct / history[60 months],USD/mt,"Rice, Thai 5%: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,soybeans.latest / change_12m_pct / history[60 months],USD/mt,"Soybeans: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,soybean_oil.latest / change_12m_pct / history[60 months],USD/mt,"Soybean oil: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,sunflower_oil.latest / change_12m_pct / history[60 months],USD/mt,"Sunflower oil: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,rapeseed_oil.latest / change_12m_pct / history[60 months],USD/mt,"Rapeseed oil: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,palm_oil.latest / change_12m_pct / history[60 months],USD/mt,"Palm oil: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,sugar_eu.latest / change_12m_pct / history[60 months],USD/kg,"Sugar, EU: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,orange.latest / change_12m_pct / history[60 months],USD/kg,"Orange: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+market_prices,banana_europe.latest / change_12m_pct / history[60 months],USD/kg,"Banana, Europe: latest monthly price, 12-month change %, last 5 years",global,world benchmark,World Bank Pink Sheet,monthly,no login,POST /geojson | POST /parcel | GET /point
+imagery_hls,layers.true_color,PNG,natural colour,field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.color_infrared,PNG,NIR-R-G: healthy crops bright red,field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.agriculture,PNG,"SWIR1-NIR-B: crops green, bare soil magenta",field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.swir_moisture,PNG,"SWIR2-SWIR1-R: wet soil dark, dry bright",field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.ndvi,PNG,vegetation vigour map (-0.2..0.9),field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.ndmi,PNG,water content map (-0.4..0.6),field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.ndre,PNG,chlorophyll/N map (Sentinel-2 scenes),field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,layers.thermal,PNG,Landsat thermal map (Landsat scenes),field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_hls,bounds / date / scene / sensor / legends,,"overlay corners [[S,W],[N,E]], scene info, colour scales",field,30 m,NASA HLS v2.0,newest clear scene,Earthdata,POST /imagery | GET /imagery/point
+imagery_lst,layers.lst,"PNG, °C",surface temperature map,field,70 m,NASA ECOSTRESS L2T LSTE v2,newest clear daytime overpass,Earthdata,POST /imagery | GET /imagery/point
+imagery_dem,layers.elevation,PNG,altitude map,field,30 m,NASA NASADEM,static,Earthdata,POST /imagery | GET /imagery/point
+imagery_dem,layers.hillshade,PNG,shaded relief,field,30 m,NASA NASADEM,static,Earthdata,POST /imagery | GET /imagery/point
+imagery_dem,layers.slope,PNG,steepness map 0-15°,field,30 m,NASA NASADEM,static,Earthdata,POST /imagery | GET /imagery/point
+map_layers,layers.true_color_hls_sentinel2,tile URL,HLS Sentinel-2 true colour 30 m,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.true_color_hls_landsat,tile URL,HLS Landsat true colour 30 m,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.true_color_modis,tile URL,MODIS true colour daily 250 m,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.false_color_modis_721,tile URL,MODIS bands 7-2-1,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.precipitation,tile URL,IMERG rain rate,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.soil_moisture_rootzone,tile URL,SMAP root-zone soil moisture,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.surface_water,tile URL,OPERA surface water 30 m,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.groundwater_anomaly,tile URL,GRACE water storage,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.ndvi_modis_16day,tile URL,MODIS NDVI 16-day,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.ndvi_viirs_8day,tile URL,VIIRS NDVI 8-day,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.leaf_area_index,tile URL,MODIS LAI 4-day,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.land_surface_temp_day,tile URL,MODIS daytime LST,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.shaded_relief_color,tile URL,ASTER colour shaded relief (altitude),tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+map_layers,layers.shaded_relief_grey,tile URL,ASTER grey shaded relief,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+seed_prices,,,NOT AVAILABLE: no public global source → farmer input,,,,,,
+water_price_and_connection,,,NOT AVAILABLE: local tariff → farmer input,,,,,,
+electricity_price_and_connection,,,NOT AVAILABLE: local tariff → farmer input,,,,,,
+exact_crop_species,,,NOT AVAILABLE: needs farmer input or regional crop map,,,,,,
+crop_type (WorldCereal 2021),,,NOT AVAILABLE: not wired: huge global archives,,,,,,
+EU ASAP production hotspots,,,NOT AVAILABLE: does not cover Europe,,,,,,
