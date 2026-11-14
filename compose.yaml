@@ -44,6 +44,8 @@ services:
       PB_URL: http://pocketbase:8090
       PORT: "8081"
       DATA_API_URL: http://data-api:8070
+    volumes:
+      - web_api_cache:/app/.cache
     depends_on:
       pocketbase:
         condition: service_healthy
@@ -83,3 +85,4 @@ networks:
 
 volumes:
   data_api_cache:
+  web_api_cache:

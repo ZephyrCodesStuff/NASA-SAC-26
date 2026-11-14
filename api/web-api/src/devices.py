@@ -29,7 +29,7 @@ class DeviceStore:
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self.pb_url = (pb_url or os.getenv("PB_URL", "http://127.0.0.1:8090")).rstrip("/")
-        default_local = Path(__file__).resolve().parent.parent / "pb_data" / "devices_fallback.json"
+        default_local = Path(__file__).resolve().parent.parent / ".cache" / "devices_fallback.json"
         self.local_path = Path(local_path) if local_path else default_local
         self._client = http_client
 
