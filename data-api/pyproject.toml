@@ -1,0 +1,22 @@
+[project]
+name = "parcel-data-api"
+version = "0.1.0"
+description = "Satellite and model data (NASA + global datasets) for a farm parcel"
+requires-python = ">=3.12"
+dependencies = [
+    "earthaccess>=0.19.0",
+    "fastapi>=0.162.7",
+    "h5py>=3.16.0",
+    "httpx>=0.28.1",
+    "lxml>=6.1.3",
+    "numpy>=2.5.4",
+    "pyproj>=3.8.0",
+    "rasterio>=1.5.2",
+    "shapely>=2.2.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
