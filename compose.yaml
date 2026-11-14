@@ -2,6 +2,7 @@ services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
     restart: unless-stopped
+    command: ["--migrationsDir=/pb_migrations"]
     networks:
       - app_net
     volumes:
