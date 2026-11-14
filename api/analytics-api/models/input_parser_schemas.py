@@ -781,11 +781,56 @@ class InSituPortableSensorReading(BaseModel):
 
 
 class LocalUserDataInput(BaseModel):
-    """Farm-specific operational parameters, machinery constraints, soil override, and ground sensors."""
+    """Farm-specific operational parameters, machinery constraints, soil override, ground sensors, and on-farm calibration."""
     soil_type: Optional[str] = Field(
         None,
         description="Local farmer/lab verified soil type (overrides satellite SoilGrids data, e.g. 'Sandy Loam', 'Clay Loam')"
     )
+    # Direct lab test overrides (layers on top of SoilGrids / regional defaults)
+    lab_soil_organic_matter_pct: Optional[float] = Field(
+        None, ge=0.1, le=25.0, description="Direct lab-verified soil organic matter % (overrides satellite SoilGrids SOC)"
+    )
+    lab_soil_ph: Optional[float] = Field(
+        None, ge=3.0, le=10.0, description="Direct lab-verified soil pH (overrides SoilGrids pH)"
+    )
+    lab_topsoil_nitrogen_ppm: Optional[float] = Field(
+        None, ge=0.0, le=500.0, description="Direct lab-verified available nitrate/ammonium ppm"
+    )
+    lab_soil_phosphorus_ppm: Optional[float] = Field(
+        None, ge=0.0, le=500.0, description="Direct lab-verified available phosphorus ppm"
+    )
+    lab_soil_potassium_ppm: Optional[float] = Field(
+        None, ge=0.0, le=1000.0, description="Direct lab-verified available potassium ppm"
+    )
+    penetrometer_compaction_psi: Optional[float] = Field(
+        None, ge=50.0, le=600.0, description="Direct cone penetrometer measurement in PSI"
+    )
+    in_situ_soil_moisture_vol_pct: Optional[float] = Field(
+        None, ge=0.0, le=100.0, description="Direct ground soil probe moisture % (calibrates/overrides NASA SMAP)"
+    )
+
+    # On-farm weather station / rain gauge overrides (layers on top of NASA POWER / GPM)
+    on_farm_annual_rainfall_mm: Optional[float] = Field(
+        None, ge=0.0, le=5000.0, description="On-farm rain gauge total annual rainfall (calibrates NASA GPM IMERG)"
+    )
+    on_farm_mean_temperature_c: Optional[float] = Field(
+        None, ge=-30.0, le=50.0, description="On-farm weather station mean annual temperature (calibrates NASA POWER)"
+    )
+    on_farm_annual_et0_mm: Optional[float] = Field(
+        None, ge=100.0, le=3500.0, description="On-farm calculated reference ET0 (calibrates NASA POWER ET0)"
+    )
+
+    # Topographic survey overrides (layers on top of SRTM DEM)
+    survey_elevation_m: Optional[float] = Field(
+        None, ge=-400.0, le=8848.0, description="RTK GPS / drone LiDAR elevation in meters (calibrates SRTM DEM)"
+    )
+    survey_slope_pct: Optional[float] = Field(
+        None, ge=0.0, le=100.0, description="Surveyed field slope % (calibrates SRTM slope)"
+    )
+    local_water_quota_m3: Optional[float] = Field(
+        None, ge=0.0, description="Legal water rights quota (m3/year)"
+    )
+
     # Detailed in-situ sensor readings with date signatures
     dated_sensor_readings: Optional[List[DatedInSituSensorReading]] = Field(
         default=None,

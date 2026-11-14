@@ -599,6 +599,85 @@ class TestFieldInputParser(unittest.TestCase):
         self.assertIn("Silt Loam", soil_names)
         self.assertIn("Chernozem / Mollisol (Black Soil)", soil_names)
 
+    def test_user_data_layers_on_top_of_nasa(self):
+        """User local data (rain gauge, penetrometer, lab tests, in-situ sensors) layers on top of NASA satellite data."""
+        payload = FullFieldIngestionPayload(
+            parcel_info=ParcelInfoInput(
+                parcel_id="PRCL-LAYERING-01",
+                baseline_soil_type="Clay",
+                area_hectares=15.0,
+                latitude=42.0,
+                longitude=-93.5
+            ),
+            harvest_history=HarvestAndCropHistoryInput(
+                historical_seasons=[
+                    SeasonalCropRecord(year=2025, crop_name="Corn (Maize)")
+                ]
+            ),
+            nasa_data=NasaDataPayload(
+                nasa_power=NasaPowerPayload(
+                    t2m_mean_c=16.0,
+                    fao56_et0_annual_mm=1150.0
+                ),
+                gpm_imerg=GpmImergPayload(
+                    annual_rainfall_mm=620.0
+                ),
+                soilgrids=SoilGridsPayload(
+                    texture_class="Clay",
+                    soil_organic_carbon_pct=1.65,
+                    soil_ph_h2o=6.2
+                )
+            ),
+            local_user_data=LocalUserDataInput(
+                soil_type="Silt Loam",  # User lab soil type override
+                on_farm_annual_rainfall_mm=780.0,  # User rain gauge layers on top of GPM
+                on_farm_mean_temperature_c=17.2,  # User weather station layers on top of POWER
+                lab_soil_organic_matter_pct=3.5,  # User lab SOM layers on top of SoilGrids (3.5% SOM -> ~2.03% SOC)
+                penetrometer_compaction_psi=265.0,  # User penetrometer layers on top of regional standard
+                in_situ_soil_moisture_vol_pct=32.0,  # User probe layers on top of satellite SMAP
+                survey_slope_pct=3.5  # User survey layers on top of DEM
+            )
+        )
+
+        normalized = FieldIngestionParser.parse_and_validate(payload)
+
+        # 1. User soil type overrides SoilGrids
+        self.assertEqual(normalized.soil_type, "Silt Loam")
+        self.assertEqual(normalized.soil_type_source, "User Local Override")
+
+        # 2. User rain gauge layers on top of NASA GPM
+        self.assertEqual(normalized.effective_rainfall_annual_mm, 780.0)
+        self.assertEqual(normalized.gpm_imerg_annual_rainfall_mm, 620.0)
+
+        # 3. User weather station layers on top of NASA POWER
+        self.assertEqual(normalized.effective_temp_mean_c, 17.2)
+        self.assertEqual(normalized.nasa_power_temp_mean_c, 16.0)
+
+        # 4. User lab SOM layers on top of SoilGrids
+        self.assertAlmostEqual(normalized.calibrated_soc_pct, 2.03, places=2)
+        self.assertEqual(normalized.soilgrids_organic_carbon_pct, 1.65)
+
+        # 5. User penetrometer layers on top of regional standard
+        self.assertEqual(normalized.calibrated_compaction_psi, 265.0)
+
+        # 6. User in-situ soil moisture probe layers on top of SMAP
+        self.assertEqual(normalized.calibrated_soil_moisture_vol_pct, 32.0)
+
+        # 7. User topographic survey layers on top of DEM
+        self.assertEqual(normalized.slope_mean_pct, 3.5)
+
+        # 8. Provenance tracking is fully documented
+        prov = normalized.data_layering_provenance
+        self.assertIn("soil_texture", prov)
+        self.assertIn("annual_rainfall", prov)
+        self.assertIn("soil_organic_carbon", prov)
+        self.assertIn("soil_compaction", prov)
+        self.assertIn("rootzone_moisture", prov)
+        self.assertIn("User On-Farm Rain Gauge", prov["annual_rainfall"])
+        self.assertIn("User Cone Penetrometer", prov["soil_compaction"])
+        self.assertIn("User In-Situ Ground Probe", prov["rootzone_moisture"])
+        self.assertIn("User Lab Ground Truth", prov["soil_organic_carbon"])
+
 
 if __name__ == "__main__":
     unittest.main()

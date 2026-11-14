@@ -484,6 +484,10 @@
   },
   "local_user_data": {
     "soil_type": "Silt Loam",
+    "on_farm_annual_rainfall_mm": 82.5,
+    "penetrometer_compaction_psi": 225.0,
+    "in_situ_soil_moisture_vol_pct": 29.0,
+    "survey_slope_pct": 2.8,
     "dated_sensor_readings": [
       {
         "timestamp": "2025-04-15T09:30:00Z",

@@ -454,6 +454,10 @@ class ParsedFieldNormalized(BaseModel):
     calibrated_soil_ph: Optional[float] = None
     calibrated_soc_pct: Optional[float] = None
     calibrated_compaction_psi: Optional[float] = None
+    calibrated_soil_moisture_vol_pct: Optional[float] = None
+    effective_rainfall_annual_mm: float = 620.0
+    effective_et0_annual_mm: float = 1200.0
+    effective_temp_mean_c: float = 18.5
     compaction_level_tag: str
     irrigation_system: str
     tillage_practice: str
@@ -468,7 +472,11 @@ class ParsedFieldNormalized(BaseModel):
     waterlogging_depression_risk: bool
     erosion_susceptibility_rating: str
 
-    # Quality & Audit
+    # Quality, Provenance & Multi-Source Layering Tracking
+    data_layering_provenance: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Transparent tracking of how user local ground truth calibrated and layered on top of NASA satellite data"
+    )
     data_completeness_score_pct: float
     audit_messages: List[str]
 
@@ -651,6 +659,9 @@ class FieldIngestionParser:
         rain_ann, rain_grow = 620.0, 403.0
         smap_root, openet_et, ecostress_esi, hls_ndvi = 28.0, 480.0, 0.75, 0.78
         soil_tex, soil_soc, soil_ph, grace_trend = "Clay Loam", 2.15, 6.7, "Stable (Calibrated)"
+        raw_soilgrids_soc = 2.15
+        raw_soilgrids_ph = 6.7
+        raw_soilgrids_tex = "Clay Loam"
 
         nasa = payload.nasa_data
         if nasa:
@@ -766,6 +777,9 @@ class FieldIngestionParser:
                     soil_soc = nasa.soilgrids.soil_organic_carbon_pct or 2.15
                     soil_ph = nasa.soilgrids.soil_ph_h2o or 6.7
                 soil_tex = nasa.soilgrids.texture_class or "Clay Loam"
+                raw_soilgrids_soc = soil_soc
+                raw_soilgrids_ph = soil_ph
+                raw_soilgrids_tex = soil_tex
 
             # 5H. GRACE Groundwater (Extract monthly series)
             if nasa.grace_groundwater:
@@ -818,17 +832,22 @@ class FieldIngestionParser:
             audit_logs.append("Long-term climate scenario omitted; projecting forward based on historical decadal trend.")
 
         # ----------------------------------------------------------------------
-        # 8. LOCAL USER DATA (IN-SITU SENSORS WITH DATE SIGNATURES)
+        # 8. LOCAL USER DATA (IN-SITU SENSORS, LAB TESTS, RAIN GAUGES & MANAGEMENT)
         # ----------------------------------------------------------------------
         usr = payload.local_user_data
         calib_n = None
         calib_ph = None
         calib_soc = None
         calib_comp_psi = None
+        calib_moist = None
+        effective_rain = rain_ann
+        effective_temp = t_mean
+        effective_et0 = et0
         comp_tag = "Optimal Tilth (<200 PSI)"
         dated_sensor_list: List[DatedInSituSensorReading] = []
         earliest_ts = None
         latest_ts = None
+        provenance: Dict[str, str] = {}
 
         if usr:
             completeness_points += 10.0
@@ -841,11 +860,9 @@ class FieldIngestionParser:
             # 8A. Process dated in-situ sensor readings
             if usr.dated_sensor_readings:
                 sensors_present = True
-                # Sort chronologically by timestamp
                 dated_sensor_list = sorted(usr.dated_sensor_readings, key=lambda s: s.timestamp)
                 earliest_ts = dated_sensor_list[0].timestamp
                 latest_ts = dated_sensor_list[-1].timestamp
-                # Calibrate using the most recent reading
                 latest_reading = dated_sensor_list[-1]
                 if latest_reading.soil_nitrogen_ppm is not None:
                     calib_n = round(latest_reading.soil_nitrogen_ppm * 2.24, 1)
@@ -857,17 +874,12 @@ class FieldIngestionParser:
                     soil_soc = calib_soc
                 if latest_reading.soil_compaction_psi is not None:
                     calib_comp_psi = latest_reading.soil_compaction_psi
-                    if calib_comp_psi > 300:
-                        comp_tag = f"Severe Hardpan ({calib_comp_psi:.0f} PSI - Root barrier)"
-                    elif calib_comp_psi > 200:
-                        comp_tag = f"Moderate Plowpan ({calib_comp_psi:.0f} PSI)"
-                    else:
-                        comp_tag = f"Optimal Tilth ({calib_comp_psi:.0f} PSI)"
+                if latest_reading.soil_moisture_vol_pct is not None:
+                    calib_moist = round(latest_reading.soil_moisture_vol_pct, 1)
                 audit_logs.append(
-                    f"Fused {len(dated_sensor_list)} dated in-situ sensor readings ({earliest_ts} to {latest_ts}). Latest Compaction: {comp_tag}."
+                    f"Fused {len(dated_sensor_list)} dated in-situ sensor readings ({earliest_ts} to {latest_ts})."
                 )
             elif usr.portable_sensors:
-                # Fallback to single snapshot
                 sensors_present = True
                 sens = usr.portable_sensors
                 ts = sens.measurement_timestamp or "Single-Point"
@@ -897,15 +909,47 @@ class FieldIngestionParser:
                     soil_soc = calib_soc
                 if sens.soil_compaction_psi is not None:
                     calib_comp_psi = sens.soil_compaction_psi
-                    if calib_comp_psi > 300:
-                        comp_tag = f"Severe Hardpan ({calib_comp_psi:.0f} PSI - Root barrier)"
-                    elif calib_comp_psi > 200:
-                        comp_tag = f"Moderate Plowpan ({calib_comp_psi:.0f} PSI)"
-                    else:
-                        comp_tag = f"Optimal Tilth ({calib_comp_psi:.0f} PSI)"
-                audit_logs.append(f"Fused single-point in-situ sensor reading (Compaction: {comp_tag}).")
+                if sens.soil_moisture_vol_pct is not None:
+                    calib_moist = round(sens.soil_moisture_vol_pct, 1)
+                audit_logs.append("Fused single-point in-situ sensor reading.")
             else:
                 sensors_present = False
+
+            # 8B. Direct user lab tests & ground-truth measurements (layers on top)
+            if usr.lab_soil_organic_matter_pct is not None:
+                calib_soc = round(usr.lab_soil_organic_matter_pct / 1.724, 2)
+                soil_soc = calib_soc
+                audit_logs.append(f"User lab soil organic matter: {usr.lab_soil_organic_matter_pct}% (SOC: {calib_soc}%) layered on top of SoilGrids.")
+            if usr.lab_soil_ph is not None:
+                calib_ph = round(usr.lab_soil_ph, 2)
+                soil_ph = calib_ph
+            if usr.lab_topsoil_nitrogen_ppm is not None:
+                calib_n = round(usr.lab_topsoil_nitrogen_ppm * 2.24, 1)
+            if usr.penetrometer_compaction_psi is not None:
+                calib_comp_psi = usr.penetrometer_compaction_psi
+            if usr.in_situ_soil_moisture_vol_pct is not None:
+                calib_moist = round(usr.in_situ_soil_moisture_vol_pct, 1)
+
+            # 8C. On-farm rain gauge & weather station overrides
+            if usr.on_farm_annual_rainfall_mm is not None:
+                effective_rain = round(usr.on_farm_annual_rainfall_mm, 1)
+                rain_grow = round(effective_rain * 0.65, 1)
+                audit_logs.append(f"User on-farm rain gauge: {effective_rain} mm layered on top of NASA GPM IMERG ({rain_ann} mm).")
+            if usr.on_farm_mean_temperature_c is not None:
+                effective_temp = round(usr.on_farm_mean_temperature_c, 2)
+                audit_logs.append(f"User on-farm weather station temp: {effective_temp}°C layered on top of NASA POWER ({t_mean}°C).")
+            if usr.on_farm_annual_et0_mm is not None:
+                effective_et0 = round(usr.on_farm_annual_et0_mm, 1)
+                audit_logs.append(f"User on-farm ET0: {effective_et0} mm layered on top of NASA POWER ({et0} mm).")
+
+            # 8D. Compaction status tag
+            if calib_comp_psi is not None:
+                if calib_comp_psi > 300:
+                    comp_tag = f"Severe Hardpan ({calib_comp_psi:.0f} PSI - Root barrier)"
+                elif calib_comp_psi > 200:
+                    comp_tag = f"Moderate Plowpan ({calib_comp_psi:.0f} PSI)"
+                else:
+                    comp_tag = f"Optimal Tilth ({calib_comp_psi:.0f} PSI)"
         else:
             sensors_present = False
             irrig_sys = "Center Pivot Sprinkler"
@@ -930,6 +974,53 @@ class FieldIngestionParser:
         else:
             elev_mean, slope_mean, aspect, waterlogging, erosion_stat = 250.0, 2.0, "Flat / Level Terrain", False, "Low"
             audit_logs.append("Elevation maps omitted; applied regional topographic elevation (250m, 2% slope).")
+
+        # Ground RTK / drone survey overrides (layer on top of DEM)
+        if usr and usr.survey_elevation_m is not None:
+            elev_mean = round(usr.survey_elevation_m, 1)
+            audit_logs.append(f"User surveyed elevation: {elev_mean}m layered on top of SRTM DEM.")
+        if usr and usr.survey_slope_pct is not None:
+            slope_mean = round(usr.survey_slope_pct, 2)
+            audit_logs.append(f"User surveyed slope: {slope_mean}% layered on top of SRTM DEM.")
+
+        # ----------------------------------------------------------------------
+        # 10. MULTI-SOURCE DATA PROVENANCE & LAYERING AUDIT
+        # ----------------------------------------------------------------------
+        provenance["soil_texture"] = (
+            f"User Local Lab Override '{effective_soil_type}' (overrode NASA SoilGrids '{soil_tex}')"
+            if (usr and usr.soil_type) else f"NASA SoilGrids 2.0 Baseline '{effective_soil_type}'"
+        )
+        provenance["soil_organic_carbon"] = (
+            f"User Lab Ground Truth ({calib_soc:.2f}% SOC) calibrated on top of NASA SoilGrids ({raw_soilgrids_soc:.2f}%)"
+            if (calib_soc is not None and (usr and (usr.lab_soil_organic_matter_pct or usr.dated_sensor_readings or usr.portable_sensors)))
+            else f"NASA SoilGrids Satellite Baseline ({raw_soilgrids_soc:.2f}% SOC)"
+        )
+        provenance["soil_compaction"] = (
+            f"User Cone Penetrometer ({calib_comp_psi:.0f} PSI - {comp_tag}) ground-truthed on top of regional standard (215 PSI)"
+            if calib_comp_psi is not None else "Regional Agricultural Standard Baseline (215 PSI)"
+        )
+        provenance["rootzone_moisture"] = (
+            f"User In-Situ Ground Probe ({calib_moist:.1f}%) calibrated on top of NASA SMAP L4 ({smap_root:.1f}%)"
+            if calib_moist is not None else f"NASA SMAP L4 Satellite Baseline ({smap_root:.1f}%)"
+        )
+        provenance["annual_rainfall"] = (
+            f"User On-Farm Rain Gauge ({effective_rain:.1f} mm) layered on top of NASA GPM IMERG ({rain_ann:.1f} mm)"
+            if (usr and usr.on_farm_annual_rainfall_mm is not None) else f"NASA GPM IMERG Satellite Baseline ({rain_ann:.1f} mm)"
+        )
+        provenance["temperature_and_et0"] = (
+            f"User On-Farm Weather Station ({effective_temp:.1f}°C, {effective_et0:.0f} mm ET0) calibrated on top of NASA POWER"
+            if (usr and (usr.on_farm_mean_temperature_c is not None or usr.on_farm_annual_et0_mm is not None))
+            else f"NASA POWER Agroclimatology Baseline ({t_mean:.1f}°C, {et0:.0f} mm ET0)"
+        )
+        provenance["elevation_and_slope"] = (
+            f"User RTK/Drone Survey ({elev_mean:.1f} m, {slope_mean:.1f}% slope) calibrated on top of NASA SRTM DEM"
+            if (usr and (usr.survey_elevation_m is not None or usr.survey_slope_pct is not None))
+            else f"NASA SRTM DEM Satellite Baseline ({elev_mean:.1f} m, {slope_mean:.1f}% slope)"
+        )
+        if whitelist or blacklist:
+            provenance["crop_preferences"] = f"Farmer Whitelist: {whitelist or 'All'} | Blacklist: {blacklist or 'None'}"
+        if is_org:
+            provenance["organic_certification"] = "Strict Organic Protocol Enforced (Synthetic NPK disallowed)"
 
         completeness_pct = round((completeness_points / max_points) * 100.0, 1)
 
@@ -1002,9 +1093,9 @@ class FieldIngestionParser:
             openet_actual_et_annual_mm=openet_et,
             ecostress_evaporative_stress_index=ecostress_esi,
             hls_peak_ndvi=hls_ndvi,
-            soilgrids_texture_class=soil_tex,
-            soilgrids_organic_carbon_pct=soil_soc,
-            soilgrids_ph=soil_ph,
+            soilgrids_texture_class=raw_soilgrids_tex,
+            soilgrids_organic_carbon_pct=raw_soilgrids_soc,
+            soilgrids_ph=raw_soilgrids_ph,
             grace_groundwater_trend=grace_trend,
             climate_scenario_name=scenario_name,
             has_custom_climate_projections=has_lt,
@@ -1016,6 +1107,10 @@ class FieldIngestionParser:
             calibrated_soil_ph=calib_ph,
             calibrated_soc_pct=calib_soc,
             calibrated_compaction_psi=calib_comp_psi,
+            calibrated_soil_moisture_vol_pct=calib_moist,
+            effective_rainfall_annual_mm=effective_rain,
+            effective_et0_annual_mm=effective_et0,
+            effective_temp_mean_c=effective_temp,
             compaction_level_tag=comp_tag,
             irrigation_system=irrig_sys,
             tillage_practice=tillage,
@@ -1027,6 +1122,7 @@ class FieldIngestionParser:
             slope_aspect=aspect,
             waterlogging_depression_risk=waterlogging,
             erosion_susceptibility_rating=erosion_stat,
+            data_layering_provenance=provenance,
             data_completeness_score_pct=completeness_pct,
             audit_messages=audit_logs
         )

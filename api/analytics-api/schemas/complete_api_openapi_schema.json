@@ -1561,52 +1561,85 @@
             "type": "string",
             "title": "Model Used",
             "description": "Model identifier",
-            "default": "google-genai/gemini-3.8-flash"
+            "default": "google-genai/gemini-3.1-flash-lite"
           },
-          "executive_summary": {
+          "farmer_plain_language_summary": {
             "type": "string",
-            "title": "Executive Summary"
+            "title": "Farmer Plain Language Summary",
+            "description": "Executive briefing translated into plain, relatable farmer language"
           },
-          "parcel_climate_context": {
-            "type": "string",
-            "title": "Parcel Climate Context"
+          "strategies_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/StrategyPlainLanguageBreakdown"
+            },
+            "type": "array",
+            "title": "Strategies Breakdown",
+            "description": "Plain-English breakdown for each of the 5 strategies: benefits, drawbacks, risks, rewards, and 3-year tasks"
           },
-          "strategy_tradeoff_matrix": {
+          "three_year_operational_overview": {
             "type": "string",
-            "title": "Strategy Tradeoff Matrix"
+            "title": "Three Year Operational Overview",
+            "description": "Calendar roadmap of what the farmer needs to do each year to succeed across the 3-year horizon"
           },
-          "year_by_year_soil_transformation": {
+          "risk_vs_reward_comparison": {
             "type": "string",
-            "title": "Year By Year Soil Transformation"
-          },
-          "extreme_event_resilience_playbook": {
-            "type": "string",
-            "title": "Extreme Event Resilience Playbook"
+            "title": "Risk Vs Reward Comparison",
+            "description": "Side-by-side plain-English comparison of the risks taken vs benefits gained across options"
           },
           "farmer_decision_guide": {
             "type": "string",
-            "title": "Farmer Decision Guide"
+            "title": "Farmer Decision Guide",
+            "description": "Practical decision guide helping the farmer pick the right plan based on cash, labor, and risk appetite"
           },
           "ground_truth_field_checklist": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Ground Truth Field Checklist"
+            "title": "Ground Truth Field Checklist",
+            "description": "Actionable physical checks the farmer should carry out on their parcel"
+          },
+          "executive_summary": {
+            "type": "string",
+            "title": "Executive Summary",
+            "description": "High-level summary of the 3-year simulation outcomes"
+          },
+          "parcel_climate_context": {
+            "type": "string",
+            "title": "Parcel Climate Context",
+            "description": "Plain-English translation of NASA satellite observations for this specific field"
+          },
+          "strategy_tradeoff_matrix": {
+            "type": "string",
+            "title": "Strategy Tradeoff Matrix",
+            "description": "Analysis of economic margin vs soil regeneration vs labor expenditure"
+          },
+          "year_by_year_soil_transformation": {
+            "type": "string",
+            "title": "Year By Year Soil Transformation",
+            "description": "Plain explanation of how soil organic matter, compaction, and nitrogen change over 3 years"
+          },
+          "extreme_event_resilience_playbook": {
+            "type": "string",
+            "title": "Extreme Event Resilience Playbook",
+            "description": "Practical farmer actions for drought, heatwaves, heavy downpours, and frost"
           }
         },
         "type": "object",
         "required": [
+          "farmer_plain_language_summary",
+          "three_year_operational_overview",
+          "risk_vs_reward_comparison",
+          "farmer_decision_guide",
+          "ground_truth_field_checklist",
           "executive_summary",
           "parcel_climate_context",
           "strategy_tradeoff_matrix",
           "year_by_year_soil_transformation",
-          "extreme_event_resilience_playbook",
-          "farmer_decision_guide",
-          "ground_truth_field_checklist"
+          "extreme_event_resilience_playbook"
         ],
         "title": "GeminiAdvisoryReport",
-        "description": "Structured AI agronomic consultation generated via Google Gemini 3.8 Flash (with deterministic fallback)."
+        "description": "Structured AI agronomic consultation generated via Google Gemini, translated into clear farmer-friendly guidance."
       },
       "GpmImergPayload": {
         "properties": {
@@ -2202,6 +2235,187 @@
             "title": "Soil Type",
             "description": "Local farmer/lab verified soil type (overrides satellite SoilGrids data, e.g. 'Sandy Loam', 'Clay Loam')"
           },
+          "lab_soil_organic_matter_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 25.0,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Soil Organic Matter Pct",
+            "description": "Direct lab-verified soil organic matter % (overrides satellite SoilGrids SOC)"
+          },
+          "lab_soil_ph": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10.0,
+                "minimum": 3.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Soil Ph",
+            "description": "Direct lab-verified soil pH (overrides SoilGrids pH)"
+          },
+          "lab_topsoil_nitrogen_ppm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 500.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Topsoil Nitrogen Ppm",
+            "description": "Direct lab-verified available nitrate/ammonium ppm"
+          },
+          "lab_soil_phosphorus_ppm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 500.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Soil Phosphorus Ppm",
+            "description": "Direct lab-verified available phosphorus ppm"
+          },
+          "lab_soil_potassium_ppm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Soil Potassium Ppm",
+            "description": "Direct lab-verified available potassium ppm"
+          },
+          "penetrometer_compaction_psi": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 600.0,
+                "minimum": 50.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penetrometer Compaction Psi",
+            "description": "Direct cone penetrometer measurement in PSI"
+          },
+          "in_situ_soil_moisture_vol_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Situ Soil Moisture Vol Pct",
+            "description": "Direct ground soil probe moisture % (calibrates/overrides NASA SMAP)"
+          },
+          "on_farm_annual_rainfall_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Farm Annual Rainfall Mm",
+            "description": "On-farm rain gauge total annual rainfall (calibrates NASA GPM IMERG)"
+          },
+          "on_farm_mean_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 50.0,
+                "minimum": -30.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Farm Mean Temperature C",
+            "description": "On-farm weather station mean annual temperature (calibrates NASA POWER)"
+          },
+          "on_farm_annual_et0_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 3500.0,
+                "minimum": 100.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Farm Annual Et0 Mm",
+            "description": "On-farm calculated reference ET0 (calibrates NASA POWER ET0)"
+          },
+          "survey_elevation_m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 8848.0,
+                "minimum": -400.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survey Elevation M",
+            "description": "RTK GPS / drone LiDAR elevation in meters (calibrates SRTM DEM)"
+          },
+          "survey_slope_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survey Slope Pct",
+            "description": "Surveyed field slope % (calibrates SRTM slope)"
+          },
+          "local_water_quota_m3": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Water Quota M3",
+            "description": "Legal water rights quota (m3/year)"
+          },
           "dated_sensor_readings": {
             "anyOf": [
               {
@@ -2316,7 +2530,7 @@
         },
         "type": "object",
         "title": "LocalUserDataInput",
-        "description": "Farm-specific operational parameters, machinery constraints, soil override, and ground sensors."
+        "description": "Farm-specific operational parameters, machinery constraints, soil override, ground sensors, and on-farm calibration."
       },
       "LongTermWeatherProjectionsInput": {
         "properties": {
@@ -3536,6 +3750,32 @@
             ],
             "title": "Calibrated Compaction Psi"
           },
+          "calibrated_soil_moisture_vol_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibrated Soil Moisture Vol Pct"
+          },
+          "effective_rainfall_annual_mm": {
+            "type": "number",
+            "title": "Effective Rainfall Annual Mm",
+            "default": 620.0
+          },
+          "effective_et0_annual_mm": {
+            "type": "number",
+            "title": "Effective Et0 Annual Mm",
+            "default": 1200.0
+          },
+          "effective_temp_mean_c": {
+            "type": "number",
+            "title": "Effective Temp Mean C",
+            "default": 18.5
+          },
           "compaction_level_tag": {
             "type": "string",
             "title": "Compaction Level Tag"
@@ -3592,6 +3832,14 @@
           "erosion_susceptibility_rating": {
             "type": "string",
             "title": "Erosion Susceptibility Rating"
+          },
+          "data_layering_provenance": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Data Layering Provenance",
+            "description": "Transparent tracking of how user local ground truth calibrated and layered on top of NASA satellite data"
           },
           "data_completeness_score_pct": {
             "type": "number",
@@ -4487,6 +4735,66 @@
         ],
         "title": "SoilTypeInfo"
       },
+      "StrategyPlainLanguageBreakdown": {
+        "properties": {
+          "strategy_id": {
+            "type": "string",
+            "title": "Strategy Id",
+            "description": "Strategy identifier: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk"
+          },
+          "strategy_name": {
+            "type": "string",
+            "title": "Strategy Name",
+            "description": "Display title of the strategy"
+          },
+          "rotation_sequence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rotation Sequence",
+            "description": "3-year crop sequence"
+          },
+          "benefits_plain_words": {
+            "type": "string",
+            "title": "Benefits Plain Words",
+            "description": "What the farmer gains in everyday terms (cash profit, free nitrogen, loose soil, low stress)"
+          },
+          "drawbacks_plain_words": {
+            "type": "string",
+            "title": "Drawbacks Plain Words",
+            "description": "The downsides or sacrifices the farmer makes in plain words (higher upfront cost, lower cash, etc.)"
+          },
+          "risks_taken": {
+            "type": "string",
+            "title": "Risks Taken",
+            "description": "Specific risks the farmer takes on (weather exposure, market price drops, machinery breakdown, compaction)"
+          },
+          "expected_rewards": {
+            "type": "string",
+            "title": "Expected Rewards",
+            "description": "Realistic financial, yield, or soil equity rewards if the plan succeeds"
+          },
+          "three_year_action_overview": {
+            "type": "string",
+            "title": "Three Year Action Overview",
+            "description": "Plain-English step-by-step summary of what the farmer actually has to do across Year 1, Year 2, and Year 3"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy_id",
+          "strategy_name",
+          "rotation_sequence",
+          "benefits_plain_words",
+          "drawbacks_plain_words",
+          "risks_taken",
+          "expected_rewards",
+          "three_year_action_overview"
+        ],
+        "title": "StrategyPlainLanguageBreakdown",
+        "description": "Farmer-friendly translation of a single 3-year strategy into plain everyday language."
+      },
       "ThreeYearCultivationPlan": {
         "properties": {
           "strategy_id": {
@@ -4689,6 +4997,14 @@
             "type": "object",
             "title": "Climate Baseline"
           },
+          "data_layering_provenance": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Data Layering Provenance",
+            "description": "Transparent tracking of how local user ground truth calibrated and layered on top of NASA satellite data"
+          },
           "strategies": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ThreeYearCultivationPlan"
@@ -4712,7 +5028,7 @@
           "gemini_advisory"
         ],
         "title": "ThreeYearPlanResponse",
-        "description": "Top-level API response containing all 5 strategy trajectories and Gemini AI advisory."
+        "description": "Top-level API response containing all 5 strategy trajectories, Gemini AI advisory, and data provenance."
       },
       "TillagePractice": {
         "type": "string",

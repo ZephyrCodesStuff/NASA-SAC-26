@@ -112,25 +112,50 @@ class ThreeYearCultivationPlan(BaseModel):
     risk_mitigation_actions: List[str]
 
 
+class StrategyPlainLanguageBreakdown(BaseModel):
+    """Farmer-friendly translation of a single 3-year strategy into plain everyday language."""
+    strategy_id: str = Field(..., description="Strategy identifier: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk")
+    strategy_name: str = Field(..., description="Display title of the strategy")
+    rotation_sequence: List[str] = Field(..., description="3-year crop sequence")
+    benefits_plain_words: str = Field(..., description="What the farmer gains in everyday terms (cash profit, free nitrogen, loose soil, low stress)")
+    drawbacks_plain_words: str = Field(..., description="The downsides or sacrifices the farmer makes in plain words (higher upfront cost, lower cash, etc.)")
+    risks_taken: str = Field(..., description="Specific risks the farmer takes on (weather exposure, market price drops, machinery breakdown, compaction)")
+    expected_rewards: str = Field(..., description="Realistic financial, yield, or soil equity rewards if the plan succeeds")
+    three_year_action_overview: str = Field(..., description="Plain-English step-by-step summary of what the farmer actually has to do across Year 1, Year 2, and Year 3")
+
+
 class GeminiAdvisoryReport(BaseModel):
-    """Structured AI agronomic consultation generated via Google Gemini 3.8 Flash (with deterministic fallback)."""
-    model_used: str = Field("google-genai/gemini-3.8-flash", description="Model identifier")
-    executive_summary: str
-    parcel_climate_context: str
-    strategy_tradeoff_matrix: str
-    year_by_year_soil_transformation: str
-    extreme_event_resilience_playbook: str
-    farmer_decision_guide: str
-    ground_truth_field_checklist: List[str]
+    """Structured AI agronomic consultation generated via Google Gemini, translated into clear farmer-friendly guidance."""
+    model_used: str = Field("google-genai/gemini-3.1-flash-lite", description="Model identifier")
+    farmer_plain_language_summary: str = Field(..., description="Executive briefing translated into plain, relatable farmer language")
+    strategies_breakdown: List[StrategyPlainLanguageBreakdown] = Field(
+        default_factory=list,
+        description="Plain-English breakdown for each of the 5 strategies: benefits, drawbacks, risks, rewards, and 3-year tasks"
+    )
+    three_year_operational_overview: str = Field(..., description="Calendar roadmap of what the farmer needs to do each year to succeed across the 3-year horizon")
+    risk_vs_reward_comparison: str = Field(..., description="Side-by-side plain-English comparison of the risks taken vs benefits gained across options")
+    farmer_decision_guide: str = Field(..., description="Practical decision guide helping the farmer pick the right plan based on cash, labor, and risk appetite")
+    ground_truth_field_checklist: List[str] = Field(..., description="Actionable physical checks the farmer should carry out on their parcel")
+
+    # Core reference fields
+    executive_summary: str = Field(..., description="High-level summary of the 3-year simulation outcomes")
+    parcel_climate_context: str = Field(..., description="Plain-English translation of NASA satellite observations for this specific field")
+    strategy_tradeoff_matrix: str = Field(..., description="Analysis of economic margin vs soil regeneration vs labor expenditure")
+    year_by_year_soil_transformation: str = Field(..., description="Plain explanation of how soil organic matter, compaction, and nitrogen change over 3 years")
+    extreme_event_resilience_playbook: str = Field(..., description="Practical farmer actions for drought, heatwaves, heavy downpours, and frost")
 
 
 class ThreeYearPlanResponse(BaseModel):
-    """Top-level API response containing all 5 strategy trajectories and Gemini AI advisory."""
+    """Top-level API response containing all 5 strategy trajectories, Gemini AI advisory, and data provenance."""
     cadastral_parcel_id: str
     field_area_ha: float
     resolved_soil_type: str
     simulation_timestamp: str
     climate_baseline: Dict[str, Any]
+    data_layering_provenance: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Transparent tracking of how local user ground truth calibrated and layered on top of NASA satellite data"
+    )
     strategies: Dict[str, ThreeYearCultivationPlan] = Field(
         ...,
         description="Keys: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk"

@@ -214,56 +214,149 @@
       "type": "object"
     },
     "GeminiAdvisoryReport": {
-      "description": "Structured AI agronomic consultation generated via Google Gemini 3.8 Flash (with deterministic fallback).",
+      "description": "Structured AI agronomic consultation generated via Google Gemini, translated into clear farmer-friendly guidance.",
       "properties": {
         "model_used": {
-          "default": "google-genai/gemini-3.8-flash",
+          "default": "google-genai/gemini-3.1-flash-lite",
           "description": "Model identifier",
           "title": "Model Used",
           "type": "string"
         },
-        "executive_summary": {
-          "title": "Executive Summary",
+        "farmer_plain_language_summary": {
+          "description": "Executive briefing translated into plain, relatable farmer language",
+          "title": "Farmer Plain Language Summary",
           "type": "string"
         },
-        "parcel_climate_context": {
-          "title": "Parcel Climate Context",
+        "strategies_breakdown": {
+          "description": "Plain-English breakdown for each of the 5 strategies: benefits, drawbacks, risks, rewards, and 3-year tasks",
+          "items": {
+            "$ref": "#/$defs/StrategyPlainLanguageBreakdown"
+          },
+          "title": "Strategies Breakdown",
+          "type": "array"
+        },
+        "three_year_operational_overview": {
+          "description": "Calendar roadmap of what the farmer needs to do each year to succeed across the 3-year horizon",
+          "title": "Three Year Operational Overview",
           "type": "string"
         },
-        "strategy_tradeoff_matrix": {
-          "title": "Strategy Tradeoff Matrix",
-          "type": "string"
-        },
-        "year_by_year_soil_transformation": {
-          "title": "Year By Year Soil Transformation",
-          "type": "string"
-        },
-        "extreme_event_resilience_playbook": {
-          "title": "Extreme Event Resilience Playbook",
+        "risk_vs_reward_comparison": {
+          "description": "Side-by-side plain-English comparison of the risks taken vs benefits gained across options",
+          "title": "Risk Vs Reward Comparison",
           "type": "string"
         },
         "farmer_decision_guide": {
+          "description": "Practical decision guide helping the farmer pick the right plan based on cash, labor, and risk appetite",
           "title": "Farmer Decision Guide",
           "type": "string"
         },
         "ground_truth_field_checklist": {
+          "description": "Actionable physical checks the farmer should carry out on their parcel",
           "items": {
             "type": "string"
           },
           "title": "Ground Truth Field Checklist",
           "type": "array"
+        },
+        "executive_summary": {
+          "description": "High-level summary of the 3-year simulation outcomes",
+          "title": "Executive Summary",
+          "type": "string"
+        },
+        "parcel_climate_context": {
+          "description": "Plain-English translation of NASA satellite observations for this specific field",
+          "title": "Parcel Climate Context",
+          "type": "string"
+        },
+        "strategy_tradeoff_matrix": {
+          "description": "Analysis of economic margin vs soil regeneration vs labor expenditure",
+          "title": "Strategy Tradeoff Matrix",
+          "type": "string"
+        },
+        "year_by_year_soil_transformation": {
+          "description": "Plain explanation of how soil organic matter, compaction, and nitrogen change over 3 years",
+          "title": "Year By Year Soil Transformation",
+          "type": "string"
+        },
+        "extreme_event_resilience_playbook": {
+          "description": "Practical farmer actions for drought, heatwaves, heavy downpours, and frost",
+          "title": "Extreme Event Resilience Playbook",
+          "type": "string"
         }
       },
       "required": [
+        "farmer_plain_language_summary",
+        "three_year_operational_overview",
+        "risk_vs_reward_comparison",
+        "farmer_decision_guide",
+        "ground_truth_field_checklist",
         "executive_summary",
         "parcel_climate_context",
         "strategy_tradeoff_matrix",
         "year_by_year_soil_transformation",
-        "extreme_event_resilience_playbook",
-        "farmer_decision_guide",
-        "ground_truth_field_checklist"
+        "extreme_event_resilience_playbook"
       ],
       "title": "GeminiAdvisoryReport",
+      "type": "object"
+    },
+    "StrategyPlainLanguageBreakdown": {
+      "description": "Farmer-friendly translation of a single 3-year strategy into plain everyday language.",
+      "properties": {
+        "strategy_id": {
+          "description": "Strategy identifier: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "strategy_name": {
+          "description": "Display title of the strategy",
+          "title": "Strategy Name",
+          "type": "string"
+        },
+        "rotation_sequence": {
+          "description": "3-year crop sequence",
+          "items": {
+            "type": "string"
+          },
+          "title": "Rotation Sequence",
+          "type": "array"
+        },
+        "benefits_plain_words": {
+          "description": "What the farmer gains in everyday terms (cash profit, free nitrogen, loose soil, low stress)",
+          "title": "Benefits Plain Words",
+          "type": "string"
+        },
+        "drawbacks_plain_words": {
+          "description": "The downsides or sacrifices the farmer makes in plain words (higher upfront cost, lower cash, etc.)",
+          "title": "Drawbacks Plain Words",
+          "type": "string"
+        },
+        "risks_taken": {
+          "description": "Specific risks the farmer takes on (weather exposure, market price drops, machinery breakdown, compaction)",
+          "title": "Risks Taken",
+          "type": "string"
+        },
+        "expected_rewards": {
+          "description": "Realistic financial, yield, or soil equity rewards if the plan succeeds",
+          "title": "Expected Rewards",
+          "type": "string"
+        },
+        "three_year_action_overview": {
+          "description": "Plain-English step-by-step summary of what the farmer actually has to do across Year 1, Year 2, and Year 3",
+          "title": "Three Year Action Overview",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy_id",
+        "strategy_name",
+        "rotation_sequence",
+        "benefits_plain_words",
+        "drawbacks_plain_words",
+        "risks_taken",
+        "expected_rewards",
+        "three_year_action_overview"
+      ],
+      "title": "StrategyPlainLanguageBreakdown",
       "type": "object"
     },
     "ThreeYearCultivationPlan": {
@@ -446,7 +539,7 @@
       "type": "object"
     }
   },
-  "description": "Top-level API response containing all 5 strategy trajectories and Gemini AI advisory.",
+  "description": "Top-level API response containing all 5 strategy trajectories, Gemini AI advisory, and data provenance.",
   "properties": {
     "cadastral_parcel_id": {
       "title": "Cadastral Parcel Id",
@@ -467,6 +560,14 @@
     "climate_baseline": {
       "additionalProperties": true,
       "title": "Climate Baseline",
+      "type": "object"
+    },
+    "data_layering_provenance": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Transparent tracking of how local user ground truth calibrated and layered on top of NASA satellite data",
+      "title": "Data Layering Provenance",
       "type": "object"
     },
     "strategies": {

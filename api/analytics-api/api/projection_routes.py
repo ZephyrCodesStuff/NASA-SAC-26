@@ -50,14 +50,19 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
         # 1. Normalize multi-source raw ingestion data
         normalized = FieldIngestionParser.parse_and_validate(payload)
         
-        # 2. Extract key parameters from normalized profile
+        # 2. Extract key parameters from normalized profile (User ground-truth layers on top of NASA)
         area_ha = normalized.area_hectares or 1.0
-        annual_precip = normalized.gpm_imerg_annual_rainfall_mm or 650.0
-        annual_et0 = normalized.nasa_power_et0_annual_mm or 1100.0
-        mean_temp = normalized.nasa_power_temp_mean_c or 14.0
-        smap_moisture = (normalized.smap_rootzone_moisture_vol_pct or 26.0) / 100.0
+        annual_precip = normalized.effective_rainfall_annual_mm or normalized.gpm_imerg_annual_rainfall_mm or 650.0
+        annual_et0 = normalized.effective_et0_annual_mm or normalized.nasa_power_et0_annual_mm or 1100.0
+        mean_temp = normalized.effective_temp_mean_c or normalized.nasa_power_temp_mean_c or 14.0
 
-        base_soc = normalized.calibrated_soc_pct or 1.85
+        # In-situ ground moisture probe layers on top of NASA SMAP satellite
+        if normalized.calibrated_soil_moisture_vol_pct is not None:
+            smap_moisture = normalized.calibrated_soil_moisture_vol_pct / 100.0
+        else:
+            smap_moisture = (normalized.smap_rootzone_moisture_vol_pct or 26.0) / 100.0
+
+        base_soc = normalized.calibrated_soc_pct or normalized.soilgrids_organic_carbon_pct or 1.85
         base_compaction = normalized.calibrated_compaction_psi or 215.0
         base_nitrate = normalized.calibrated_topsoil_n_kg_ha or 24.0
 
@@ -74,7 +79,7 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             "elevation_m": elevation_val,
             "slope_pct": slope_val,
             "has_greenhouse": bool(parcel.greenhouse_available),
-            "legal_water_quota_m3": parcel.annual_water_quota_m3,
+            "legal_water_quota_m3": (payload.local_user_data.local_water_quota_m3 if payload.local_user_data and payload.local_user_data.local_water_quota_m3 is not None else parcel.annual_water_quota_m3),
             "baseline_soc_pct": base_soc,
             "baseline_compaction_psi": base_compaction,
             "baseline_nitrate_ppm": base_nitrate,
@@ -105,6 +110,7 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             "soil_type": normalized.soil_type,
             "elevation_m": elevation_val,
             "slope_pct": slope_val,
+            "data_layering_provenance": normalized.data_layering_provenance,
         }
         climate_context = {
             "annual_et0_mm": annual_et0,
@@ -127,6 +133,7 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             resolved_soil_type=normalized.soil_type,
             simulation_timestamp=datetime.now(timezone.utc).isoformat(),
             climate_baseline=climate_context,
+            data_layering_provenance=normalized.data_layering_provenance,
             strategies=strategies_dict,
             gemini_advisory=gemini_report
         )
