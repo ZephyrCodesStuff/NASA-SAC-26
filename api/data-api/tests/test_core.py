@@ -101,3 +101,32 @@ def test_ttl_cache_does_not_cache_errors(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError):
         flaky()
     assert flaky() == "ok"
+
+
+def test_netrc_fallback_to_saved_login(tmp_path, monkeypatch):
+    from app import core
+
+    saved = tmp_path / "netrc"
+    saved.write_text("machine urs.earthdata.nasa.gov login u password p\n")
+    monkeypatch.setattr(core, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(core.Path, "home", lambda: tmp_path / "nohome")
+    for k in ("EARTHDATA_USERNAME", "EARTHDATA_PASSWORD", "NETRC", "GDAL_HTTP_NETRC_FILE"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("EARTHDATA_USERNAME", "")  # compose passes empty values when .env lacks them
+    core._ensure_netrc_from_env()
+    assert core.os.environ["NETRC"] == str(saved) and core.os.environ["GDAL_HTTP_NETRC_FILE"] == str(saved)
+    assert core.earthdata_login_configured()
+
+
+def test_netrc_written_from_env(tmp_path, monkeypatch):
+    from app import core
+
+    monkeypatch.setattr(core, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(core.Path, "home", lambda: tmp_path / "nohome")
+    for k in ("NETRC", "GDAL_HTTP_NETRC_FILE"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("EARTHDATA_USERNAME", "alice")
+    monkeypatch.setenv("EARTHDATA_PASSWORD", "secret")
+    core._ensure_netrc_from_env()
+    assert "login alice password secret" in (tmp_path / "netrc").read_text()
+    assert core.os.environ["NETRC"] == str(tmp_path / "netrc")
