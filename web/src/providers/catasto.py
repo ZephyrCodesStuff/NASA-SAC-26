@@ -17,13 +17,9 @@ Key protocol details (verified against service capabilities & documentation):
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
-import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Sequence
 from urllib.parse import urlencode
 
@@ -496,12 +492,6 @@ def build_wms_getmap_url(
 # ---------------------------------------------------------------------------
 
 
-DEFAULT_CACHE_DIR = Path(
-    os.getenv("CATASTO_CACHE_DIR", str(Path(__file__).resolve().parents[3] / ".cache" / "catasto"))
-)
-_MEM_CACHE: dict[str, dict[str, Any]] = {}
-
-
 def _feature_bbox(geometry: dict[str, Any]) -> tuple[float, float, float, float] | None:
     """Return (min_lat, min_lon, max_lat, max_lon) for a Polygon/MultiPolygon."""
     gtype = geometry.get("type")
@@ -522,22 +512,17 @@ def _feature_bbox(geometry: dict[str, Any]) -> tuple[float, float, float, float]
 
 
 class CatastoClient:
-    """Async client for AdE Catasto WMS & WFS with permanent multi-tier caching."""
+    """Async client for AdE Catasto WMS & WFS (stateless; plot data is persisted in `user_plots`)."""
 
     def __init__(
         self,
-        pb_url: str | None = None,
-        cache_dir: Path | str | None = DEFAULT_CACHE_DIR,
         timeout: float = 15.0,
         client: httpx.AsyncClient | None = None,
+        **_ignored: Any,
     ) -> None:
-        self.pb_url = (pb_url if pb_url is not None else os.getenv("PB_URL", "http://127.0.0.1:8090")).rstrip("/")
-        self.cache_dir = Path(cache_dir) if cache_dir else None
         self.timeout = timeout
         self._external_client = client
         self._client: httpx.AsyncClient | None = client
-        self._parcel_index: dict[str, tuple[tuple[float, float, float, float], dict[str, Any]]] = {}
-        self._disk_loaded = False
 
     async def __aenter__(self) -> CatastoClient:
         if self._client is None:
@@ -553,118 +538,6 @@ class CatastoClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         return self._client
-
-    @staticmethod
-    def _make_cache_key(prefix: str, *parts: Any) -> str:
-        raw = json.dumps([prefix, *parts], sort_keys=True, default=str)
-        return f"{prefix}_{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
-
-    def _disk_cache_path(self, cache_key: str) -> Path | None:
-        if self.cache_dir is None:
-            return None
-        return self.cache_dir / f"{cache_key}.json"
-
-    async def _read_cache(self, cache_key: str) -> dict[str, Any] | None:
-        """Read from in-memory, PocketBase `field_cache`, or local disk cache."""
-        if cache_key in _MEM_CACHE:
-            return _MEM_CACHE[cache_key]
-
-        if self.pb_url:
-            try:
-                http = await self._http()
-                resp = await http.get(
-                    f"{self.pb_url}/api/collections/field_cache/records",
-                    params={"filter": f'cache_key="{cache_key}"', "perPage": 1},
-                    timeout=2.0,
-                )
-                if resp.status_code == 200:
-                    items = resp.json().get("items") or []
-                    if items:
-                        payload = items[0].get("payload")
-                        data = json.loads(payload) if isinstance(payload, str) else payload
-                        if isinstance(data, dict):
-                            _MEM_CACHE[cache_key] = data
-                            return data
-            except Exception:
-                pass
-
-        disk_path = self._disk_cache_path(cache_key)
-        if disk_path is not None and disk_path.exists():
-            try:
-                data = json.loads(disk_path.read_text(encoding="utf-8"))
-                _MEM_CACHE[cache_key] = data
-                return data
-            except Exception:
-                pass
-
-        return None
-
-    async def _write_cache(self, cache_key: str, payload: dict[str, Any]) -> None:
-        """Persist immutable Catasto data to memory, disk, and PocketBase `field_cache`."""
-        _MEM_CACHE[cache_key] = payload
-        self._index_features(payload.get("features") or [])
-
-        disk_path = self._disk_cache_path(cache_key)
-        if disk_path is not None:
-            try:
-                disk_path.parent.mkdir(parents=True, exist_ok=True)
-                disk_path.write_text(json.dumps(payload), encoding="utf-8")
-            except Exception:
-                pass
-
-        if self.pb_url:
-            try:
-                http = await self._http()
-                await http.post(
-                    f"{self.pb_url}/api/collections/field_cache/records",
-                    json={"cache_key": cache_key, "payload": payload},
-                    timeout=2.0,
-                )
-            except Exception:
-                pass
-
-    def _index_features(self, features: Sequence[dict[str, Any]]) -> None:
-        """Add GeoJSON parcel features to the in-memory spatial index."""
-        for feat in features:
-            fid = feat.get("id") or (feat.get("properties") or {}).get("inspire_id")
-            geom = feat.get("geometry")
-            if not fid or not geom:
-                continue
-            bbox = _feature_bbox(geom)
-            if bbox is not None:
-                self._parcel_index[str(fid)] = (bbox, feat)
-
-    def _ensure_disk_index_loaded(self) -> None:
-        """Load any previously cached WFS FeatureCollections from disk into the parcel index."""
-        if self._disk_loaded:
-            return
-        self._disk_loaded = True
-        for payload in _MEM_CACHE.values():
-            if (payload.get("properties") or {}).get("layer") == WFSLayers.CADASTRAL_PARCEL:
-                self._index_features(payload.get("features") or [])
-        if self.cache_dir is None or not self.cache_dir.exists():
-            return
-        for path in self.cache_dir.glob("catasto_wfs_*.json"):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if (data.get("properties") or {}).get("layer", WFSLayers.CADASTRAL_PARCEL) == WFSLayers.CADASTRAL_PARCEL:
-                    self._index_features(data.get("features") or [])
-            except Exception:
-                continue
-
-    def get_cached_parcels(self) -> list[dict[str, Any]]:
-        """Return all deduplicated cached parcel GeoJSON features."""
-        self._ensure_disk_index_loaded()
-        return [feat for _, feat in self._parcel_index.values()]
-
-    def find_cached_parcel_at_point(self, lat: float, lon: float) -> dict[str, Any] | None:
-        """Return an already-cached parcel containing (lat, lon), or None."""
-        self._ensure_disk_index_loaded()
-        for (min_lat, min_lon, max_lat, max_lon), feat in self._parcel_index.values():
-            if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
-                if point_in_geojson_geometry(lat, lon, feat["geometry"]):
-                    return feat
-        return None
 
     # --- WMS methods ---
 
@@ -745,23 +618,8 @@ class CatastoClient:
         max_lat: float,
         max_lon: float,
         count: int = 100,
-        use_cache: bool = True,
     ) -> dict[str, Any]:
         validate_wfs_bbox(min_lat, min_lon, max_lat, max_lon, layer=layer)
-        cache_key = self._make_cache_key(
-            "catasto_wfs",
-            layer,
-            round(min_lat, 5),
-            round(min_lon, 5),
-            round(max_lat, 5),
-            round(max_lon, 5),
-            count,
-        )
-        if use_cache:
-            cached = await self._read_cache(cache_key)
-            if cached is not None:
-                return {**cached, "_from_cache": True}
-
         http = await self._http()
         resp = await http.get(
             WFS_URL,
@@ -775,10 +633,7 @@ class CatastoClient:
             },
         )
         resp.raise_for_status()
-        geojson = parse_gml_feature_collection(resp.text, layer=layer)
-        if use_cache and geojson["features"]:
-            await self._write_cache(cache_key, geojson)
-        return {**geojson, "_from_cache": False}
+        return parse_gml_feature_collection(resp.text, layer=layer)
 
     async def fetch_parcels_in_bbox(
         self,
@@ -787,11 +642,11 @@ class CatastoClient:
         max_lat: float,
         max_lon: float,
         count: int = 100,
-        use_cache: bool = True,
+        **_ignored: Any,
     ) -> dict[str, Any]:
         """Fetch cadastral parcels (`CP:CadastralParcel`) as a GeoJSON FeatureCollection."""
         return await self._fetch_wfs_features(
-            WFSLayers.CADASTRAL_PARCEL, min_lat, min_lon, max_lat, max_lon, count=count, use_cache=use_cache
+            WFSLayers.CADASTRAL_PARCEL, min_lat, min_lon, max_lat, max_lon, count=count
         )
 
     async def fetch_zoning_in_bbox(
@@ -801,11 +656,11 @@ class CatastoClient:
         max_lat: float,
         max_lon: float,
         count: int = 50,
-        use_cache: bool = True,
+        **_ignored: Any,
     ) -> dict[str, Any]:
         """Fetch cadastral map sheet borders (`CP:CadastralZoning`) as GeoJSON."""
         return await self._fetch_wfs_features(
-            WFSLayers.CADASTRAL_ZONING, min_lat, min_lon, max_lat, max_lon, count=count, use_cache=use_cache
+            WFSLayers.CADASTRAL_ZONING, min_lat, min_lon, max_lat, max_lon, count=count
         )
 
     async def fetch_osm_farmland_at_point(
@@ -869,30 +724,12 @@ class CatastoClient:
         lon: float,
         delta: float = DEFAULT_BBOX_DELTA,
         count: int = 150,
-        use_cache: bool = True,
         osm_fallback: bool = True,
+        **_ignored: Any,
     ) -> dict[str, Any]:
-        """Locate the exact cadastral parcel containing (lat, lon).
-
-        Checks the permanent spatial parcel cache first so any click inside an
-        already-fetched parcel returns immediately with zero network calls. On a
-        cache miss, queries a ~1 km BBOX (`delta=0.0040`, `count=150`) via AdE WFS
-        to fetch and cache the clicked parcel plus neighboring plots in one call.
-        """
-        if use_cache:
-            cached_feat = self.find_cached_parcel_at_point(lat, lon)
-            if cached_feat is not None:
-                return {
-                    "parcel": cached_feat,
-                    "candidates": self.get_cached_parcels(),
-                    "source": "ade_catasto_wfs",
-                    "cached": True,
-                    "attribution": ATTRIBUTION,
-                }
-
+        """Locate the exact cadastral parcel containing (lat, lon)."""
         candidates: list[dict[str, Any]] = []
         source = "ade_catasto_wfs"
-        from_cache = False
 
         if is_in_italy(lat, lon):
             fc = await self.fetch_parcels_in_bbox(
@@ -901,18 +738,14 @@ class CatastoClient:
                 lat + delta,
                 lon + delta,
                 count=count,
-                use_cache=use_cache,
             )
             candidates = fc["features"]
-            self._index_features(candidates)
-            from_cache = bool(fc.get("_from_cache", False))
             for feat in candidates:
                 if point_in_geojson_geometry(lat, lon, feat["geometry"]):
                     return {
                         "parcel": feat,
                         "candidates": candidates,
                         "source": source,
-                        "cached": from_cache,
                         "attribution": ATTRIBUTION,
                     }
 
@@ -926,7 +759,6 @@ class CatastoClient:
                         "parcel": feat,
                         "candidates": candidates,
                         "source": source,
-                        "cached": False,
                         "attribution": "OpenStreetMap contributors (ODbL)",
                     }
 
@@ -934,6 +766,5 @@ class CatastoClient:
             "parcel": candidates[0] if candidates else None,
             "candidates": candidates,
             "source": source,
-            "cached": from_cache,
             "attribution": ATTRIBUTION if source == "ade_catasto_wfs" else "OpenStreetMap contributors (ODbL)",
         }

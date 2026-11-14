@@ -100,8 +100,8 @@ def build_auth_view(auth_service: AuthService) -> None:
                     reg_name = ui.input("Full Name", placeholder="Lucia Ferrero").props("outlined dense").classes("w-full")
                     reg_email = ui.input("Email", placeholder="lucia@farm.it").props("outlined dense").classes("w-full")
                     reg_role = ui.select(
-                        options=["Farmer", "Agronomist", "Researcher"],
-                        value="Farmer",
+                        options={"farm_admin": "Farm Admin (Can edit plots)", "viewer": "Viewer (Read-only)"},
+                        value="farm_admin",
                         label="Role",
                     ).props("outlined dense").classes("w-full")
                     reg_pw = ui.input("Password (min 6 chars)", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
@@ -121,7 +121,7 @@ def build_auth_view(auth_service: AuthService) -> None:
                                 email=email,
                                 name=name,
                                 client_hash=client_hash,
-                                role=str(reg_role.value or "Farmer"),
+                                role=str(reg_role.value or "viewer"),
                             )
                         except AuthError as exc:
                             error_label.set_text(str(exc))
@@ -149,8 +149,9 @@ def build_auth_view(auth_service: AuthService) -> None:
                         app.storage.user["user"] = user
                         ui.navigate.to("/")
 
+                    role_label = "Farm Admin" if demo.role == "farm_admin" else "Viewer"
                     ui.button(
-                        f"{demo.name} ({demo.role}) — {demo.email}",
+                        f"{demo.name} ({role_label}) — {demo.email}",
                         on_click=_demo_login,
                         icon="bolt",
                     ).props("outline dense no-caps").classes("w-full text-xs")

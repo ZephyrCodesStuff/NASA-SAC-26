@@ -39,16 +39,29 @@ DEMO_USERS: tuple[DemoUserSpec, ...] = (
     DemoUserSpec(
         email="marco@turinfarm.it",
         name="Marco Rossi",
-        role="Farmer",
+        role="farm_admin",
         password="demo-farmer-2026",
     ),
     DemoUserSpec(
         email="elena@agronomy.it",
         name="Elena Bianchi",
-        role="Agronomist",
+        role="viewer",
         password="demo-agro-2026",
     ),
 )
+
+VALID_ROLES: frozenset[str] = frozenset({"farm_admin", "viewer"})
+
+
+def is_farm_owner(farm_record: dict[str, Any] | None, user: dict[str, Any] | None) -> bool:
+    """Return True if the logged-in user is a `farm_admin` who owns `farm_record`."""
+    if not farm_record or not user:
+        return False
+    return (
+        user.get("role") == "farm_admin"
+        and bool(user.get("user_id") or user.get("id"))
+        and farm_record.get("owner") in {user.get("user_id"), user.get("id")}
+    )
 
 
 class AuthError(ValueError):
@@ -182,13 +195,74 @@ class AuthService:
                     }
                 )
 
+    async def _pb_auth_users_session(
+        self,
+        email: str,
+        name: str,
+        role: str,
+        client_hash: str,
+    ) -> tuple[str | None, str | None]:
+        """Authenticate (or create + authenticate) in PocketBase `users` Auth collection for JWT rules."""
+        if not self.pb_url:
+            return None, None
+        close_after = self._client is None
+        http = await self._http()
+        try:
+            auth_resp = await http.post(
+                f"{self.pb_url}/api/collections/users/auth-with-password",
+                json={"identity": email, "password": client_hash},
+            )
+            if auth_resp.status_code == 200:
+                data = auth_resp.json()
+                rec = data.get("record") or {}
+                return rec.get("id"), data.get("token")
+
+            # Create user in `users` auth collection if not present yet
+            create_resp = await http.post(
+                f"{self.pb_url}/api/collections/users/records",
+                json={
+                    "email": email,
+                    "password": client_hash,
+                    "passwordConfirm": client_hash,
+                    "name": name,
+                    "role": role,
+                    "emailVisibility": True,
+                },
+            )
+            if create_resp.status_code in (200, 201):
+                auth_resp = await http.post(
+                    f"{self.pb_url}/api/collections/users/auth-with-password",
+                    json={"identity": email, "password": client_hash},
+                )
+                if auth_resp.status_code == 200:
+                    data = auth_resp.json()
+                    rec = data.get("record") or {}
+                    return rec.get("id"), data.get("token")
+            return None, None
+        except Exception:
+            return None, None
+        finally:
+            if close_after:
+                await http.aclose()
+
     @staticmethod
-    def _public_user(record: dict[str, Any], backend: str) -> dict[str, Any]:
+    def _public_user(
+        record: dict[str, Any],
+        backend: str,
+        pb_user_id: str | None = None,
+        pb_token: str | None = None,
+    ) -> dict[str, Any]:
+        uid = pb_user_id or record.get("id")
+        role = record.get("role")
+        if role not in VALID_ROLES:
+            role = "viewer"
         return {
-            "id": record.get("id"),
+            "id": uid,
+            "user_id": uid,
+            "token": pb_token,
             "email": record.get("email"),
             "name": record.get("name"),
-            "role": record.get("role") or "Farmer",
+            "role": role,
             "is_demo": bool(record.get("is_demo", False)),
             "backend": backend,
         }
@@ -198,11 +272,12 @@ class AuthService:
         email: str,
         name: str,
         client_hash: str,
-        role: str = "Farmer",
+        role: str = "viewer",
     ) -> dict[str, Any]:
         """Register a new user using a PBKDF2-derived client hash, stored as Argon2id."""
         norm_email = email.strip().lower()
         clean_name = name.strip()
+        clean_role = role.strip() if role.strip() in VALID_ROLES else "viewer"
         if "@" not in norm_email or "." not in norm_email.split("@")[-1]:
             raise AuthError("Please enter a valid email address.")
         if not clean_name:
@@ -218,14 +293,15 @@ class AuthService:
         payload = {
             "email": norm_email,
             "name": clean_name,
-            "role": role.strip() or "Farmer",
+            "role": clean_role,
             "password_hash": argon2_hash,
             "is_demo": False,
         }
 
         created = await self._pb_create_user(payload)
         if created is not None:
-            return self._public_user(created, backend="pocketbase")
+            pb_uid, pb_tok = await self._pb_auth_users_session(norm_email, clean_name, clean_role, client_hash)
+            return self._public_user(created, backend="pocketbase", pb_user_id=pb_uid, pb_token=pb_tok)
 
         local_rec = {"id": f"local_{len(self._fallback_users) + 1}", **payload}
         self._fallback_users[norm_email] = local_rec
@@ -248,4 +324,10 @@ class AuthService:
         if record is None or not verify_password_argon2id(record.get("password_hash", ""), client_hash):
             raise AuthError("Invalid email or password.")
 
-        return self._public_user(record, backend=backend)
+        pb_uid, pb_tok = await self._pb_auth_users_session(
+            norm_email,
+            str(record.get("name") or norm_email),
+            str(record.get("role") or "viewer"),
+            client_hash,
+        )
+        return self._public_user(record, backend=backend, pb_user_id=pb_uid, pb_token=pb_tok)

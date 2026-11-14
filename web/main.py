@@ -6,20 +6,25 @@ import httpx
 from nicegui import app, ui
 
 from src.auth import AuthService
+from src.farms import FarmStore
 from src.providers.catasto import CatastoClient
+from src.providers.data_api import DataApiClient
 from src.providers.worldcover import WorldCoverClient
 from src.ui.auth_view import build_auth_view
 from src.ui.map_picker import build_catasto_map_picker
 
 PB_URL = os.getenv("PB_URL", "http://127.0.0.1:8090").rstrip("/")
 PB_PUBLIC_URL = os.getenv("PB_PUBLIC_URL", PB_URL).rstrip("/")
+DATA_API_URL = os.getenv("DATA_API_URL", "http://127.0.0.1:8000").rstrip("/")
 PORT = int(os.getenv("PORT", "8080"))
 RELOAD = os.getenv("RELOAD", "1") == "1"
 STORAGE_SECRET = os.getenv("STORAGE_SECRET") or "nasa-space-apps-2026-dev-secret"
 
 catasto_client = CatastoClient(pb_url=PB_URL)
 worldcover_client = WorldCoverClient()
+data_api_client = DataApiClient(base_url=DATA_API_URL)
 auth_service = AuthService(pb_url=PB_URL)
+farm_store = FarmStore(pb_url=PB_URL)
 
 
 async def check_pocketbase() -> tuple[bool, str]:
@@ -69,8 +74,11 @@ async def index() -> None:
         return
 
     await build_catasto_map_picker(
+        current_user=current_user,
+        farm_store=farm_store,
         catasto_client=catasto_client,
         worldcover_client=worldcover_client,
+        data_api_client=data_api_client,
     )
 
 

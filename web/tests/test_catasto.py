@@ -147,33 +147,18 @@ class CatastoTests(unittest.TestCase):
         self.assertIn("torino_centro", TURIN_PRESETS)
         self.assertEqual(TURIN_PRESETS["torino_centro"].belfiore_code, "L219")
 
-    def test_permanent_cache_avoids_repeat_wfs_calls(self) -> None:
-        from src.providers import catasto as catasto_mod
-
-        catasto_mod._MEM_CACHE.clear()
-        calls = {"count": 0}
-
+    def test_fetch_parcel_at_point_mock(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
-            calls["count"] += 1
             return httpx.Response(200, text=SAMPLE_PARCEL_GML)
 
         async def run_test() -> None:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
-                    client = CatastoClient(pb_url="", cache_dir=tmpdir, client=http)
-                    first = await client.fetch_parcel_at_point(45.0705, 7.6865, use_cache=True)
-                    self.assertFalse(first["cached"])
-                    self.assertEqual(calls["count"], 1)
-                    self.assertEqual(first["parcel"]["properties"]["national_ref"], "L219_124700.42")
-
-                    # Clear in-memory cache to verify disk cache hit without HTTP call,
-                    # even at a slightly different point inside the same parcel
-                    catasto_mod._MEM_CACHE.clear()
-                    client2 = CatastoClient(pb_url="", cache_dir=tmpdir, client=http)
-                    second = await client2.fetch_parcel_at_point(45.0706, 7.6866, use_cache=True)
-                    self.assertTrue(second["cached"])
-                    self.assertEqual(calls["count"], 1)
-                    self.assertEqual(second["parcel"]["properties"]["national_ref"], "L219_124700.42")
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+                client = CatastoClient(client=http)
+                res = await client.fetch_parcel_at_point(45.0705, 7.6865)
+                self.assertEqual(res["source"], "ade_catasto_wfs")
+                self.assertEqual(res["parcel"]["properties"]["national_ref"], "L219_124700.42")
+                self.assertEqual(res["parcel"]["properties"]["foglio"], "1247")
+                self.assertEqual(res["parcel"]["properties"]["particella"], "42")
 
         asyncio.run(run_test())
 

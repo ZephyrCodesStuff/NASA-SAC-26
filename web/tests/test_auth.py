@@ -68,8 +68,9 @@ class AuthTests(unittest.TestCase):
 
                 # Register a new user
                 reg_ch = derive_pbkdf2_client_hash("lucia@farm.it", "secret-123")
-                created = await svc.register("lucia@farm.it", "Lucia Ferrero", reg_ch, role="Farmer")
+                created = await svc.register("lucia@farm.it", "Lucia Ferrero", reg_ch, role="farm_admin")
                 self.assertEqual(created["email"], "lucia@farm.it")
+                self.assertEqual(created["role"], "farm_admin")
                 self.assertEqual(created["backend"], "pocketbase")
                 self.assertFalse(created["is_demo"])
 
