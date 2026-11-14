@@ -33,7 +33,7 @@ flowchart LR
 ### 🛰️ Data API (`data-api/`)
 
 Service that returns satellite and model data for a field boundary (GeoJSON or Catasto GML).
-Needs a free NASA Earthdata login in `.env` — see [data-api/README.md](data-api/README.md).
+Needs a free NASA Earthdata login in `.env` — see [api/data-api/README.md](api/data-api/README.md).
 
 ### 📚 Data sources & credits
 

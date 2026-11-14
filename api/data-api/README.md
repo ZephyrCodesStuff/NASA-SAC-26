@@ -83,7 +83,7 @@ A dataset that fails never fails the request — check each `status`.
 | `crop_type` | ESA WorldCereal 2021 | — | not wired yet |
 
 `?year=true` returns the last 12 months of every time series plus `periods`: 24 half-month summaries
-(1st–15th / 16th–end). Field-by-field reference: [docs/data-catalog.md](../docs/data-catalog.md).
+(1st–15th / 16th–end). Field-by-field reference: [docs/data-catalog.md](../../docs/data-catalog.md).
 
 ## Speed & caching
 

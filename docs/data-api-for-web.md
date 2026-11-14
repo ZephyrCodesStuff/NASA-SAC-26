@@ -1,7 +1,7 @@
 # Calling the data API from the web app
 
 How `web/` gets satellite data for the parcel the farmer clicked.
-Every field explained: [data-catalog.md](data-catalog.md). Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
+Every field explained: [data-catalog.md](data-catalog.md). Full API reference: [api/data-api/README.md](../api/data-api/README.md) (or http://localhost:8070/docs when running).
 
 ## How it fits together
 
