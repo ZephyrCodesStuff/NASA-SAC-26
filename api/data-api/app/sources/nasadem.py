@@ -68,10 +68,12 @@ def fetch(parcel, q: Query) -> dict:
     asp = aspect[inside & np.isfinite(aspect)]
     mean_aspect = float(np.degrees(np.arctan2(np.sin(np.radians(asp)).mean(), np.cos(np.radians(asp)).mean())) % 360) if asp.size else None
     steep = float((slope[inside] > 8).mean()) if n else None
+    gradient = _plane_gradient_deg(elev, inside, dx, dy)
 
     values = {
         "elevation_m": {k: clean(e.get(k), 1) for k in ("mean", "min", "max")},
         "slope_deg": {k: clean(s.get(k), 2) for k in ("mean", "max")},
+        "field_gradient_deg": clean(gradient, 2),
         "aspect_deg": clean(mean_aspect, 0),
         "share_steeper_than_8deg": clean(steep, 3),
         "relative_elevation_m": clean(rel, 2),
@@ -79,4 +81,19 @@ def fetch(parcel, q: Query) -> dict:
     }
     return result(scale="field", resolution_m=30, source="NASADEM_HGT v001", date_="static", values=values,
                   units={"relative_elevation_m": "parcel mean minus mean of ~300 m surroundings (negative = lower, waterlogging risk)",
-                         "aspect_deg": "direction the slope faces, 0 = north"})
+                         "aspect_deg": "direction the slope faces, 0 = north",
+                         "field_gradient_deg": "overall tilt of the field (least-squares plane over the parcel); "
+                                               "unlike slope_deg.mean it ignores the ~1° pixel noise of the DEM on flat land"})
+
+
+def _plane_gradient_deg(elev: np.ndarray, inside: np.ndarray, dx: float, dy: float) -> float | None:
+    """Tilt of the best-fit plane z = a·x + b·y + c through the parcel's elevation pixels."""
+    mask = inside & np.isfinite(elev)
+    if mask.sum() < 6:  # tiny parcel: use the whole window around it
+        mask = np.isfinite(elev)
+    if mask.sum() < 6:
+        return None
+    rows, cols = np.nonzero(mask)
+    a = np.column_stack([cols * dx, rows * dy, np.ones(rows.size)])
+    (gx, gy, _), *_ = np.linalg.lstsq(a, elev[mask], rcond=None)
+    return float(np.degrees(np.arctan(math.hypot(gx, gy))))

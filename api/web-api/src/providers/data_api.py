@@ -206,3 +206,38 @@ class DataApiClient:
         finally:
             if close_after:
                 await http.aclose()
+
+    # --- Raw data-api passthroughs for the visualizer (long timeouts: cold sources can take minutes) ---
+    async def _request(self, method: str, path: str, *, params: dict[str, Any] | None = None,
+                       json: Any = None, timeout: float = 600.0) -> dict[str, Any]:
+        close_after = self._client is None
+        http = await self._http()
+        try:
+            resp = await http.request(method, f"{self.base_url}{path}", params=params, json=json, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        finally:
+            if close_after:
+                await http.aclose()
+
+    async def fetch_datasets(
+        self, geojson_feature: dict[str, Any], datasets: str, year: bool = False, history: bool = False
+    ) -> dict[str, Any]:
+        """Any data-api datasets for one parcel; returns the parcel entry (`datasets`, `timings_s`)."""
+        params = {"datasets": datasets, "history": "true" if history else "false"}
+        if year:
+            params["year"] = "true"
+        body = await self._request("POST", "/geojson", params=params, json=geojson_feature)
+        parcel = (body.get("parcels") or [{}])[0]
+        return {**parcel, "query": body.get("query"), "generated_at": body.get("generated_at")}
+
+    async def fetch_imagery(
+        self, geojson_feature: dict[str, Any], groups: str | None = None, date: str | None = None
+    ) -> dict[str, Any]:
+        """PNG layers (data URIs + bounds) for a parcel: HLS bands/indices, ECOSTRESS LST, NASADEM terrain."""
+        params = {k: v for k, v in {"groups": groups, "date": date}.items() if v}
+        return await self._request("POST", "/imagery", params=params, json=geojson_feature, timeout=300.0)
+
+    async def fetch_layers(self) -> dict[str, Any]:
+        """NASA GIBS tile layer templates for the web map."""
+        return await self._request("GET", "/layers", timeout=120.0)

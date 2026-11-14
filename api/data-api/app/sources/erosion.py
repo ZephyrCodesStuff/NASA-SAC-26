@@ -1,7 +1,7 @@
 """Erosion risk (RUSLE A = R·K·LS·C·P) computed from the other datasets — no extra download.
 
 R from long-term annual rainfall (NASA POWER 1991–2020 normals), K from SoilGrids topsoil texture and organic
-carbon (Williams/EPIC), LS from NASADEM slope and the parcel size, C from current HLS NDVI. P (conservation
+carbon (Williams/EPIC), LS from the NASADEM field gradient and the parcel size, C from current HLS NDVI. P (conservation
 practice) = 1. Gives the farmer a "bare soil" worst case and an estimate for the current cover.
 """
 import math
@@ -58,7 +58,10 @@ def compute(parcel, datasets: dict) -> dict:
     top = datasets["soil"]["values"].get("0-5cm") or {}
     sand, silt, clay, soc = (top.get(k) for k in ("sand", "silt", "clay", "soc"))
     precip_day = _get(datasets["weather"], "values", "normals_1991_2020", "ann", "PRECTOTCORR")
-    slope = _get(datasets["terrain"], "values", "slope_deg", "mean")
+    # Field gradient (plane fit) when available: per-pixel DEM slope reads ~1° even on flat paddies
+    slope = _get(datasets["terrain"], "values", "field_gradient_deg")
+    if slope is None:
+        slope = _get(datasets["terrain"], "values", "slope_deg", "mean")
     if None in (sand, silt, clay, soc, precip_day, slope):
         return result(scale="field", resolution_m=30, source="RUSLE", status="no_data",
                       note="Soil texture, long-term rainfall or slope missing.")

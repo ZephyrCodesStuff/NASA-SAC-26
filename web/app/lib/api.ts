@@ -78,6 +78,66 @@ export interface DeviceRecord {
   latest_reading?: DeviceReadingRecord;
 }
 
+/** One data-api dataset entry (see docs/data-catalog.md for every field). */
+export interface DatasetResult {
+  status: "ok" | "no_data" | "error" | "timeout" | "unavailable";
+  scale?: string;
+  resolution_m?: number | null;
+  source?: string;
+  date?: string;
+  values?: Record<string, unknown>;
+  units?: Record<string, string>;
+  history?: unknown;
+  periods?: Array<Record<string, unknown>>;
+  note?: string;
+  error?: string;
+}
+
+export interface PlotDataResponse {
+  parcel?: Record<string, unknown>;
+  datasets: Record<string, DatasetResult>;
+  timings_s?: Record<string, number>;
+}
+
+export interface ImageryLegend {
+  min: number | null;
+  max: number | null;
+  unit?: string;
+  ramp?: string;
+  parcel_mean?: number | null;
+}
+
+export interface ImageryGroup {
+  status: string;
+  source?: string;
+  date?: string;
+  sensor?: string;
+  scene?: string;
+  bounds?: [[number, number], [number, number]];
+  pixel_size_m?: number;
+  legends?: Record<string, ImageryLegend>;
+  layers?: Record<string, string>;
+  note?: string;
+  error?: string;
+}
+
+export interface ImageryResponse {
+  groups: Record<string, ImageryGroup>;
+  descriptions?: Record<string, string>;
+  ramps?: Record<string, Array<[number, number[]]>>;
+}
+
+export interface MapLayer {
+  group: string;
+  description: string;
+  gibs_layer: string;
+  url: string;
+  default_time: string | null;
+  max_native_zoom: number;
+  legend_url?: string | null;
+  attribution?: string;
+}
+
 export const webApi = {
   health: () => apiFetch<{ status: string; pb_url: string; data_api_url: string }>("/health"),
   login: (email: string, password: string) =>
@@ -143,6 +203,22 @@ export const webApi = {
     ),
   getAnalysisPayload: (plotId: string, token: string) =>
     apiFetch<Record<string, unknown>>(`/plots/${plotId}/analysis-payload`, {}, token),
+  getPlotData: (plotId: string, datasets: string, token: string, opts: { year?: boolean; history?: boolean } = {}) =>
+    apiFetch<PlotDataResponse>(
+      `/plots/${plotId}/data?datasets=${encodeURIComponent(datasets)}` +
+        (opts.year ? "&year=true" : "") +
+        (opts.history ? "&history=true" : ""),
+      {},
+      token
+    ),
+  getPlotImagery: (plotId: string, token: string, opts: { groups?: string; date?: string } = {}) =>
+    apiFetch<ImageryResponse>(
+      `/plots/${plotId}/imagery?` +
+        new URLSearchParams(Object.entries(opts).filter(([, v]) => !!v) as [string, string][]).toString(),
+      {},
+      token
+    ),
+  getMapLayers: (token: string) => apiFetch<{ layers: Record<string, MapLayer>; usage?: string }>("/layers", {}, token),
   listPlotDevices: (plotId: string) =>
     apiFetch<{ devices: DeviceRecord[] }>(`/plots/${plotId}/devices`),
   claimPlotDevice: (

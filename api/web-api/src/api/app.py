@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -258,6 +259,57 @@ def create_api_router(
         if is_farm_owner(farm, user):
             await farm_store.update_plot(plot_id, {"nasa_snapshot": snapshot}, user=user)
         return {"nasa_snapshot": snapshot}
+
+    # --- data-api passthroughs for the plot visualizer ---
+    async def _plot_feature(plot_id: str, user: dict[str, Any]) -> dict[str, Any]:
+        plot, farm = await farm_store.get_plot_with_farm(plot_id, user=user)
+        if not plot or not farm:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plot not found")
+        return {
+            "type": "Feature",
+            "id": plot.get("cadastral_ref") or plot.get("id"),
+            "geometry": plot["geometry"],
+            "properties": {"area_ha": plot.get("area_ha")},
+        }
+
+    async def _data_api_call(coro):
+        try:
+            return await coro
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:300]
+            raise HTTPException(status_code=exc.response.status_code if exc.response.status_code < 500 else 502,
+                                detail=f"data-api: {detail}") from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail=f"data-api error ({type(exc).__name__}): {exc}") from exc
+
+    @router.get("/plots/{plot_id}/data")
+    async def get_plot_data(
+        plot_id: str,
+        datasets: str,
+        year: bool = False,
+        history: bool = False,
+        user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        """Any data-api datasets for this plot (e.g. `weather,soil`; `year=true` adds 24 half-month periods)."""
+        feature = await _plot_feature(plot_id, user)
+        return await _data_api_call(data_api_client.fetch_datasets(feature, datasets, year=year, history=history))
+
+    @router.get("/plots/{plot_id}/imagery")
+    async def get_plot_imagery(
+        plot_id: str,
+        groups: str | None = None,
+        date: str | None = None,
+        user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        """Satellite images of the plot (true colour, infrared, SWIR, NDVI, NDMI, thermal, LST, elevation, slope)."""
+        feature = await _plot_feature(plot_id, user)
+        return await _data_api_call(data_api_client.fetch_imagery(feature, groups=groups, date=date))
+
+    @router.get("/layers")
+    async def get_map_layers(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+        """NASA GIBS tile layers (rain, soil moisture, NDVI, LST, relief, HLS 30 m) for the web map."""
+        return await _data_api_call(data_api_client.fetch_layers())
 
     @router.get("/plots/{plot_id}/analysis-payload")
     async def get_analysis_payload(

@@ -15,6 +15,20 @@ browser ──► web (NiceGUI :8080) ──► data-api (:8070) ──► NASA 
   For local dev outside Docker, use `http://localhost:8070`.
 - The API needs the Earthdata login in the root `.env` (see `.env.example`). Without it, most datasets return `error`.
 
+## In the Next.js app (`web/app`)
+
+The browser can't reach `data-api` directly (it has no public port). `web-api` relays it for a logged-in user's plot:
+
+| web-api route | data-api call |
+|---|---|
+| `GET /api/plots/{id}/data?datasets=a,b&year=true` | `POST /geojson` with the plot polygon |
+| `GET /api/plots/{id}/imagery?groups=hls,lst,dem&date=` | `POST /imagery` |
+| `GET /api/layers` | `GET /layers` (NASA GIBS tiles) |
+
+`web/app/lib/use-nasa-data.ts` loads every dataset in parallel, one request each, and
+`components/nasa-data-panel.tsx` and `nasa-layer-map.tsx` render them on the plot page's
+**NASA Data & Imagery** tab. The overview chart and risk table use the same data.
+
 ## The call
 
 `catasto.fetch_parcel_at_point()` already returns the parcel as a GeoJSON Feature.
