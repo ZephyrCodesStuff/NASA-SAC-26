@@ -17,17 +17,25 @@ def _modis_date(d: date) -> str:
 
 @ttl_cache(12 * 3600)
 def _band(lat: float, lon: float, band: str, start: date, end: date) -> dict[str, float | None]:
-    out = {}
-    # the API returns at most 10 composites per call
+    # the API returns at most 10 composites per call → ≤72-day chunks that never cross New Year
+    # (composites restart on 1 January, so a chunk across it holds an extra one), fetched in parallel
+    chunks = []
     s = start
     while s <= end:
-        e = min(end, s + timedelta(days=79))
-        d = http_get_json(f"{API}/subset", latitude=lat, longitude=lon, band=band, startDate=_modis_date(s),
-                          endDate=_modis_date(e), kmAboveBelow=0, kmLeftRight=0)
-        for row in d.get("subset", []):
-            v = row["data"][0]
-            out[row["calendar_date"]] = clean(v * 0.1, 1) if v < 32700 else None  # 327xx = fill/water/urban
+        e = min(end, s + timedelta(days=71), date(s.year, 12, 31))
+        chunks.append((s, e))
         s = e + timedelta(days=1)
+
+    def one(c):
+        return http_get_json(f"{API}/subset", latitude=lat, longitude=lon, band=band, startDate=_modis_date(c[0]),
+                             endDate=_modis_date(c[1]), kmAboveBelow=0, kmLeftRight=0).get("subset", [])
+
+    out = {}
+    with ThreadPoolExecutor(4) as ex:
+        for rows in ex.map(one, chunks):
+            for row in rows:
+                v = row["data"][0]
+                out[row["calendar_date"]] = clean(v * 0.1, 1) if v < 32700 else None  # 327xx = fill/water/urban
     return out
 
 

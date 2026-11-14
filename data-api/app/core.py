@@ -231,6 +231,7 @@ class Query:
     history: bool = False
     start: date | None = None
     end: date | None = None
+    periods: bool = False  # also summarise history into 15-day periods (see half_month_periods)
 
     @property
     def window(self) -> tuple[date, date]:
@@ -252,7 +253,7 @@ def result(*, scale: str, resolution_m: float, source: str, status: str = "ok", 
         out["history"] = history
     if note:
         out["note"] = note
-    out.update(extra)
+    out.update({k: v for k, v in extra.items() if v is not None})
     return out
 
 
@@ -306,3 +307,129 @@ def read_window(url: str, geometry, band: int = 1, pad_pixels: int = 1):
             col, row = ~wt * (p.x, p.y)
             inside[min(max(int(row), 0), arr.shape[0] - 1), min(max(int(col), 0), arr.shape[1] - 1)] = True
         return np.ma.filled(arr.astype("float64"), np.nan), inside, wt, ds.crs
+
+
+def extraterrestrial_radiation(lat: float, doy: int) -> float:
+    """Ra, FAO-56 eq. 21, MJ/m²/day."""
+    import math
+
+    phi = math.radians(lat)
+    dr = 1 + 0.033 * math.cos(2 * math.pi * doy / 365)
+    dec = 0.409 * math.sin(2 * math.pi * doy / 365 - 1.39)
+    ws = math.acos(max(-1.0, min(1.0, -math.tan(phi) * math.tan(dec))))
+    return 24 * 60 / math.pi * 0.0820 * dr * (ws * math.sin(phi) * math.sin(dec) + math.cos(phi) * math.cos(dec) * math.sin(ws))
+
+
+# ---------------------------------------------------------------- 15-day periods
+def half_month_periods(start: date, end: date) -> list[tuple[str, date, date]]:
+    """Calendar half-months overlapping [start, end]: days 1–15 ("…-H1") and 16–end ("…-H2").
+    A year is exactly 24 periods."""
+    import calendar
+
+    out = []
+    y, m = start.year, start.month
+    while date(y, m, 1) <= end:
+        last = calendar.monthrange(y, m)[1]
+        for half, (a, b) in (("H1", (1, 15)), ("H2", (16, last))):
+            ps, pe = date(y, m, a), date(y, m, b)
+            if pe >= start and ps <= end:
+                out.append((f"{y}-{m:02d}-{half}", ps, pe))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+
+SUM_KEYS = {"PRECTOTCORR", "precip_mm", "EVPTRNS", "frost_days", "heat_days_over_35c", "gdd"}
+
+
+def _row_date(r: dict) -> tuple[date, date] | None:
+    """Date span a history row covers: daily rows → that day; monthly rows → the whole month."""
+    import calendar
+
+    for k in ("date", "datetime", "time"):
+        if r.get(k):
+            d = date.fromisoformat(str(r[k])[:10])
+            return d, d
+    if r.get("month"):
+        y, m = map(int, r["month"].split("-"))
+        return date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
+    return None
+
+
+def aggregate_periods(rows: list[dict], start: date, end: date) -> list[dict]:
+    """Summarise history rows into half-month periods. Numbers are averaged, except daily totals in
+    SUM_KEYS (summed), *_MAX keys (max) and *_MIN keys (min). Nested {mean: …} dicts use their mean."""
+    periods = half_month_periods(start, end)
+    acc: dict[str, dict[str, list[float]]] = {label: {} for label, _, _ in periods}
+    for r in rows or []:
+        span = _row_date(r)
+        if not span:
+            continue
+        for label, ps, pe in periods:
+            if span[1] < ps or span[0] > pe:
+                continue
+            for k, v in r.items():
+                if isinstance(v, dict):
+                    v = v.get("mean")
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not np.isfinite(v):
+                    continue
+                acc[label].setdefault(k, []).append(float(v))
+    out = []
+    for label, ps, pe in periods:
+        row = {"period": label, "start": ps.isoformat(), "end": pe.isoformat()}
+        vals = acc[label]
+        row["observations"] = max((len(v) for v in vals.values()), default=0)
+        for k, v in vals.items():
+            if k in SUM_KEYS:
+                agg = sum(v)
+            elif k.upper().endswith("_MAX") or k.startswith("max"):
+                agg = max(v)
+            elif k.upper().endswith("_MIN") or k.startswith("min"):
+                agg = min(v)
+            else:
+                agg = sum(v) / len(v)
+            row[k] = clean(agg, 3)
+        out.append(row)
+    return out
+
+
+def flatten_history(history) -> list[dict]:
+    """History is either a list of rows or {product: [rows]} (ECOSTRESS). Return flat rows with prefixed keys."""
+    if isinstance(history, list):
+        return history
+    rows = []
+    for name, items in (history or {}).items():
+        for it in items or []:
+            r = {k: v for k, v in it.items() if k in ("date", "datetime", "time", "month")}
+            r[name] = it.get("mean")
+            rows.append(r)
+    return rows
+
+
+# ---------------------------------------------------------------- country lookup
+@ttl_cache(365 * 24 * 3600)
+def country_at(lat: float, lon: float) -> dict:
+    """Country for a point (OSM Nominatim reverse geocoding, zoom=3). Returns {iso2, iso3, m49, name}."""
+    import pycountry
+
+    d = http_get_json("https://nominatim.openstreetmap.org/reverse", lat=lat, lon=lon, zoom=3, format="jsonv2")
+    iso2 = (d.get("address") or {}).get("country_code", "").upper()
+    c = pycountry.countries.get(alpha_2=iso2)
+    if not c:
+        raise RuntimeError(f"No country found at {lat},{lon}")
+    return {"iso2": c.alpha_2, "iso3": c.alpha_3, "m49": c.numeric, "name": c.name}
+
+
+def download(url: str, name: str, max_age_s: int) -> Path:
+    """Download a file into CACHE_DIR/downloads (re-downloaded when older than max_age_s)."""
+    path = CACHE_DIR / "downloads" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and time.time() - path.stat().st_mtime < max_age_s:
+        return path
+    tmp = path.with_suffix(path.suffix + ".part")
+    with _http.stream("GET", url, timeout=httpx.Timeout(300, connect=15)) as r:
+        r.raise_for_status()
+        with tmp.open("wb") as f:
+            for chunk in r.iter_bytes(1 << 20):
+                f.write(chunk)
+    tmp.replace(path)
+    return path

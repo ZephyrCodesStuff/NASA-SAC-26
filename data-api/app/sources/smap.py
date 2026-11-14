@@ -67,8 +67,8 @@ def fetch(parcel, q: Query) -> dict:
     history = None
     if q.history:
         start, end = q.window
-        # one granule per sampled day (~30 points max: each read downloads ~12 MB)
-        step = max(1, (end - start).days // 30)
+        # one granule per sampled day (~30 points, ~2 per half-month for a year: each read downloads ~12 MB)
+        step = max(1, (end - start).days // (24 if q.periods else 30))
         grans = cmr_granules("SPL4SMGP", lat, lon, start, end, n=2000, newest_first=False)
         daily = {}
         for gr in grans:
@@ -76,7 +76,7 @@ def fetch(parcel, q: Query) -> dict:
             if (d - start).days % step == 0 and gr["start"][11:13] >= "10":  # first granule from 10:30 UTC
                 daily.setdefault(d, gr)
         items = sorted(daily.items())
-        with ThreadPoolExecutor(8) as ex:
+        with ThreadPoolExecutor(12) as ex:
             vals = list(ex.map(lambda it: _read(_h5_url(it[1]), row, col), items))
         history = [{"date": d.isoformat(), "surface_m3m3": v["surface_m3m3"], "rootzone_m3m3": v["rootzone_m3m3"]}
                    for (d, _), v in zip(items, vals)]
