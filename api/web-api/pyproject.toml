@@ -1,0 +1,12 @@
+[project]
+name = "web-api"
+version = "0.1.0"
+description = "NASA Space Apps Challenge 2026 - FastAPI Web API"
+requires-python = ">=3.12"
+dependencies = [
+    "argon2-cffi>=25.1.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.9.0",
+    "uvicorn[standard]>=0.32.0",
+]

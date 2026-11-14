@@ -16,7 +16,7 @@ services:
 
   web:
     build:
-      context: ./web
+      context: ./web/app-old
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -32,9 +32,25 @@ services:
       data-api:
         condition: service_healthy
 
+  web-api:
+    build:
+      context: ./api/web-api
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      PB_URL: http://pocketbase:8090
+      PORT: "8081"
+      DATA_API_URL: http://data-api:8070
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+      data-api:
+        condition: service_healthy
+
   data-api:
     build:
-      context: ./data-api
+      context: ./api/data-api
     restart: unless-stopped
     ports:
       - "8070:8070"

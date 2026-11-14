@@ -10,3 +10,4 @@ pocketbase/pb_data/
 # Environment & OS
 .env
 .DS_Store
+.nicegui/
