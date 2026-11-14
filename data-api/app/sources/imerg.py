@@ -48,7 +48,7 @@ def fetch(parcel, q: Query) -> dict:
     grans = cmr_granules(SHORT_NAME, lat, lon, start, end, n=400, newest_first=False)
     if not grans:
         return result(scale="area", resolution_m=11_000, source="GPM IMERG Late daily", status="no_data")
-    with ThreadPoolExecutor(10) as ex:
+    with ThreadPoolExecutor(32 if len(grans) > 60 else 10) as ex:
         vals = list(ex.map(lambda g: _read(g, i, j), grans))
     series = [{"date": g["start"][:10], "precip_mm": v} for g, v in zip(grans, vals)]
     valid = [s for s in series if s["precip_mm"] is not None]
