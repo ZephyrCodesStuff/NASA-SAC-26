@@ -17,6 +17,7 @@ import {
   Waves,
 } from "lucide-react";
 import { DatasetState, fmt, num, okValues, pick, str } from "@/lib/use-nasa-data";
+import { SpectralHistoryChart } from "@/components/spectral-history-chart";
 
 const NasaLayerMap = dynamic(() => import("@/components/nasa-layer-map").then((m) => m.NasaLayerMap), {
   ssr: false,
@@ -326,6 +327,13 @@ export function NasaDataTab({
   const topsoil = (soil?.["0-5cm"] || {}) as Record<string, unknown>;
   const seasons = (pick(hist, "seasons") as Array<Record<string, unknown>>) || [];
   const curves = (datasets.crop_history?.data?.history as Array<Record<string, unknown>>) || [];
+  const spectral = ((datasets.crop_health?.data?.history as Array<Record<string, unknown>>) || []).map((h) => ({
+    date: str(h, "date") ?? "",
+    sensor: str(h, "sensor") ?? undefined,
+    ndvi: num(h, "ndvi_median"),
+    ndmi: num(h, "ndmi_median"),
+    ndre: num(h, "ndre_median"),
+  }));
   const ext = (pick(w, "extremes_last_365_days") || {}) as Record<string, unknown>;
   const base = (pick(proj, "baseline_2000s") || {}) as Record<string, unknown>;
   const p245 = (pick(proj, "projections.ssp245_mid_2050s") || {}) as Record<string, unknown>;
@@ -492,6 +500,13 @@ export function NasaDataTab({
             <p className="text-[11px] text-[#6b675f]">Crop type, not exact species: confirm with the farmer.</p>
           </Card>
         </div>
+        <Card
+          title="Vigour over time"
+          subtitle="Median NDVI, NDMI and NDRE of every clear HLS scene in the last 12 months"
+          ds={datasets.crop_health}
+        >
+          <SpectralHistoryChart points={spectral} />
+        </Card>
       </Section>
 
       <Section id="soil" icon={Mountain} title="Soil & terrain" lead="Texture, nutrients, slope and erosion.">

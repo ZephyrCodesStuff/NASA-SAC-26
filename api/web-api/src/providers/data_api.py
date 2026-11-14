@@ -221,12 +221,17 @@ class DataApiClient:
                 await http.aclose()
 
     async def fetch_datasets(
-        self, geojson_feature: dict[str, Any], datasets: str, year: bool = False, history: bool = False
+        self, geojson_feature: dict[str, Any], datasets: str, year: bool = False, history: bool = False,
+        start: str | None = None, end: str | None = None
     ) -> dict[str, Any]:
         """Any data-api datasets for one parcel; returns the parcel entry (`datasets`, `timings_s`)."""
         params = {"datasets": datasets, "history": "true" if history else "false"}
         if year:
             params["year"] = "true"
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
         body = await self._request("POST", "/geojson", params=params, json=geojson_feature)
         parcel = (body.get("parcels") or [{}])[0]
         return {**parcel, "query": body.get("query"), "generated_at": body.get("generated_at")}

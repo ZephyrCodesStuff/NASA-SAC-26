@@ -5,7 +5,12 @@ import { DatasetResult, webApi } from "@/lib/api";
 
 /** Every data-api dataset the visualizer shows, and how to ask for it. One request each, in parallel,
  * so fast sources (weather, soil, prices) render while slow ones (crop history, projections) still load. */
-export const NASA_DATASETS: Array<{ name: string; year?: boolean; history?: boolean }> = [
+const YEAR_AGO = (() => {
+  const d = new Date(Date.now() - 365 * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+})();
+
+export const NASA_DATASETS: Array<{ name: string; year?: boolean; history?: boolean; start?: string; end?: string }> = [
   { name: "weather", year: true }, // 24 half-month periods for the seasonal chart
   { name: "soil" },
   { name: "terrain" },
@@ -13,7 +18,7 @@ export const NASA_DATASETS: Array<{ name: string; year?: boolean; history?: bool
   { name: "market_prices" },
   { name: "local_prices" },
   { name: "regional_production" },
-  { name: "crop_health" },
+  { name: "crop_health", history: true, start: YEAR_AGO }, // 12 months of clear-scene NDVI/NDMI/NDRE for the trend chart
   { name: "soil_moisture" },
   { name: "rainfall" },
   { name: "evapotranspiration_field" },
@@ -41,7 +46,7 @@ export function useNasaData(plotId: string, token: string | null | undefined) {
     // No synchronous reset: datasets without an entry (or from an older generation) read as "loading"
     for (const d of NASA_DATASETS) {
       const t0 = performance.now();
-      fetchWithRetry(() => webApi.getPlotData(plotId, d.name, token, { year: d.year, history: d.history }))
+      fetchWithRetry(() => webApi.getPlotData(plotId, d.name, token, { year: d.year, history: d.history, start: d.start, end: d.end }))
         .then((res) => {
           if (gen !== generation.current) return;
           const data = res.datasets?.[d.name];

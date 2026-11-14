@@ -63,7 +63,7 @@ def _scene(item: dict, geometry) -> dict | None:
         "low_vigor_fraction": clean(low, 3),
     }
     for k, s in idx.items():
-        out[k] = {kk: clean(vv, 3) for kk, vv in s.items() if kk in ("mean", "min", "max", "std")}
+        out[k] = {kk: clean(vv, 3) for kk, vv in s.items() if kk in ("mean", "median", "min", "max", "std")}
     return out
 
 
@@ -83,8 +83,9 @@ def fetch(parcel, q: Query) -> dict:
     if q.history:
         with ThreadPoolExecutor(10) as ex:
             scenes = [s for s in ex.map(lambda i: _scene(i, parcel.geometry), items) if s]
-        history = [{"date": s["date"], "sensor": s["sensor"], "ndvi": s["ndvi"]["mean"], "ndmi": s["ndmi"]["mean"],
-                    "ndre": s.get("ndre", {}).get("mean")} for s in scenes]
+        history = [{"date": s["date"], "sensor": s["sensor"], "ndvi": s["ndvi"]["mean"], "ndvi_median": s["ndvi"]["median"],
+                    "ndmi": s["ndmi"]["mean"], "ndmi_median": s["ndmi"]["median"],
+                    "ndre": s.get("ndre", {}).get("mean"), "ndre_median": s.get("ndre", {}).get("median")} for s in scenes]
         latest = scenes[-1] if scenes else None
     else:
         for i in reversed(items):  # newest first, stop at the first clear one
