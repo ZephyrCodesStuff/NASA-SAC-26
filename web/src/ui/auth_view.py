@@ -12,11 +12,15 @@ from src.auth import (
     PBKDF2_SALT_SUFFIX,
     AuthError,
     AuthService,
+    derive_pbkdf2_client_hash,
 )
 
 PBKDF2_BROWSER_SCRIPT = f"""
 <script>
 window.deriveClientPasswordHash = async function(email, password) {{
+    if (!window.crypto || !window.crypto.subtle) {{
+        return null;
+    }}
     const enc = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
@@ -40,14 +44,17 @@ window.deriveClientPasswordHash = async function(email, password) {{
 
 
 async def _derive_in_browser(email: str, password: str) -> str:
-    """Run PBKDF2-SHA256 inside the user's browser so plaintext passwords stay client-side."""
-    result = await ui.run_javascript(
-        f"return await window.deriveClientPasswordHash({json.dumps(email)}, {json.dumps(password)});",
-        timeout=5.0,
-    )
-    if not isinstance(result, str) or len(result) < 32:
-        raise AuthError("Browser PBKDF2 key derivation failed.")
-    return result
+    """Run PBKDF2-SHA256 in the browser when `crypto.subtle` is available, else fallback to Python."""
+    try:
+        result = await ui.run_javascript(
+            f"return window.deriveClientPasswordHash ? await window.deriveClientPasswordHash({json.dumps(email)}, {json.dumps(password)}) : null;",
+            timeout=5.0,
+        )
+        if isinstance(result, str) and len(result) >= 32:
+            return result
+    except Exception:
+        pass
+    return derive_pbkdf2_client_hash(email, password)
 
 
 def build_auth_view(auth_service: AuthService) -> None:
