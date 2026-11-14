@@ -1,7 +1,7 @@
 # Calling the data API from the web app
 
 How `web/` gets satellite data for the parcel the farmer clicked.
-Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
+Every field explained: [data-catalog.md](data-catalog.md). Full API reference: [data-api/README.md](../data-api/README.md) (or http://localhost:8070/docs when running).
 
 ## How it fits together
 
@@ -30,6 +30,9 @@ ndvi = data["crop_health"]["values"]["ndvi"]["mean"]
 Optional query parameters:
 - `?datasets=weather,soil,terrain` returns only some datasets, which is faster.
 - `?history=true&start=2026-05-01&end=2026-10-31` adds time series for charts.
+- `?year=true` gives the last 12 months plus `periods` (24 half-months), for the season charts. The first call per parcel takes several minutes.
+- Images: `POST /imagery` (same GeoJSON body) returns PNG layers with `bounds` for `L.imageOverlay`.
+- Map layers: `GET /layers` returns NASA GIBS tile URLs (rain, soil moisture, NDVI, relief…).
 
 ## Ready-made provider (suggested `web/src/providers/nasa.py`)
 
