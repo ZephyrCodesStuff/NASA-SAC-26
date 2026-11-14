@@ -75,8 +75,15 @@ A dataset that fails never fails the request — check each `status`.
 ## Speed & caching
 
 First request for a new place: ~1–2.5 min (MODIS/ORNL is the slow one, ECOSTRESS/HLS scan recent overpasses).
-Repeat requests: ~1–2 s. Results are cached in memory (hours to days per dataset); DEM tiles on the `data_api_cache` volume.
-For demos, warm the demo parcels once before going on stage.
+Repeat requests: ~0–2 s — **also after a restart or redeploy**.
+
+Two cache layers, both inside the service (no PocketBase dependency):
+- raw downloads per source (one SMAP cell, one IMERG day, …), shared between neighbouring parcels — hours to 30 days;
+- finished per-dataset result per parcel shape and query — 3 h, rolls over daily.
+
+Both live in memory and in SQLite at `/cache/results.sqlite` on the `data_api_cache` volume (with the DEM tiles).
+To clear: `docker compose exec data-api rm /cache/results.sqlite*` and restart.
+For demos, warm the demo parcels once on the server; they stay warm across redeploys.
 
 ## Known limits
 

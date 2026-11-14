@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 from fastapi import FastAPI, HTTPException, Query as Q, Request
 from fastapi.responses import JSONResponse
 
-from .core import Query
+from .core import Query, ttl_cache
 from .parcel import Parcel, ParcelParseError, parse_cadastre_gml, parse_geojson, point_parcel
 from .sources import ecostress, grace, hls, imerg, modis_et, nasadem, power, smap, soilgrids
 
@@ -60,11 +60,22 @@ def _error_entry(name: str, exc: BaseException) -> dict:
     return entry
 
 
+RESULT_TTL_S = 3 * 3600
+
+
+@ttl_cache(RESULT_TTL_S)
+def _fetch_cached(name: str, wkt: str, q: Query, day: str) -> dict:
+    """Finished per-source result for a parcel shape (memory + disk). `day` makes entries roll over daily."""
+    from shapely import wkt as W
+
+    return SOURCES[name][0].fetch(Parcel(id="cached", geometry=W.loads(wkt)), q)
+
+
 async def _run_source(name: str, parcel: Parcel, q: Query) -> tuple[str, dict, float]:
-    module, timeout, _ = SOURCES[name]
+    _, timeout, _ = SOURCES[name]
     t0 = time.perf_counter()
     try:
-        res = await asyncio.wait_for(asyncio.to_thread(module.fetch, parcel, q),
+        res = await asyncio.wait_for(asyncio.to_thread(_fetch_cached, name, parcel.geometry.wkt, q, date.today().isoformat()),
                                      timeout * (HISTORY_TIMEOUT_FACTOR if q.history else 1))
     except BaseException as e:  # noqa: BLE001 — one source must never break the response
         if isinstance(e, (KeyboardInterrupt, SystemExit)):

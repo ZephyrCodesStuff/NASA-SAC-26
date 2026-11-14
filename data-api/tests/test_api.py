@@ -23,6 +23,9 @@ class _Boom:
 
 @pytest.fixture
 def client(monkeypatch):
+    from app import core
+
+    core._mem.clear()  # results are cached per (source, shape, query); keep tests independent
     sources = {n: (_Ok, t, d) for n, (_, t, d) in main.SOURCES.items()}
     sources["rainfall"] = (_Boom, 5, "boom")
     monkeypatch.setattr(main, "SOURCES", sources)

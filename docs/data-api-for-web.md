@@ -34,6 +34,8 @@ Optional query parameters:
 ## Ready-made provider (suggested `web/src/providers/nasa.py`)
 
 This follows the same pattern as `catasto.py`: async `httpx`, with results cached in PocketBase `field_cache`.
+The `field_cache` collection is created by `pocketbase/pb_migrations/1794677705_create_field_cache.js`.
+Fields are `cache_key` (unique) and `payload` (JSON). Anyone can read and create records, but nobody can update or delete them through the API.
 
 ```python
 """Client for the data-api service (satellite data for a parcel)."""
@@ -166,7 +168,7 @@ Warm the demo parcels before going on stage. Each one needs one call, after whic
 curl -s -X POST "http://<server>:8070/geojson" -H 'Content-Type: application/json' -d @parcel.json > /dev/null
 ```
 
-The API's in-memory cache is lost when the container restarts. The PocketBase cache in the provider above survives restarts.
+The API keeps its cache on disk, so warmed parcels stay fast across restarts and redeploys.
 
 ## Quick test from the command line
 

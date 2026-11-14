@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import logging
 import os
+import pickle
 import threading
 import time
 from dataclasses import dataclass
@@ -143,16 +145,59 @@ def stac_search(collections: list[str], geometry: dict, start: date, end: date, 
 
 
 # ---------------------------------------------------------------- cache
+# Two layers: memory (fast) in front of SQLite on the cache volume (survives restarts/redeploys).
 _mem: dict = {}
 _mem_lock = threading.Lock()
 _key_locks: dict = {}
+_db_lock = threading.Lock()
+_db = None
+DISK_CACHE = os.environ.get("PARCEL_API_DISK_CACHE", "1") == "1"
+
+
+def _disk():
+    global _db
+    if _db is None:
+        import sqlite3
+
+        _db = sqlite3.connect(CACHE_DIR / "results.sqlite", check_same_thread=False, timeout=30)
+        _db.execute("PRAGMA journal_mode=WAL")
+        _db.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, expires REAL NOT NULL, value BLOB NOT NULL)")
+        _db.execute("DELETE FROM cache WHERE expires < ?", (time.time(),))
+        _db.commit()
+    return _db
+
+
+def _disk_get(key: str):
+    if not DISK_CACHE:
+        return None
+    try:
+        with _db_lock:
+            row = _disk().execute("SELECT expires, value FROM cache WHERE key = ?", (key,)).fetchone()
+        if row and row[0] > time.time():
+            return pickle.loads(row[1])
+    except Exception as e:  # noqa: BLE001 — a broken cache must never break a request
+        log.warning("disk cache read failed: %s", e)
+    return None
+
+
+def _disk_put(key: str, value, seconds: int) -> None:
+    if not DISK_CACHE:
+        return
+    try:
+        blob = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        with _db_lock:
+            _disk().execute("INSERT OR REPLACE INTO cache (key, expires, value) VALUES (?, ?, ?)",
+                            (key, time.time() + seconds, blob))
+            _disk().commit()
+    except Exception as e:  # noqa: BLE001
+        log.warning("disk cache write failed: %s", e)
 
 
 def ttl_cache(seconds: int):
-    """Thread-safe in-memory TTL cache keyed by function args (args must be hashable).
+    """Thread-safe TTL cache keyed by function args (args must be hashable, with a stable repr).
 
-    Concurrent calls with the same key wait for the first one instead of downloading the same data twice.
-    Exceptions are not cached.
+    Memory first, then SQLite on disk (CACHE_DIR/results.sqlite). Concurrent calls with the same key wait
+    for the first one instead of downloading the same data twice. Exceptions are not cached.
     """
     def deco(fn):
         @functools.wraps(fn)
@@ -168,7 +213,11 @@ def ttl_cache(seconds: int):
                     hit = _mem.get(key)
                     if hit and time.time() - hit[0] < seconds:
                         return hit[1]
-                val = fn(*args, **kwargs)
+                dkey = hashlib.sha256(repr(key).encode()).hexdigest()
+                val = _disk_get(dkey)
+                if val is None:
+                    val = fn(*args, **kwargs)
+                    _disk_put(dkey, val, seconds)
                 with _mem_lock:
                     _mem[key] = (time.time(), val)
                 return val
