@@ -23,7 +23,6 @@ from src.providers.catasto import (
 )
 from src.providers.data_api import DataApiClient
 from src.providers.worldcover import WorldCoverClient
-from src.ui.insights_dialog import open_plot_insights_dialog
 
 # Land-cover visual styling & Material icon per ESA WorldCover class
 LANDCOVER_STYLES: dict[int, dict[str, str]] = {
@@ -182,18 +181,12 @@ async def build_catasto_map_picker(
                     ui.label("Centroid").classes("text-gray-500")
                     centroid_val = ui.label("-").classes("font-mono text-right")
 
-                async def on_open_insights() -> None:
-                    if state["selected_plot"] and state["current_farm"]:
-                        await open_plot_insights_dialog(
-                            plot=state["selected_plot"],
-                            farm=state["current_farm"],
-                            current_user=current_user,
-                            farm_store=store,
-                            data_api=data_api,
-                        )
+                def on_open_insights() -> None:
+                    if state["selected_plot"]:
+                        ui.navigate.to(f"/plots/{state['selected_plot']['id']}")
 
                 insights_btn = ui.button(
-                    "Satellite & Rotation Insights", icon="satellite_alt", on_click=on_open_insights
+                    "Open Plot Details & Insights", icon="satellite_alt", on_click=on_open_insights
                 ).props("color=primary dense").classes("w-full mt-2")
 
                 remove_plot_btn = ui.button(

@@ -12,6 +12,7 @@ from src.providers.data_api import DataApiClient
 from src.providers.worldcover import WorldCoverClient
 from src.ui.auth_view import build_auth_view
 from src.ui.map_picker import build_catasto_map_picker
+from src.ui.plot_detail_page import build_plot_detail_page
 
 PB_URL = os.getenv("PB_URL", "http://127.0.0.1:8090").rstrip("/")
 PB_PUBLIC_URL = os.getenv("PB_PUBLIC_URL", PB_URL).rstrip("/")
@@ -37,14 +38,13 @@ async def check_pocketbase() -> tuple[bool, str]:
         return False, "PB Offline (local cache/auth)"
 
 
-@ui.page("/")
-async def index() -> None:
-    ui.colors(primary="#0b3d91", secondary="#fc3d21")
-    current_user = app.storage.user.get("user")
-
+def _render_header(current_user: dict | None) -> ui.row | None:
+    """Render the shared top navbar and return the optional mode dropdown slot."""
     with ui.header().classes("items-center justify-between bg-primary text-white py-2 px-4"):
         with ui.row().classes("items-center gap-3"):
-            ui.label("NASA Space Apps 2026 — Turin Catasto").classes("text-base font-bold")
+            ui.label("NASA Space Apps 2026 — Turin Catasto").classes("text-base font-bold cursor-pointer").on(
+                "click", lambda: ui.navigate.to("/")
+            )
             pb_badge = ui.badge("Checking PB...", color="grey")
 
         with ui.row().classes("items-center gap-3"):
@@ -70,6 +70,14 @@ async def index() -> None:
         pb_badge.props(f"color={'positive' if ok else 'warning'}")
 
     ui.timer(0.05, _update_pb_status, once=True)
+    return mode_slot
+
+
+@ui.page("/")
+async def index() -> None:
+    ui.colors(primary="#0b3d91", secondary="#fc3d21")
+    current_user = app.storage.user.get("user")
+    mode_slot = _render_header(current_user)
 
     if not current_user:
         build_auth_view(auth_service)
@@ -82,6 +90,24 @@ async def index() -> None:
         worldcover_client=worldcover_client,
         data_api_client=data_api_client,
         mode_slot=mode_slot,
+    )
+
+
+@ui.page("/plots/{plot_id}")
+async def plot_detail(plot_id: str) -> None:
+    ui.colors(primary="#0b3d91", secondary="#fc3d21")
+    current_user = app.storage.user.get("user")
+    _render_header(current_user)
+
+    if not current_user:
+        build_auth_view(auth_service)
+        return
+
+    await build_plot_detail_page(
+        plot_id=plot_id,
+        current_user=current_user,
+        farm_store=farm_store,
+        data_api=data_api_client,
     )
 
 

@@ -11,6 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.auth import is_farm_owner
 from src.farms import (
     FarmStore,
+    compute_geometry_bounds,
     extract_drawn_geojson,
     merge_catasto_features_into_plot,
     polygons_intersect,
@@ -135,6 +136,30 @@ class FarmTests(unittest.TestCase):
         self.assertEqual(single["label"], "Drawn Field 3")
         self.assertEqual(single["geometry"]["type"], "Polygon")
         self.assertIsNone(single["sub_plots"])
+
+    def test_compute_geometry_bounds_and_get_plot_with_farm(self) -> None:
+        geom = {
+            "type": "MultiPolygon",
+            "coordinates": [
+                [[[7.70, 45.00], [7.71, 45.00], [7.71, 45.01], [7.70, 45.00]]],
+                [[[7.72, 45.02], [7.73, 45.02], [7.73, 45.03], [7.72, 45.02]]],
+            ],
+        }
+        bounds = compute_geometry_bounds(geom)
+        self.assertEqual(bounds, [[45.00, 7.70], [45.03, 7.73]])
+
+        async def run_test() -> None:
+            with tempfile.TemporaryDirectory() as tmp:
+                store = FarmStore(pb_url="", store_path=Path(tmp) / "farms.json")
+                admin = {"user_id": "u_admin", "role": "farm_admin"}
+                farms = await store.list_farms(admin)
+                plots = await store.list_plots(farms[0]["id"], user=admin)
+                plot, farm = await store.get_plot_with_farm(plots[0]["id"], user=admin)
+                self.assertIsNotNone(plot)
+                self.assertIsNotNone(farm)
+                self.assertEqual(farm["id"], farms[0]["id"])
+
+        asyncio.run(run_test())
 
 
 if __name__ == "__main__":
