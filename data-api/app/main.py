@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from .core import Query, aggregate_periods, flatten_history, half_month_periods, ttl_cache
 from .parcel import Parcel, ParcelParseError, parse_cadastre_gml, parse_geojson, point_parcel
-from .sources import (crop_history, ecostress, erosion, faostat, grace, hls, imerg, modis_et, nasadem, nexgddp, power,
+from .sources import (crop_history, ecostress, erosion, eu_prices, faostat, grace, hls, imerg, modis_et, nasadem, nexgddp, power,
                       prices, smap, soilgrids)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -34,6 +34,7 @@ SOURCES = {
     "climate_projection": (nexgddp, 300, "NEX-GDDP-CMIP6: 2030s/2050s rain, heat, water balance, drought risk"),
     "regional_production": (faostat, 240, "FAOSTAT: national crop area, yield, production, producer prices"),
     "market_prices": (prices, 120, "World Bank Pink Sheet: monthly oil, gas, fertilizer, grain prices"),
+    "local_prices": (eu_prices, 120, "EU only — Eurostat crop selling prices, electricity, gas; EU Oil Bulletin diesel"),
 }
 # computed from other datasets (fetched automatically when needed)
 DERIVED = {
