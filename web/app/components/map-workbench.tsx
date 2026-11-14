@@ -674,11 +674,8 @@ export function MapWorkbench() {
         )}
 
         {/* Map Canvas */}
-        <main className="flex-1 relative min-w-0 min-h-0">
-          <div
-            ref={mapContainerRef}
-            className={`h-full w-full ${mode === "editor" ? "cursor-crosshair" : ""}`}
-          />
+        <main className={`flex-1 relative min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
+          <div ref={mapContainerRef} className="h-full w-full" />
 
           {/* Floating Layer Switcher Pill (Top Right) */}
           <div className="absolute top-3 right-3 z-[500] flex items-center gap-1.5 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-2 py-1.5 shadow-sm">
