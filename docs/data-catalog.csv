@@ -177,9 +177,17 @@ map_layers,layers.leaf_area_index,tile URL,MODIS LAI 4-day,tiles,250 m - 30 m,NA
 map_layers,layers.land_surface_temp_day,tile URL,MODIS daytime LST,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
 map_layers,layers.shaded_relief_color,tile URL,ASTER colour shaded relief (altitude),tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
 map_layers,layers.shaded_relief_grey,tile URL,ASTER grey shaded relief,tiles,250 m - 30 m,NASA GIBS WMTS,daily/varies,no login,GET /layers
+local_prices,country,,country of the parcel,country,national (EU only),OSM Nominatim,static,no login,POST /geojson | POST /parcel | GET /point
+local_prices,crop_selling_prices[].latest / years[],EUR/t,farm-gate selling price per crop per year (Eurostat crop names),country,national (EU only),Eurostat apri_ap_crpouta,"yearly, 1-2 year lag",no login,POST /geojson | POST /parcel | GET /point
+local_prices,energy.electricity.MWH20-499.excl_taxes / incl_all_taxes,EUR/kWh,"business electricity price, small farm, per half-year",country,national (EU only),Eurostat nrg_pc_205,half-yearly,no login,POST /geojson | POST /parcel | GET /point
+local_prices,energy.electricity.MWH500-1999.excl_taxes / incl_all_taxes,EUR/kWh,"business electricity price, large farm, per half-year",country,national (EU only),Eurostat nrg_pc_205,half-yearly,no login,POST /geojson | POST /parcel | GET /point
+local_prices,energy.natural_gas.GJ1000-9999.excl_taxes / incl_all_taxes,EUR/kWh,"business natural gas price (greenhouse heating), per half-year",country,national (EU only),Eurostat nrg_pc_203,half-yearly,no login,POST /geojson | POST /parcel | GET /point
+local_prices,fuel.diesel.with_taxes / without_taxes / latest_*,EUR/litre,"diesel price, last 52 weeks (farm diesel is tax-reduced: between the two)",country,national (EU only),EU Weekly Oil Bulletin,weekly,no login,POST /geojson | POST /parcel | GET /point
+local_prices,fuel.heating_oil.with_taxes / without_taxes / latest_*,EUR/litre,"heating gas oil price, last 52 weeks",country,national (EU only),EU Weekly Oil Bulletin,weekly,no login,POST /geojson | POST /parcel | GET /point
+local_prices,"market_prices_weekly.{cereal,rice,oilseeds,fertiliser}",as published,weekly prices on named markets; best effort (API often down),country,national (EU only),EU Agri-food Data Portal,weekly,no login,POST /geojson | POST /parcel | GET /point
 seed_prices,,,NOT AVAILABLE: no public global source → farmer input,,,,,,
-water_price_and_connection,,,NOT AVAILABLE: local tariff → farmer input,,,,,,
-electricity_price_and_connection,,,NOT AVAILABLE: local tariff → farmer input,,,,,,
+water_price_and_connection,,,NOT AVAILABLE: irrigation consortium fees are local → farmer input,,,,,,
+water_and_electricity_connection,,,NOT AVAILABLE: whether the field is connected → farmer input,,,,,,
 exact_crop_species,,,NOT AVAILABLE: needs farmer input or regional crop map,,,,,,
 crop_type (WorldCereal 2021),,,NOT AVAILABLE: not wired: huge global archives,,,,,,
 EU ASAP production hotspots,,,NOT AVAILABLE: does not cover Europe,,,,,,

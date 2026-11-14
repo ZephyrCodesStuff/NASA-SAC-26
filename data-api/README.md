@@ -78,6 +78,7 @@ A dataset that fails never fails the request — check each `status`.
 | `climate_projection` | NASA NEX-GDDP-CMIP6 (2 models, SSP2-4.5 / SSP5-8.5) | area 25 km | 2030s / 2050s rain, PET, water balance, heat/frost days, dry spells, drought risk; 24-period seasonal shape vs today |
 | `regional_production` | FAOSTAT bulk (QCL + PP) | country | top 30 crops: area, yield, production, producer price — last 10 years |
 | `market_prices` | World Bank Pink Sheet | global | monthly crude oil, gas, fertilizers, grains, vegetable oils — last 60 months |
+| `local_prices` | Eurostat + EU Weekly Oil Bulletin (+ EU Agri-food portal) | country (EU only) | farm-gate crop prices, business electricity and gas, weekly diesel and heating oil |
 | `erosion` | RUSLE from soil + terrain + POWER normals + HLS | field | R, K, LS, C factors; soil loss bare vs current cover; risk class |
 | `crop_type` | ESA WorldCereal 2021 | — | not wired yet |
 

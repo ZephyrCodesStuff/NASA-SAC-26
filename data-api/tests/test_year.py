@@ -88,3 +88,21 @@ def test_year_flag_adds_24_periods(monkeypatch):
     assert body["query"]["periods"] is True
     periods = body["parcels"][0]["datasets"]["weather"]["periods"]
     assert len(periods) == 24 and periods[0]["x"] == 1.0 and periods[-1]["x"] == 3.0
+
+
+def test_eurostat_jsonstat_decoding(monkeypatch):
+    from app.sources import eu_prices
+
+    fake = {"id": ["geo", "time"], "size": [1, 2], "value": {"0": 0.17, "1": 0.18},
+            "dimension": {"geo": {"category": {"index": {"IT": 0}, "label": {"IT": "Italy"}}},
+                          "time": {"category": {"index": {"2025-S1": 0, "2025-S2": 1}}}}}
+    monkeypatch.setattr(eu_prices, "http_get_json", lambda *a, **k: fake)
+    rows = eu_prices._jsonstat("nrg_pc_205")
+    assert [(r["time"], r["value"], r["label"]["geo"]) for r in rows] == [("2025-S1", 0.17, "Italy"), ("2025-S2", 0.18, "Italy")]
+
+
+def test_local_prices_outside_eu(monkeypatch):
+    from app.sources import eu_prices
+
+    monkeypatch.setattr(eu_prices, "country_at", lambda lat, lon: {"iso2": "US", "name": "United States"})
+    assert eu_prices.fetch(point_parcel(40, -100), None)["status"] == "unavailable"

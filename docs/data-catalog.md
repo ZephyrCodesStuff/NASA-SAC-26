@@ -47,12 +47,14 @@ detailed it is and what each field means. For how to call the API from `web/`, s
 | Resistance to floods / winds | `weather.extremes_last_365_days` (heavy-rain days, gale days), `terrain.low_spot` | area / field | ✅ |
 | Last 5 years of crops on the field | `crop_history` (crop **group** per year, from the NDVI curve) | field 30 m | ✅ (group, not species) |
 | Last 5 years of harvests | `regional_production` (national yield, production, area) | country | ✅ (national) |
-| Raw crop prices | `regional_production` (farm-gate, per year), `market_prices` (world, monthly) | country / global | ✅ |
-| Oil, fertilizer prices | `market_prices` (crude oil, gas, urea, DAP, potash…) | global | ✅ |
+| Raw crop prices | `local_prices.crop_selling_prices` (EU, farm-gate, yearly), `regional_production` (FAO), `market_prices` (world, monthly) | country / global | ✅ |
+| Oil, fertilizer prices | `local_prices.fuel` (diesel, heating oil, weekly, EU), `market_prices` (crude oil, gas, urea, DAP, potash…) | country / global | ✅ |
+| Electricity and heating (gas) prices | `local_prices.energy` (Eurostat, business tariffs, half-yearly, EU) | country | ✅ national average |
 | Satellite images in different spectra | `/imagery` | field 30–70 m | ✅ |
 | Multi-layer map | `/layers` | tiles | ✅ |
 | Seed prices | — no public global source → farmer input | | ❌ |
-| Water and electricity prices or connection | — local tariffs → farmer input | | ❌ |
+| Water price, water/electricity connection | — local irrigation-consortium fees → farmer input | | ❌ |
+| Weekly prices on named markets (e.g. Milan, Vercelli) | `local_prices.market_prices_weekly` (EU Agri-food Data Portal) | market | ⚠ API often down / rate-limited |
 | Exact crop species per year | — needs farmer input or a regional crop map (WorldCereal only covers 2021) | | ⚠ |
 | EU "agricultural production hotspots" (JRC ASAP) | — covers food-insecure countries, not Europe | | ❌ not applicable |
 | AI news on past extreme weather, sensor API, admin stats | — not data-api (separate services) | | — |
@@ -265,6 +267,23 @@ months. Keys:
 - vegetable oils: `soybean_oil`, `sunflower_oil`, `rapeseed_oil`, `palm_oil`
 
 Units are USD per bbl / mmbtu / mt (metric tonne) / kg.
+
+### `local_prices` — national prices for EU parcels
+Scale `country` · Eurostat, EU Weekly Oil Bulletin, EU Agri-food Data Portal · no login. Status is
+`unavailable` outside the EU. If one sub-source fails, the others are still returned and `errors` names it.
+
+| field | unit | meaning |
+|---|---|---|
+| `country` | | country of the parcel |
+| `crop_selling_prices[].crop` | | Eurostat crop name (e.g. "Soft wheat", "Durum wheat", "Maize", "Rice") |
+| `crop_selling_prices[].latest` / `years[]` | EUR/t | farm-gate selling price per year (last ~6 years) |
+| `energy.electricity.{MWH20-499, MWH500-1999}` | EUR/kWh | business electricity price for a small / large farm, `excl_taxes[]` and `incl_all_taxes[]`, per half-year |
+| `energy.natural_gas.GJ1000-9999` | EUR/kWh | business gas price (greenhouse-heating scale), excluding / including taxes |
+| `fuel.diesel` · `fuel.heating_oil` | EUR/litre | weekly, last 52 weeks: `with_taxes[]`, `without_taxes[]`, `latest_with_taxes`, `latest_without_taxes` |
+| `market_prices_weekly.{cereal,rice,oilseeds,fertiliser}` | as published | weekly prices on named markets. Best effort, because the EU API is often down. |
+
+Italian farm diesel (gasolio agricolo) is tax-reduced, so the real price lies between `without_taxes` and
+`with_taxes`. Irrigation water (local consortium fees) and seeds stay farmer inputs.
 
 ### `crop_type` — not available
 ESA WorldCereal 2021 is only distributed as very large global archives. It is listed as `unavailable`.
