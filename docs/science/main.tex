@@ -1,0 +1,67 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+
+\definecolor{ceresgreen}{HTML}{1B5E20}
+\definecolor{ceresaccent}{HTML}{2E7D32}
+\definecolor{ceresmild}{HTML}{EEF5EE}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ceresgreen,
+  citecolor=ceresaccent,
+  urlcolor=ceresaccent,
+  pdftitle={Ceres Agronomic Physics & 3-Year Crop Rotation Engine: Scientific Methodology},
+  pdfauthor={Ceres Project (NASA Space Apps Challenge 2026)}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small\textsc{Ceres} --- Agronomic Modeling \& Rotation Methodology}
+\rhead{\small NASA Space Apps Challenge 2026}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{%
+  \vspace{-1.0cm}
+  {\large\color{ceresaccent}\textsc{Ceres Decision-Support Platform}}\\[0.35em]
+  \textbf{Scientific Methodology, Physical Equations, and Uncertainty Boundaries of the 3-Year Crop Rotation Analytics Engine}
+}
+\author{Ceres Engineering \& Agronomic Modeling Documentation}
+\date{Version 1.0 --- November 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\textbf{Ceres} is an open-source agronomic decision-support platform developed for the NASA Space Apps Challenge 2026 to help farmers evaluate 3-year crop rotations worldwide. Its core architectural invariant is \emph{deterministic physics first, generative language models strictly for explanation}: every hydrologic, soil carbon, nitrogen, erosion, compaction, and economic output is computed deterministically in Python from peer-reviewed equations before any natural-language summary is generated. This technical note documents the exact mathematical formulations implemented in \texttt{analytics-api} and the upstream Earth-observation ingestion pipeline in \texttt{web-api}, records parameter sources and unit normalizations, and states explicit physical and data limitations alongside a farmer-facing field verification protocol.
+\end{abstract}
+
+\tableofcontents
+\vspace{0.8em}
+\hrule
+\vspace{0.8em}
+
+\input{sections/01-architecture-data-layering}
+\input{sections/02-agroclimatology-hydrology}
+\input{sections/03-soil-physics-carbon-erosion}
+\input{sections/04-crop-envelopes-optimization}
+\input{sections/05-limitations-field-verification}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,59 @@
+\section{Agroclimatology \& Field Hydrology}
+\label{sec:hydrology}
+
+\subsection{Extraterrestrial Radiation and Monthly Hargreaves--Samani \texorpdfstring{$ET_0$}{ET0}}
+To evaluate warm- and cool-season crops symmetrically across both hemispheres using NASA POWER 1991--2020 climatology normals, \texttt{web-api} derives monthly reference evapotranspiration ($ET_0$) from latitude~$\phi$ (rad) and monthly mean maximum/minimum air temperatures ($T_{\max,m}, T_{\min,m}$ in $^{\circ}\mathrm{C}$). Following FAO-56 Equation~21~\cite{allen1998fao56}, extraterrestrial radiation $R_a$ ($\mathrm{MJ\,m^{-2}\,day^{-1}}$) on day-of-year $J_m$ (mid-month representative day) is:
+\begin{align}
+  d_r &= 1 + 0.033 \cos\!\left(\frac{2\pi}{365} J_m\right), &
+  \delta &= 0.409 \sin\!\left(\frac{2\pi}{365} J_m - 1.39\right), \\
+  \omega_s &= \arccos\!\bigl(\operatorname{clamp}(-\tan\phi \tan\delta,\, -1,\, 1)\bigr), &
+  R_a &= \frac{24(60)}{\pi} G_{sc}\, d_r \Bigl(\omega_s \sin\phi\sin\delta + \cos\phi\cos\delta\sin\omega_s\Bigr),
+\end{align}
+where $G_{sc} = 0.0820~\mathrm{MJ\,m^{-2}\,min^{-1}}$. Using FAO-56 Equation~52 (Hargreaves--Samani method~\cite{hargreaves1985reference,allen1998fao56}), monthly daily-mean $ET_{0,m}$ ($\mathrm{mm\,day^{-1}}$) and monthly depth are:
+\begin{equation}
+  ET_{0,m} = 0.0023 \, \bigl(T_{\mathrm{mean},m} + 17.8\bigr) \sqrt{\max\!\bigl(0.1,\, T_{\max,m} - T_{\min,m}\bigr)} \, \bigl(0.408\, R_a\bigr),
+\end{equation}
+where $T_{\mathrm{mean},m} = \tfrac{1}{2}(T_{\max,m} + T_{\min,m})$ and $0.408\, R_a$ converts radiation to equivalent evaporation depth ($\mathrm{mm\,day^{-1}}$). Integrating across the days $N_m$ in each calendar month partitions annual climate into:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Warm half-year} ($\mathrm{Apr}$--$\mathrm{Sep}$ for $\phi \ge 0$; $\mathrm{Oct}$--$\mathrm{Mar}$ for $\phi < 0$): $ET_{0,\mathrm{warm}}$ and $P_{\mathrm{warm}}$ ($\mathrm{mm}$).
+  \item \textbf{Cool half-year} ($\mathrm{Oct}$--$\mathrm{Mar}$ for $\phi \ge 0$; $\mathrm{Apr}$--$\mathrm{Sep}$ for $\phi < 0$): $ET_{0,\mathrm{cool}}$ and $P_{\mathrm{cool}}$ ($\mathrm{mm}$).
+\end{itemize}
+
+\subsection{Daily FAO-56 Penman--Monteith Reference Kernel}
+When full daily meteorological variables are supplied directly to \texttt{SoilPhysicsEngine}'s daily routine \texttt{calculate\_\allowbreak fao56\_\allowbreak penman\_\allowbreak monteith\_et0} ($T_{\max}, T_{\min}, R_s, u_2, \mathrm{RH}_{\mathrm{mean}}$, elevation $z$, latitude $\phi$, DOY $J$), Ceres computes the full FAO-56 Penman--Monteith grass reference rate~\cite{allen1998fao56}:
+\begin{equation}
+  ET_0 = \frac{0.408\,\Delta\,(R_n - G) + \gamma\,\dfrac{900}{T_{\mathrm{mean}} + 273}\, u_2 \,(e_s - e_a)}{\Delta + \gamma\,(1 + 0.34\, u_2)},
+\end{equation}
+where $P_{\mathrm{atm}} = 101.3 \bigl(\frac{293 - 0.0065 z}{293}\bigr)^{5.26}$~($\mathrm{kPa}$), psychrometric constant $\gamma = 0.665\times 10^{-3} P_{\mathrm{atm}}$, saturation vapor pressure $e_s = \tfrac{1}{2}[e^{\circ}(T_{\max}) + e^{\circ}(T_{\min})]$, actual vapor pressure $e_a = e_s (\mathrm{RH}_{\mathrm{mean}}/100)$, net radiation $R_n = R_{ns} - R_{nl}$ with albedo $\alpha = 0.23$ and Stefan--Boltzmann clear-sky longwave balance, and daily soil heat flux $G \approx 0$.
+
+\subsection{Seasonal Crop Water Balance and FAO-33 Yield Stress}
+For a candidate crop $c$ with cycle length $d_c$ (days) assigned to its matching seasonal window ($\mathrm{warm}$ or $\mathrm{cool}$), seasonal crop evapotranspiration $ET_c$ ($\mathrm{mm}$) is evaluated from stage basal coefficients $(K_{cb,\mathrm{ini}}, K_{cb,\mathrm{mid}}, K_{cb,\mathrm{end}})$ weighted over vegetative development:
+\begin{equation}
+  K_{c,\mathrm{avg}} = 0.2\, K_{cb,\mathrm{ini}} + 0.5\, K_{cb,\mathrm{mid}} + 0.3\, K_{cb,\mathrm{end}}, \qquad
+  ET_c = ET_{0,\mathrm{seas}} \cdot \min\!\left(1.0,\; \frac{d_c}{d_{\mathrm{ref}}}\right) \cdot K_{c,\mathrm{avg}},
+\end{equation}
+with seasonal window reference length $d_{\mathrm{ref}} = 210~\mathrm{days}$ for cool-season/winter crops and $d_{\mathrm{ref}} = 160~\mathrm{days}$ for warm-season crops. Effective seasonal rainfall is approximated following USDA-SCS empirical effectiveness:
+\begin{equation}
+  P_{\mathrm{eff}} = \max\!\bigl(0,\; 0.75\, P_{\mathrm{seas}} - 10\bigr).
+\end{equation}
+
+Root-zone available water storage uses the texture-specific field capacity $\theta_{\mathrm{fc}}$, permanent wilting point $\theta_{\mathrm{wp}}$, maximum rooting depth $Z_r$ ($\mathrm{m}$), and FAO-56 depletion fraction $p$~\cite{allen1998fao56}:
+\begin{equation}
+  \mathrm{TAW} = 1000\,(\theta_{\mathrm{fc}} - \theta_{\mathrm{wp}})\, Z_r, \qquad
+  \mathrm{RAW} = p\,\mathrm{TAW}.
+\end{equation}
+Initial accessible root-zone moisture reserve is weighted ($0.4$) toward either the latest dated ESP32 soil probe volumetric moisture or NASA SMAP volumetric moisture $\theta_0$:
+\begin{equation}
+  W_{\mathrm{init}} = 0.4 \cdot 1000\,\max\!\bigl(0,\; \theta_0 - \theta_{\mathrm{wp}}\bigr)\, Z_r.
+\end{equation}
+Net atmospheric/storage deficit before supplemental irrigation is $D_{\mathrm{net}} = \max(0,\; ET_c - P_{\mathrm{eff}} - W_{\mathrm{init}})$. When irrigation is enabled, applied gross irrigation is capped by legal annual quota ($I_{\mathrm{cap}} = Q_{\mathrm{yr}} / (10 A_{\mathrm{ha}})$) at application efficiency $\eta_{\mathrm{irr}} = 0.85$, yielding delivered net irrigation $I_{\mathrm{net}} = \min(D_{\mathrm{net}},\, \eta_{\mathrm{irr}} I_{\mathrm{cap}})$ and unmet water deficit $D_{\mathrm{unmet}} = D_{\mathrm{net}} - I_{\mathrm{net}}$. When $D_{\mathrm{unmet}} > \mathrm{RAW}$, the FAO-56 water-stress coefficient $K_s$ triggers proportional yield reduction via FAO-33 sensitivity factor $K_y$~\cite{doorenbos1979fao33}:
+\begin{equation}
+  K_s =
+  \begin{cases}
+    1.0, & D_{\mathrm{unmet}} \le \mathrm{RAW}, \\[4pt]
+    \max\!\left(0.30,\; \dfrac{\mathrm{TAW} - D_{\mathrm{unmet}}}{(1 - p)\,\mathrm{TAW}}\right), & D_{\mathrm{unmet}} > \mathrm{RAW},
+  \end{cases}
+  \qquad
+  \Delta Y_{\mathrm{water}} = \min\!\bigl(0.65,\; K_y (1 - K_s)\bigr).
+\end{equation}
+Observed daily climate extremes (\texttt{frost\_days\_count}, \texttt{heatwave\_days\_count}, \texttt{longest\_dry\_spell\_days}) and ESP32 canopy temperature/humidity further modulate cold-kill pruning and heat-stress yield penalties (Section~\ref{sec:optimization}).

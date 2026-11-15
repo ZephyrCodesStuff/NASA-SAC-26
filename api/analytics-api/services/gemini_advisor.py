@@ -168,7 +168,9 @@ FIELD & WEATHER OVERVIEW (TRANSLATE IN PLAIN RELATABLE TERMS):
 - Soil Texture: {parcel.get('soil_type', 'Loam')} | Elevation: {parcel.get('elevation_m', 150)} m | Slope: {parcel.get('slope_pct', 2.0)}%
 - NASA Evaporative Sun/Air Demand (ET0): {climate.get('annual_et0_mm', 1080)} mm/year
 - NASA Rainfall Measured (GPM): {climate.get('annual_precip_mm', 640)} mm/year
-- NASA SMAP Rootzone Soil Moisture: {climate.get('smap_rootzone_moisture', 0.26)} m³/m³
+- NASA Observed Climate Extremes (past 365d): {climate.get('frost_days_count', 0)} frost days (<=0°C), {climate.get('heatwave_days_count', 0)} heatwave days (>=35°C), longest dry spell {climate.get('longest_dry_spell_days', 0)} days
+- Soil pH: {climate.get('soil_ph', 6.7)} | Rootzone Moisture: {climate.get('smap_rootzone_moisture', 0.26)} m³/m³
+- Paired IoT Canopy Air (if present): {climate.get('in_situ_ambient_temp_c', 'N/A')} °C, {climate.get('in_situ_ambient_humidity_pct', 'N/A')}% RH
 - Low-Spot Water Ponding Hazard: {climate.get('low_spot_hazard', False)}
 
 SIMULATED 3-YEAR STRATEGIES DATA:

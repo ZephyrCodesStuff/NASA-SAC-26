@@ -1,0 +1,64 @@
+\section{Soil Physics: Carbon, Nitrogen, Erosion, and Compaction}
+\label{sec:soil-physics}
+
+\subsection{Soil Organic Carbon (H{\'e}nin--Dupuis / Mary--Gu{\'e}rif / Bolinder)}
+Topsoil organic carbon evolution in the upper $0.30~\mathrm{m}$ arable horizon follows the classic first-order mass-balance differential equation of H{\'e}nin and Dupuis~\cite{henin1945essai}:
+\begin{equation}
+  \frac{\mathrm{d}C}{\mathrm{d}t} = k_1 A - k_2 C,
+\end{equation}
+where initial carbon stock $C_0$ ($\mathrm{t\,C\,ha^{-1}}$) is computed from topsoil bulk density $\rho_b$ ($\mathrm{g\,cm^{-3}}$) and organic carbon concentration $\mathrm{SOC}_0$ ($\%$):
+\begin{equation}
+  C_0 = 100 \cdot \rho_b \cdot 0.30 \cdot \mathrm{SOC}_0.
+\end{equation}
+
+The annual mineralization rate constant $k_2$ ($\mathrm{yr^{-1}}$) implements the Mary--Gu{\'e}rif temperature and clay-protection parameterization~\cite{mary1994soil}, scaled by tillage intensity factor $f_{\mathrm{till}} \in \{0.50, 0.70, 1.00\}$ (perennial/no-till, strip-till, conventional tillage):
+\begin{equation}
+  k_2 = f_{\mathrm{till}} \cdot \max\!\left(0.012,\; \frac{1.2 \max(6.0, T_{\mathrm{mean}}) - 6.0}{10\,\mathrm{Clay}_{\%} + 200}\right).
+\end{equation}
+Fresh biomass carbon inputs $A$ ($\mathrm{t\,C\,ha^{-1}\,yr^{-1}}$) follow Bolinder et al.~\cite{bolinder2007approach} Tier-2 allometric allocation using simulated harvested yield $Y$ ($\mathrm{t\,ha^{-1}}$), dry-matter fraction $f_{\mathrm{DM}}$ ($0.14$ for high-moisture horticultural crops such as tomatoes, bell peppers, and spinach; $0.86$ for grains, oilseeds, and dry forage), harvest index $\mathrm{HI}$, shoot-to-root ratio, and humification coefficient $k_1$:
+\begin{equation}
+  C_{\mathrm{prod}} = Y \cdot f_{\mathrm{DM}} \cdot 0.45, \qquad
+  A = C_{\mathrm{stubble}} + C_{\mathrm{roots}} + C_{\mathrm{exudates}} + C_{\mathrm{cover}},
+\end{equation}
+integrated over an annual step ($\Delta C = k_1 A - k_2 C_t$, bounded to $[-3.5, +4.5]~\mathrm{t\,C\,ha^{-1}\,yr^{-1}}$) and converted back to topsoil $\mathrm{SOC}_\%$ after each cropping year.
+
+\subsection{Biological Nitrogen Fixation and Seasonal N Budget}
+Ceres computes nitrogen dynamics separately for leguminous and non-leguminous species:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Legumes (Herridge \& Peoples Tier-2 BNF~\cite{herridge2008global})}: Total crop nitrogen uptake $N_{\mathrm{plant}} = 1.35 \, Y \, u_N$ (including non-harvested roots and nodules, where $u_N$ is harvested $\mathrm{kg~N~t^{-1}}$) yields biologically fixed nitrogen $N_{\mathrm{fix}} = N_{\mathrm{plant}} \cdot \mathrm{\%Ndfa}$. Net soil balance is $N_{\mathrm{fix}} - N_{\mathrm{harvest}} + N_{\mathrm{credit}}$, with synthetic fertilizer demand set to $0~\mathrm{kg~N~ha^{-1}}$.
+  \item \textbf{Non-Legumes (Residual Carryover + Applied Synthetic N)}: Available carry-over combines any preceding legume nitrogen credit ($N_{\mathrm{leg,credit}}$), taproot cover-crop scavenged nitrogen ($N_{\mathrm{scav}}$), and $30\%$ of the mineralized topsoil nitrogen pool (capped at $45\%$ of crop uptake demand). Required synthetic nitrogen is then:
+  \begin{equation}
+    N_{\mathrm{synth}} = \max\!\bigl(0,\; N_{\mathrm{demand}} - N_{\mathrm{leg,used}} - N_{\mathrm{scav}} - N_{\mathrm{min,used}}\bigr),
+  \end{equation}
+  with annual net soil-N balance tracked as $\Delta N = \max\!\bigl(-80,\; N_{\mathrm{synth}} + N_{\mathrm{leg,used}} + N_{\mathrm{scav}} - N_{\mathrm{demand}}\bigr)$~($\mathrm{kg~N\,ha^{-1}}$).
+\end{itemize}
+
+\subsection{Topsoil Erosion via RUSLE}
+Annual sheet and rill soil loss $E$ ($\mathrm{t\,ha^{-1}\,yr^{-1}}$) is computed from the Revised Universal Soil Loss Equation (RUSLE)~\cite{renard1997rusle}:
+\begin{equation}
+  E = R \cdot K \cdot LS \cdot C \cdot P,
+\end{equation}
+using four physically parameterized factors and a conservative support baseline ($P = 1.0$, unless specific structural practices are encoded):
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Rainfall Erosivity $R$ ($\mathrm{MJ\,mm\,ha^{-1}\,h^{-1}\,yr^{-1}}$)} via Renard \& Freimund~\cite{renard1994using} from mean annual precipitation $P_{\mathrm{ann}}$ ($\mathrm{mm}$):
+  \begin{equation}
+    R =
+    \begin{cases}
+      0.04830 \, P_{\mathrm{ann}}^{1.610}, & P_{\mathrm{ann}} \le 850~\mathrm{mm}, \\
+      587.8 - 1.219 \, P_{\mathrm{ann}} + 0.004105 \, P_{\mathrm{ann}}^{2}, & P_{\mathrm{ann}} > 850~\mathrm{mm}.
+    \end{cases}
+  \end{equation}
+  \item \textbf{Soil Erodibility $K$ ($\mathrm{t\,ha\,h\,ha^{-1}\,MJ^{-1}\,mm^{-1}}$)} via the EPIC formulation of Williams~\cite{williams1995epic} using SoilGrids/local sand ($\mathrm{SAN}$), silt ($\mathrm{SIL}$), clay ($\mathrm{CLA}$), and organic carbon ($\mathrm{SOC}_\%$):
+  \begin{equation}
+    K = 0.1317 \cdot f_{\mathrm{csand}} \cdot f_{\mathrm{cl\text{-}si}} \cdot f_{\mathrm{orgc}} \cdot f_{\mathrm{hisand}},
+  \end{equation}
+  where $0.1317$ converts US customary units to SI.
+  \item \textbf{Topographic Factor $LS$} via Moore \& Burch~\cite{moore1986physical}: slope angle $\theta = \arctan(\mathrm{slope}_{\%}/100)$ and effective slope flow path $\lambda = \max\bigl(22.13,\, \min(150.0,\, 0.5\sqrt{10^4 A_{\mathrm{ha}}})\bigr)$~($\mathrm{m}$) give:
+  \begin{equation}
+    LS = \left(\frac{\lambda}{22.13}\right)^{0.4} \left(\frac{\sin\theta}{0.0896}\right)^{1.3}.
+  \end{equation}
+  \item \textbf{Crop Cover-Management Factor $C$}: Assigned per crop profile ($C \in [0.02, 0.36]$, lowest for perennial alfalfa and winter cover/wheat, highest for wide-row tillage crops).
+\end{enumerate}
+
+\subsection{Soil Compaction Heuristic and Bio-Drill Relief}
+Traffic compaction and taproot remediation are tracked in cone penetrometer equivalent units ($\mathrm{PSI}$; $1~\mathrm{MPa} \approx 145.038~\mathrm{PSI}$~\cite{asabe2019s313}). When field penetrometer measurements exist, the baseline starts at the measured $\mathrm{PSI}$; otherwise, a texture-calibrated prior is used and explicitly flagged as unmeasured. Each crop season increments $\mathrm{PSI}$ via an axle-pass curve $(8.0 + 4.0\min(10, N_{\mathrm{passes}}))(1 + \mathrm{Clay}_{\%}/100)$ and applies deep-taproot bio-drilling relief ($\Delta_{\mathrm{biodrill}} \in \{-65, -55, -25, -15\}~\mathrm{PSI}$ for Daikon radish, alfalfa, sunflowers, and canola), bounded to $[120, 380]~\mathrm{PSI}$.

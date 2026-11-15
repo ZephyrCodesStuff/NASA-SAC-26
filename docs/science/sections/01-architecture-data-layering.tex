@@ -1,0 +1,40 @@
+\section{Architecture \& Data Layering}
+\label{sec:architecture}
+
+\subsection{Separation of Physics and Natural-Language Explanation}
+The Ceres analytics pipeline enforces strict separation between deterministic simulation and generative language synthesis across two services:
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Upstream Earth-Observation Preparation (\texttt{web-api})}: Aggregates parcel geometry, multi-source NASA and European environmental snapshots, soil profile grids, national market price indices, regional yield baselines, and paired ESP32 field probe measurements via \texttt{build\_ingestion\_payload} before calling the analytics endpoint.
+  \item \textbf{Deterministic Physics \& Optimization (\texttt{analytics-api})}: Normalizes heterogeneous inputs in \texttt{FieldIngestionParser}, resolves a strictly ordered provenance hierarchy, runs coupled annual soil--water--crop simulations in \texttt{SoilPhysicsEngine}, searches all admissible 3-year crop sequences in \texttt{PlanOptimizerEngine}, and returns five non-redundant strategic champions.
+  \item \textbf{Downstream Advisory Narration (\texttt{GeminiAdvisorEngine})}: Consumes only the completed JSON outputs and climate context to translate numerical trade-offs and physical alerts into farmer-readable guidance. Large-language-model calls have \emph{zero} write access to yields, water deficits, nitrogen balances, or strategy rankings; whenever the external LLM service is unavailable or times out, a deterministic Python fallback formatter generates structured rationales directly from the simulated metrics.
+\end{enumerate}
+
+\subsection{Priority Hierarchy and Provenance Resolution}
+Field-scale observations frequently conflict with coarse-resolution satellite grids or regional cadastral defaults. Ceres resolves every agronomic parameter according to an explicit three-tier override hierarchy implemented in \texttt{FieldIngestionParser.parse\_and\_validate}:
+
+\begin{table}[h!]
+  \centering
+  \small
+  \caption{Three-tier data precedence rules implemented in \texttt{FieldIngestionParser}.}
+  \label{tab:data-layering}
+  \begin{tabular}{@{}p{2.2cm}p{4.6cm}p{7.4cm}@{}}
+    \toprule
+    \textbf{Tier} & \textbf{Source Class} & \textbf{Overridden Parameters \& Handling} \\
+    \midrule
+    Tier 1 (Highest) & User / Farmer Overrides \& Parcel Covenants & Soil texture class, measured SOC~(\%), measured $\mathrm{pH}$, slope~(\%), rain-gauge annual precipitation, penetrometer cone index~($\mathrm{PSI}$), annual irrigation water quota~($\mathrm{m^3/yr}$), cropping whitelist/blacklist, greenhouse infrastructure, low-spot flood risk, recent 5-year crop history. \\
+    \addlinespace
+    Tier 2 & Dated In-Situ ESP32 Telemetry & Chronologically sorted sensor logs (soil volumetric moisture, soil temperature, electrical conductivity, optional penetrometer $\mathrm{PSI}$, and paired canopy ambient air temperature \& relative humidity). The latest valid observation seeds initial root-zone moisture and microclimate adjustment. \\
+    \addlinespace
+    Tier 3 (Baseline) & Gridded Earth Observation \& Public Statistics & NASA POWER agroclimatology (1991--2020 monthly normals and daily series)~\cite{nasapower2024}, NASA-USDA / SMAP root-zone moisture, ISRIC SoilGrids 2.0 stratified horizons~\cite{poggio2021soilgrids}, Copernicus/SRTM terrain slope, FAOSTAT/Eurostat/World Bank regional yields and prices~\cite{faostat2024}. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Coordinate, Depth-Profile, and Unit Normalization}
+Before running physics kernels, ingestion normalizes units and spatial encodings:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Geometry and Area}: Parcel GeoJSON rings (including cadastral polygons transformed from EPSG:6706 \texttt{(lat, lon)} to standard \texttt{[lon, lat]}) yield polygon centroid latitude/longitude and geodesic parcel area in hectares ($\mathrm{ha}$; farmer-entered acre inputs are converted via $1~\mathrm{ac} = 0.404686~\mathrm{ha}$).
+  \item \textbf{Stratified Soil Horizons}: ISRIC SoilGrids 2.0 supplies properties over depth intervals ($0$--$5$, $5$--$15$, $15$--$30$, $30$--$60$, $60$--$100~\mathrm{cm}$)~\cite{poggio2021soilgrids}. Ceres normalizes SoilGrids scaled integers into physical units: soil $\mathrm{pH} = \mathrm{phh2o} / 10$, bulk density $\rho_b = \mathrm{bdod} / 100~\mathrm{g\,cm^{-3}}$, soil organic carbon $\mathrm{SOC}_{\mathrm{\%}} = (\mathrm{soc}_{\mathrm{dg/kg}} / 10) / 10 = \mathrm{g\,kg^{-1}} / 10$, and USDA texture mass fractions ($\mathrm{clay}, \mathrm{sand}, \mathrm{silt}$ in~$\%$) from $\mathrm{g\,kg^{-1}} / 10$.
+  \item \textbf{Hydrologic \& Economic Normalization}: Irrigation availability scales from legal parcel quota~$Q_{\mathrm{yr}}$~($\mathrm{m^3\,yr^{-1}}$) and parcel area~$A_{\mathrm{ha}}$ to equivalent water depth $Q_{\mathrm{mm}} = Q_{\mathrm{yr}} / (10 \, A_{\mathrm{ha}})$. Nutrient budgets track strictly $\mathrm{kg~N~ha^{-1}}$ and crop prices track $\mathrm{USD~t^{-1}}$ ($\mathrm{metric~tonne}^{-1}$).
+  \item \textbf{Unmeasured State Provenance}: When local penetrometer readings are absent, baseline compaction is labeled explicitly in provenance metadata as \emph{``Unmeasured (modeled from machinery passes \& soil texture; verify with spade/penetrometer)''} so modeled inferences are never misrepresented as sensor measurements.
+\end{itemize}

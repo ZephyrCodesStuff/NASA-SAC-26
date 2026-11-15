@@ -148,6 +148,12 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             "mean_temp_c": mean_temp,
             "smap_rootzone_moisture": smap_moisture,
             "low_spot_hazard": low_spot_hazard,
+            "frost_days_count": normalized.frost_days_count,
+            "heatwave_days_count": normalized.heatwave_days_count,
+            "longest_dry_spell_days": normalized.max_consecutive_dry_days,
+            "soil_ph": effective_soil_ph,
+            "in_situ_ambient_temp_c": normalized.in_situ_ambient_temp_c,
+            "in_situ_ambient_humidity_pct": normalized.in_situ_ambient_humidity_pct,
         }
 
         advisor = GeminiAdvisorEngine()

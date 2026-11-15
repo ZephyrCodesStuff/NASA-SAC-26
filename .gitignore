@@ -14,3 +14,14 @@ pocketbase/pb_data/
 
 # analyzer-api stuff
 data/
+
+# LaTeX build artifacts (keep .tex, .bib, Makefile, and .pdf tracked)
+docs/science/*.aux
+docs/science/*.bbl
+docs/science/*.blg
+docs/science/*.log
+docs/science/*.out
+docs/science/*.toc
+docs/science/*.fls
+docs/science/*.fdb_latexmk
+docs/science/*.synctex.gz

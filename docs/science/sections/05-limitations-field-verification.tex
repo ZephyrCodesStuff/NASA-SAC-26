@@ -1,0 +1,28 @@
+\section{Scientific Assumptions, Excluded Metrics, and Field Verification}
+\label{sec:limitations}
+
+\subsection{Explicit Physical Modeling Assumptions}
+Transparency requires stating where Ceres' lumped annual/half-year equations simplify real agroecosystem dynamics:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Seasonal Temporal Resolution}: \texttt{PlanOptimizerEngine} resolves water and nitrogen across representative warm/cool half-year windows rather than daily finite-difference soil-water Richards profiles or dynamic phenology GDD curves. Acute multi-day drought occurring within a single critical flowering week can injure yields beyond what seasonal effective precipitation indicates.
+  \item \textbf{Empirical RUSLE Parameterization}: Renard--Freimund rainfall erosivity $R$ uses annual rainfall totals rather than 30-minute storm kinetic energy ($EI_{30}$), and slope length $\lambda$ is estimated from parcel area under an isotropic square-plot geometry ($\sqrt{10^4 A_{\mathrm{ha}}}$) with support practice $P = 1.0$. Contour plowing, grass waterways, or terraced micro-topography lower real soil loss relative to baseline estimates.
+  \item \textbf{Hargreaves--Samani vs.\ Penman--Monteith Normals}: Upstream monthly partitioning from NASA POWER 1991--2020 normals relies on Eq.~52 (temperature amplitude + $R_a$)~\cite{allen1998fao56}, which can slightly overestimate $ET_0$ in hyper-humid coastal zones or underestimate $ET_0$ under persistent advective winds compared to daily Penman--Monteith.
+  \item \textbf{Catalog Scope and Linear Economics}: The crop optimizer currently evaluates twelve benchmark species and assumes linear farm-gate pricing independent of local cooperative delivery contracts, post-harvest cold storage, or acute seasonal price shocks.
+\end{itemize}
+
+\subsection{Metrics Intentionally Excluded as Scientifically Unverifiable}
+To preserve strict scientific defensibility, Ceres deliberately avoids inventing pseudo-precise outputs where physical data is missing:
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{No Synthetic Sensor Claims}: Baseline subsoil compaction without a penetrometer log is labeled explicitly as modeled from texture and machinery passes, never presented as a physical measurement.
+  \item \textbf{No Arbitrary Punitive Fines}: Earlier prototype versions assigned synthetic monetary fines (e.g., flat USD penalties per violated family break) with no econometric basis. Ceres replaces arbitrary fines with biophysical yield drag ($\mu_{\mathrm{family}} = 0.88$) and hard phytosanitary sequence exclusions (e.g., once-in-3-years Solanaceae break).
+  \item \textbf{LLM Output Containment}: Generative advisory text is strictly bounded to interpreting verified JSON simulation results; it cannot adjust numbers, invent yields, or override biophysical exclusions.
+\end{enumerate}
+
+\subsection{Human-in-the-Loop Verification Checklist}
+Every strategy report surfaces a field-verification checklist (``Where Satellite Data Needs Local Eyes'') encouraging farmers and local agronomists to confirm parameters that coarse 250~m--0.5$^{\circ}$ remote sensing cannot resolve:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Topsoil $\mathrm{pH}$ \& Lab NPK}: Verify SoilGrids $\mathrm{pH}$ predictions with composite 0--20~cm soil samples before high-value horticultural planting or liming.
+  \item \textbf{Tillage Pan Compaction}: Probe field diagonals with a spade or cone penetrometer after harvest to distinguish modeled compaction from site-specific traffic pans.
+  \item \textbf{Micro-Drainage \& Low Spots}: Confirm surface ponding, subsurface tile drainage capacity, and local wind-exposure microclimates during early establishment.
+  \item \textbf{Local Rotation History \& Contracts}: Record any omitted off-system crops from the past three years, confirm local buyer contracts/prices, and verify seasonal irrigation allocation permits before committing seed orders.
+\end{itemize}
