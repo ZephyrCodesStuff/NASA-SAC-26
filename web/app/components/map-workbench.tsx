@@ -534,7 +534,7 @@ export function MapWorkbench() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#faf9f5] text-[#1f1915]">
+    <div className="h-dvh w-full flex flex-col overflow-hidden bg-[#faf9f5] text-[#1f1915]">
       {/* Thin Top Bar */}
       <header className="h-[52px] shrink-0 border-b border-[#e7e5e0] bg-[#fdfbfa] px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 z-20">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -665,13 +665,13 @@ export function MapWorkbench() {
       {creatingFarm && (
         <form
           onSubmit={handleCreateFarm}
-          className="border-b border-[#e7e5e0] bg-[#fdfbfa] px-4 py-2 flex items-center gap-2 z-20"
+          className="border-b border-[#e7e5e0] bg-[#fdfbfa] px-3 sm:px-4 py-2 flex flex-wrap sm:flex-nowrap items-center gap-2 z-20"
         >
           <Input
             value={newFarmName}
             onChange={(e) => setNewFarmName(e.target.value)}
             placeholder="New farm name (e.g. Cascina San Marco)"
-            className="h-8 max-w-xs text-xs"
+            className="h-8 w-full sm:max-w-xs text-xs"
             autoFocus
           />
           <Button type="submit" size="sm" className="h-8 text-xs">
@@ -778,7 +778,7 @@ export function MapWorkbench() {
           <div ref={mapContainerRef} className="h-full w-full" />
 
           {/* Floating Layer Switcher Pill (Top Right) */}
-          <div className="absolute top-3 right-3 z-[500] flex items-center gap-1.5 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-2 py-1.5 shadow-sm">
+          <div className="absolute top-3 right-3 z-[500] max-w-[calc(100%-3.75rem)] overflow-x-auto flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-2 py-1.5 shadow-sm">
             <button
               type="button"
               onClick={() => setBaseLayer("osm")}
@@ -818,7 +818,7 @@ export function MapWorkbench() {
 
           {/* Editor Draw Toolbar (Bottom Center) */}
           {mode === "editor" && !discoveredParcels && (
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-2 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-3 py-2 shadow-md">
+            <div className="absolute bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-[500] w-[calc(100%-1.5rem)] sm:w-auto max-w-xl flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-3 py-2 shadow-md">
               <span className="text-xs font-mono text-[#6b675f] px-1">
                 {drawPoints.length === 0
                   ? "Click map to place polygon vertices"
@@ -864,7 +864,7 @@ export function MapWorkbench() {
 
           {/* Save Discovered Plot Sheet */}
           {discoveredParcels && (
-            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 shadow-lg space-y-3">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 max-h-[calc(100dvh-5.5rem)] overflow-y-auto rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 shadow-lg space-y-3">
               <div className="flex items-center justify-between">
                 <p className="font-serif text-sm font-semibold">
                   {useCatastoGeometry && catastoParcels.length > 0
@@ -968,7 +968,7 @@ export function MapWorkbench() {
 
           {/* Selected Plot Quick-Inspect Sheet */}
           {selectedPlot && mode === "viewer" && (
-            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur p-4 shadow-lg space-y-3">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 max-h-[calc(100dvh-5.5rem)] overflow-y-auto rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur p-4 shadow-lg space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-serif text-base font-semibold truncate">{selectedPlot.label}</p>

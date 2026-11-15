@@ -10,7 +10,7 @@ const MapWorkbench = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
+      <div className="h-dvh w-full flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
         <Loader2 className="h-4 w-4 animate-spin text-[#20808d]" />
         Loading map workbench…
       </div>
@@ -23,7 +23,7 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
+      <div className="h-dvh w-full flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
         <Loader2 className="h-4 w-4 animate-spin text-[#20808d]" />
         Restoring session…
       </div>

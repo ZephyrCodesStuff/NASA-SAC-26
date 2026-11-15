@@ -480,7 +480,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
+      <div className="h-dvh w-full flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
         <Loader2 className="h-4 w-4 animate-spin text-[#20808d]" />
         Loading plot workspace…
       </div>
@@ -489,7 +489,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
   if (!plot) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#faf9f5] gap-3">
+      <div className="h-dvh w-full flex flex-col items-center justify-center bg-[#faf9f5] gap-3">
         <p className="text-sm text-[#6b675f]">Plot not found or access denied.</p>
         <Link href="/">
           <Button variant="outline" size="sm">Back to Map</Button>
@@ -499,13 +499,13 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f5] text-[#1f1915]">
+    <div className="min-h-dvh bg-[#faf9f5] text-[#1f1915]">
       {/* Sticky Top Bar */}
-      <header className="sticky top-0 z-20 h-[52px] border-b border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-6 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="sticky top-0 z-20 h-[52px] border-b border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-3 sm:px-6 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href={`/?farm=${encodeURIComponent(plot.farm)}&plot=${encodeURIComponent(plot.id)}`}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#6b675f] hover:text-[#1f1915]"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#6b675f] hover:text-[#1f1915] shrink-0"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Map
@@ -516,7 +516,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           <span className="font-serif text-sm font-semibold truncate">{plot.label}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -526,12 +526,13 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
             onClick={handleRefreshTelemetry}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Fetching NASA…" : "Refresh NASA Data"}
+            <span className="sm:hidden">{refreshing ? "Fetching…" : "Refresh"}</span>
+            <span className="hidden sm:inline">{refreshing ? "Fetching NASA…" : "Refresh NASA Data"}</span>
           </Button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
         {/* Compact Hero + Satellite Thumbnail */}
         <section className="flex flex-col md:flex-row gap-5 items-start md:items-center justify-between">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center min-w-0">

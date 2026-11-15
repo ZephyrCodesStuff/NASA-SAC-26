@@ -57,7 +57,7 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-[#faf9f5] text-[#1f1915]">
+    <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-12 bg-[#faf9f5] text-[#1f1915]">
       {/* Left editorial brief */}
       <div className="lg:col-span-7 flex flex-col justify-between p-8 lg:p-14 border-b lg:border-b-0 lg:border-r border-[#e7e5e0] bg-[#fdfbfa]">
         <div className="flex items-center gap-3">
