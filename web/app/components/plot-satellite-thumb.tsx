@@ -12,13 +12,22 @@ interface PlotSatelliteThumbProps {
 export function PlotSatelliteThumb({ geometry, centroid }: PlotSatelliteThumbProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const outlineLayerRef = useRef<L.GeoJSON | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const worldBounds: L.LatLngBoundsExpression = [
+      [-85, -180],
+      [85, 180],
+    ];
+
     const map = L.map(containerRef.current, {
       center: centroid ? [centroid.lat, centroid.lon] : [44.8467, 7.7178],
       zoom: 16,
+      minZoom: 2,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1.0,
       zoomControl: false,
       attributionControl: false,
       dragging: false,
@@ -31,8 +40,43 @@ export function PlotSatelliteThumb({ geometry, centroid }: PlotSatelliteThumbPro
 
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { maxZoom: 20, maxNativeZoom: 18 }
+      {
+        maxZoom: 20,
+        maxNativeZoom: 18,
+        noWrap: true,
+        bounds: worldBounds,
+        updateWhenZooming: false,
+        updateWhenIdle: true,
+      }
     ).addTo(map);
+
+    mapRef.current = map;
+    let rafId = 0;
+    const ro = new ResizeObserver(() => {
+      const el = containerRef.current;
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (mapRef.current) mapRef.current.invalidateSize({ animate: false });
+      });
+    });
+    ro.observe(containerRef.current);
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+      outlineLayerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    outlineLayerRef.current?.remove();
+    outlineLayerRef.current = null;
 
     if (geometry) {
       try {
@@ -44,23 +88,20 @@ export function PlotSatelliteThumb({ geometry, centroid }: PlotSatelliteThumbPro
             fillOpacity: 0.22,
           },
         }).addTo(map);
+        outlineLayerRef.current = layer;
         const bounds = layer.getBounds();
         if (bounds.isValid()) {
           map.fitBounds(bounds, { padding: [14, 14], maxZoom: 19, animate: false });
+          return;
         }
       } catch {
         // Fallback to centroid
       }
     }
 
-    mapRef.current = map;
-    const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
-    ro.observe(containerRef.current);
-    return () => {
-      ro.disconnect();
-      map.remove();
-      mapRef.current = null;
-    };
+    if (centroid) {
+      map.setView([centroid.lat, centroid.lon], 16, { animate: false });
+    }
   }, [geometry, centroid]);
 
   return (

@@ -176,9 +176,17 @@ export function MapWorkbench() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    const worldBounds: L.LatLngBoundsExpression = [
+      [-85, -180],
+      [85, 180],
+    ];
+
     const map = L.map(mapContainerRef.current, {
       center: [TURIN_PRESETS[0].lat, TURIN_PRESETS[0].lon],
       zoom: TURIN_PRESETS[0].zoom,
+      minZoom: 2,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1.0,
       zoomControl: false,
     });
     L.control.zoom({ position: "bottomleft" }).addTo(map);
@@ -196,14 +204,26 @@ export function MapWorkbench() {
     setMapReady(true);
 
     // Ensure Leaflet recalculates container dimensions after flex layout / sidebar toggles
+    let rafId = 0;
     const ro = new ResizeObserver(() => {
-      map.invalidateSize({ animate: false });
+      const el = mapContainerRef.current;
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (mapRef.current) mapRef.current.invalidateSize({ animate: false });
+      });
     });
     ro.observe(mapContainerRef.current);
-    const t = setTimeout(() => map.invalidateSize({ animate: false }), 120);
+    const t = setTimeout(() => {
+      const el = mapContainerRef.current;
+      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+        map.invalidateSize({ animate: false });
+      }
+    }, 120);
 
     return () => {
       clearTimeout(t);
+      cancelAnimationFrame(rafId);
       ro.disconnect();
       setMapReady(false);
       map.remove();
@@ -230,6 +250,13 @@ export function MapWorkbench() {
     baseTileRef.current = L.tileLayer(url, {
       maxZoom: 20,
       maxNativeZoom: isSat ? 18 : 19,
+      noWrap: true,
+      bounds: [
+        [-85, -180],
+        [85, 180],
+      ],
+      updateWhenZooming: false,
+      updateWhenIdle: true,
       zIndex: 1,
       attribution,
     }).addTo(map);

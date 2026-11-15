@@ -104,6 +104,7 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
   const mapRef = useRef<L.Map | null>(null);
   const imageLayerRef = useRef<L.ImageOverlay | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const outlineLayerRef = useRef<L.GeoJSON | null>(null);
 
   const [imagery, setImagery] = useState<ImageryResponse | null>(null);
   const [imageryError, setImageryError] = useState<string | null>(null);
@@ -115,44 +116,81 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
   const [date, setDate] = useState<string>("");
   const [fetching, setFetching] = useState(true);
 
-  // Base map + plot outline
+  // Base map (initialized once)
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    const worldBounds: L.LatLngBoundsExpression = [
+      [-85, -180],
+      [85, 180],
+    ];
     const map = L.map(containerRef.current, {
       center: centroid ? [centroid.lat, centroid.lon] : [45.07, 7.68],
       zoom: 15,
+      minZoom: 2,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1.0,
       zoomControl: true,
       attributionControl: true,
     });
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
       maxZoom: 20,
       maxNativeZoom: 18,
+      noWrap: true,
+      bounds: worldBounds,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
       attribution: "Esri World Imagery",
     }).addTo(map);
     map.createPane("outline");
     map.getPane("outline")!.style.zIndex = "650";
+    mapRef.current = map;
+    let rafId = 0;
+    const ro = new ResizeObserver(() => {
+      const el = containerRef.current;
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (mapRef.current) mapRef.current.invalidateSize({ animate: false });
+      });
+    });
+    ro.observe(containerRef.current);
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+      imageLayerRef.current = null;
+      tileLayerRef.current = null;
+      outlineLayerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Plot outline & bounds (updates in place without recreating L.map)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    outlineLayerRef.current?.remove();
+    outlineLayerRef.current = null;
     if (geometry) {
       try {
         const outline = L.geoJSON(geometry as unknown as GeoJSON.GeoJsonObject, {
           pane: "outline",
           style: { color: "#ffffff", weight: 2, fill: false },
         }).addTo(map);
+        outlineLayerRef.current = outline;
         const b = outline.getBounds();
-        if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 17, animate: false });
+        if (b.isValid()) {
+          map.fitBounds(b, { padding: [40, 40], maxZoom: 17, animate: false });
+          return;
+        }
       } catch {
         // keep centroid view
       }
     }
-    mapRef.current = map;
-    const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
-    ro.observe(containerRef.current);
-    return () => {
-      ro.disconnect();
-      map.remove();
-      mapRef.current = null;
-      imageLayerRef.current = null;
-      tileLayerRef.current = null;
-    };
+    if (centroid) {
+      map.setView([centroid.lat, centroid.lon], 15, { animate: false });
+    }
   }, [geometry, centroid]);
 
   // Field imagery — fetched for the selected date; historical dates are requested only on demand
@@ -220,6 +258,13 @@ export function NasaLayerMap({ plotId, token, geometry, centroid }: NasaLayerMap
       tileLayerRef.current = L.tileLayer(meta.url.replace("{time}", meta.default_time || ""), {
         maxNativeZoom: meta.max_native_zoom,
         maxZoom: 20,
+        noWrap: true,
+        bounds: [
+          [-85, -180],
+          [85, 180],
+        ],
+        updateWhenZooming: false,
+        updateWhenIdle: true,
         opacity: 0.75,
         zIndex: 300,
         attribution: meta.attribution,
