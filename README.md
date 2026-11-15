@@ -23,6 +23,7 @@ flowchart LR
     ESP32["ESP32 field sensors"] -->|"POST /api/devices/ingest"| WebAPI
     WebAPI <-->|"users, farms, user_plots, devices"| PB[("PocketBase :8090")]
     WebAPI -->|"plot data, imagery, map layers"| DataAPI["data-api · FastAPI :8070"]
+    WebAPI -->|"3-year rotation & AI briefing"| AnalyticsAPI["analytics-api · FastAPI :8000"]
     WebAPI -->|"parcels in a drawn area"| Catasto["AdE Catasto WFS + ESA WorldCover"]
     DataAPI -->|"satellite, model & market data"| Sources["NASA Earthdata · POWER · NEX-GDDP · GIBS<br/>ISRIC · FAOSTAT · World Bank · Eurostat"]
     Web -.->|"GIBS map tiles (direct)"| GIBS["NASA GIBS"]
@@ -32,17 +33,17 @@ flowchart LR
 
 | Service | Folder | Port | What it does |
 |---|---|---|---|
-| `web` | [`web/app`](web/app) | 3000 (localhost, behind Caddy) | Next.js UI: map workbench, farms and plots, plot page with **NASA Data & Imagery**, rotation & profit, live sensor telemetry. `/api/*` is proxied to `web-api`. |
-| `web-api` | [`api/web-api`](api/web-api) | 8081 | REST backend: auth, farms, plots, catasto parcel discovery, plot analysis, IoT devices. Relays `data-api` for a user's plot. |
+| `web` | [`web/app`](web/app) | 3000 (localhost, behind Caddy) | Next.js UI: map workbench, farms and plots, and 4-tab plot workspace (**Field & Map**, **Water, Soil & Climate**, **Rotation Plan**, **Markets & Costs**). `/api/*` is proxied to `web-api`. |
+| `web-api` | [`api/web-api`](api/web-api) | 8081 | REST backend: auth, farms, plots, catasto parcel discovery, plot analysis, IoT devices. Relays `data-api` and `analytics-api` for a user's plot. |
 | `data-api` | [`api/data-api`](api/data-api) | 8070 (internal only) | Returns everything we know about a field boundary: 15 datasets, satellite images in many bands, map layers. See [its README](api/data-api/README.md). |
+| `analytics-api` | [`api/analytics-api`](api/analytics-api) | 8000 (internal only) | Field ingestion parser, deterministic 3-year crop rotation optimizer, and plain-language AI briefing (with deterministic fallback). |
 | `pocketbase` | [`pocketbase`](pocketbase) | 8090 (internal only) | Database and auth. Schema in [`pocketbase/pb_migrations`](pocketbase/pb_migrations). |
 | `web-old` | [`web/app-old`](web/app-old) | 8080 (internal only) | The first NiceGUI version of the UI, kept for reference. |
-| `analytics-api` | [`api/analytics-api`](api/analytics-api) | — | Field ingestion parser and 3-year rotation plan optimizer. Not in `compose.yaml` yet. |
 
 ## ⚡ Quick start
 
 ```bash
-cp .env.example .env          # add a free NASA Earthdata login (https://urs.earthdata.nasa.gov)
+cp .env.example .env          # add a free NASA Earthdata login (https://urs.earthdata.nasa.gov) and optional GEMINI_API_KEY
 docker compose up --build -d
 ```
 

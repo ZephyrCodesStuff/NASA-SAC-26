@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import {
   ChevronDown,
   ChevronUp,
@@ -239,6 +241,28 @@ export function ProjectionPlanPanel({
     );
   }, [active, data]);
 
+  const planRef = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      if (!active) return;
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.fromTo(
+          ".kpi-card-animate",
+          { opacity: 0, y: 6 },
+          { opacity: 1, y: 0, duration: 0.22, stagger: 0.035, ease: "power2.out", clearProps: "transform,opacity" }
+        );
+        gsap.fromTo(
+          ".year-card-animate",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.26, stagger: 0.06, ease: "power2.out", clearProps: "transform,opacity" }
+        );
+      });
+      return () => mm.revert();
+    },
+    { scope: planRef, dependencies: [active?.strategy_id ?? ""] }
+  );
+
   if (loading) {
     return (
       <div className="space-y-6 font-sans">
@@ -306,7 +330,7 @@ export function ProjectionPlanPanel({
       : active.risk_mitigation_actions || [];
 
   return (
-    <div className="space-y-7 font-sans">
+    <div ref={planRef} className="space-y-7 font-sans">
       {/* 1. Hero: Editorial Briefing (No Card, Straight Prose) */}
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="max-w-3xl space-y-2.5">
@@ -385,7 +409,7 @@ export function ProjectionPlanPanel({
 
       {/* 3. Plan Overview: 4 Headline KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+        <div className="kpi-card-animate rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
           <p className="text-xs text-[#6b675f]">3-Year Net Profit</p>
           <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
             {fmtMoney(cm.total_net_profit_usd)}
@@ -394,7 +418,7 @@ export function ProjectionPlanPanel({
             {fmtNum(cm.cumulative_roi_pct, 1, "% ROI")}
           </p>
         </div>
-        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+        <div className="kpi-card-animate rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
           <p className="text-xs text-[#6b675f]">3-Year Irrigation</p>
           <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
             {fmtNum(cm.total_irrigation_volume_m3, 0, " m³")}
@@ -403,7 +427,7 @@ export function ProjectionPlanPanel({
             Erosion {fmtNum(cm.average_annual_erosion_tons_ha, 2, " t/ha/yr")}
           </p>
         </div>
-        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+        <div className="kpi-card-animate rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
           <p className="text-xs text-[#6b675f]">Soil Carbon &amp; Free N</p>
           <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
             {fmtSigned(cm.net_soc_change_pct, 3, "% SOC")}
@@ -412,7 +436,7 @@ export function ProjectionPlanPanel({
             +{fmtNum(cm.total_biological_n_fixed_kg_ha, 0, " kg/ha N")} fixed
           </p>
         </div>
-        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+        <div className="kpi-card-animate rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
           <p className="text-xs text-[#6b675f]">Field Labor &amp; Compaction</p>
           <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
             {fmtNum(cm.total_labor_hours, 0, " hrs")}
@@ -453,7 +477,7 @@ export function ProjectionPlanPanel({
           return (
             <div
               key={yr.year_index}
-              className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] p-4 flex flex-col justify-between gap-3"
+              className="year-card-animate rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] p-4 flex flex-col justify-between gap-3"
             >
               <div className="space-y-3">
                 {/* 1. Header */}

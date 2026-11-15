@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import {
   ArrowLeft,
   RefreshCw,
@@ -111,6 +113,21 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const { token } = useAuth();
   const nasa = useNasaData(plotId, token);
   const [tab, setTab] = useState<TabKey>("field");
+  const tabContainerRef = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.fromTo(
+          ".tab-panel-animate",
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.24, ease: "power2.out", clearProps: "transform,opacity" }
+        );
+      });
+      return () => mm.revert();
+    },
+    { scope: tabContainerRef, dependencies: [tab] }
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -654,9 +671,10 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           })}
         </div>
 
+        <div ref={tabContainerRef}>
         {/* TAB 1: FIELD & MAP */}
         {tab === "field" && (
-          <div className="space-y-8">
+          <div className="tab-panel-animate space-y-8">
             {token && (
               <FieldAndMapSections
                 datasets={nasa.datasets}
@@ -875,7 +893,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
         {/* TAB 2: WATER, SOIL & CLIMATE */}
         {tab === "climate" && (
-          <div className="space-y-6">
+          <div className="tab-panel-animate space-y-6">
             {/* Editorial Headline + Full-width 24-Period Chart */}
             <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-5 space-y-4">
               <div className="space-y-1">
@@ -1109,18 +1127,20 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           </div>
         )}
 
-        {/* TAB 2: ROTATION & PROFIT */}
+        {/* TAB 3: ROTATION PLAN */}
         {tab === "rotation" && (
-          <ProjectionPlanPanel
-            data={(analysisData?.projection as ThreeYearPlanResponse | undefined) ?? null}
-            loading={loading}
-            onRunProjection={isOwner ? handleRefreshTelemetry : undefined}
-          />
+          <div className="tab-panel-animate">
+            <ProjectionPlanPanel
+              data={(analysisData?.projection as ThreeYearPlanResponse | undefined) ?? null}
+              loading={loading}
+              onRunProjection={isOwner ? handleRefreshTelemetry : undefined}
+            />
+          </div>
         )}
 
         {/* TAB 4: MARKETS & COSTS */}
         {tab === "markets" && (
-          <div className="space-y-8">
+          <div className="tab-panel-animate space-y-8">
             <MarketsAndCostsSections datasets={nasa.datasets} />
 
             {/* Farm Cost & Soil Overrides */}
@@ -1190,6 +1210,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
             </section>
           </div>
         )}
+        </div>
       </main>
     </div>
   );
