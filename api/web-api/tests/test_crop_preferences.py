@@ -45,5 +45,12 @@ class CropPreferenceTests(unittest.TestCase):
         self.assertNotIn("preferred_candidate_crops", build_ingestion_payload(PLOT, {}, {"ph": 6.5})["local_user_data"])
 
 
+class SoilCarbonUnitsTest(unittest.TestCase):
+    def test_soilgrids_soc_g_per_kg_is_sent_as_percent(self):
+        ds = {"soil": {"status": "ok", "values": {"0-5cm": {"soc": 41.9, "clay": 20, "sand": 40, "silt": 40}}}}
+        nasa = build_ingestion_payload(PLOT, ds, {})["nasa_data"]["soilgrids"]
+        self.assertEqual(nasa["soil_organic_carbon_pct"], 4.19)
+
+
 if __name__ == "__main__":
     unittest.main()

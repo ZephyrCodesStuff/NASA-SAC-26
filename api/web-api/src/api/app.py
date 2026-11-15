@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from typing import Any
 
@@ -34,6 +35,8 @@ from src.providers.data_api import (
     summarize_sensor_gaps,
 )
 from src.providers.worldcover import WorldCoverClient
+
+logger = logging.getLogger(__name__)
 
 
 class LoginRequest(BaseModel):
@@ -356,7 +359,9 @@ def create_api_router(
             ingestion = build_ingestion_payload(plot, datasets, soil_override)
             result = await asyncio.wait_for(analytics.plan_3year(ingestion), timeout=90)
             projection = shape_projection_response(result)
-        except Exception:  # noqa: BLE001 — analytics-api is optional; keep the rest working
+        except Exception as exc:  # noqa: BLE001 — analytics-api is optional; keep the rest working
+            detail = exc.response.text[:500] if isinstance(exc, httpx.HTTPStatusError) else repr(exc)
+            logger.warning("3-year projection failed for plot %s: %s", plot_id, detail)
             projection = None
         return {
             "payload": payload,
