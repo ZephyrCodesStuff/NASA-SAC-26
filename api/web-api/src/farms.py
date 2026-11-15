@@ -535,7 +535,7 @@ class FarmStore:
         farms: list[dict[str, Any]] | None = None
 
         if self.pb_url and token:
-            if user and user.get("role") == "farm_admin":
+            if user and user.get("role") == "farm_admin" and os.getenv("SEED_DEMO_FARMS") == "1":
                 await self.ensure_demo_farms_in_pb(user)
             close_after = self._client is None
             http = await self._http()
