@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { LocationSearch, LocationSelection } from "@/components/location-search";
+import { GithubIcon, GITHUB_REPO_URL } from "@/components/github-icon";
 import { FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -668,6 +669,17 @@ export function MapWorkbench() {
             </Badge>
           </div>
 
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:inline-flex items-center justify-center h-8 w-8 rounded-md text-[#6b675f] hover:text-[#1f1915] hover:bg-[#f5f4ef] transition"
+            title="GitHub Repository (MIT/Apache-2.0)"
+            aria-label="GitHub Repository (MIT/Apache-2.0)"
+          >
+            <GithubIcon className="h-4 w-4" />
+          </a>
+
           <Button
             type="button"
             variant="ghost"
@@ -797,8 +809,8 @@ export function MapWorkbench() {
         <main className={`flex-1 relative isolate min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
           <div ref={mapContainerRef} className="h-full w-full" />
 
-          {/* Mobile Location Search Button / Expandable Input (Top Left) */}
-          <div className={`absolute top-3 left-3 md:hidden ${mobileSearchOpen ? "right-3 max-w-xs z-[600]" : "z-[500]"}`}>
+          {/* Mobile Location Search & GitHub Link (Top Left) */}
+          <div className={`absolute top-3 left-3 md:hidden flex flex-col items-start gap-2 ${mobileSearchOpen ? "right-3 max-w-xs z-[600]" : "z-[500]"}`}>
             {mobileSearchOpen ? (
               <LocationSearch
                 onSelect={handleLocationSelect}
@@ -807,15 +819,27 @@ export function MapWorkbench() {
                 className="w-full shadow-md rounded-md"
               />
             ) : (
-              <button
-                type="button"
-                onClick={() => setMobileSearchOpen(true)}
-                className="h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur text-[#1f1915] shadow-sm hover:bg-white"
-                title="Search address or location"
-                aria-label="Search address or location"
-              >
-                <Search className="h-4 w-4" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMobileSearchOpen(true)}
+                  className="h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur text-[#1f1915] shadow-sm hover:bg-white"
+                  title="Search address or location"
+                  aria-label="Search address or location"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+                <a
+                  href={GITHUB_REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur text-[#1f1915] shadow-sm hover:bg-white"
+                  title="GitHub Repository (MIT/Apache-2.0)"
+                  aria-label="GitHub Repository (MIT/Apache-2.0)"
+                >
+                  <GithubIcon className="h-4 w-4" />
+                </a>
+              </>
             )}
           </div>
 

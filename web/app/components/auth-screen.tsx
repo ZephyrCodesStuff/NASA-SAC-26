@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sprout, Eye, Pencil, ArrowRight, Loader2 } from "lucide-react";
+import { Sprout, Eye, Pencil, ArrowRight, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { GithubIcon, GITHUB_REPO_URL } from "@/components/github-icon";
 import { useAuth } from "@/lib/auth-context";
 import { WEB_API_URL } from "@/lib/api";
 
@@ -86,6 +87,19 @@ export function AuthScreen() {
             inspect 24-period seasonal water and erosion balances, and pair live ESP32 soil probes
             against NASA Earth observations.
           </p>
+
+          <div>
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#e7e5e0] bg-white px-3.5 py-2 text-xs font-medium text-[#1f1915] shadow-2xs transition hover:border-[#20808d] hover:bg-[#faf9f5]"
+            >
+              <GithubIcon className="h-4 w-4 shrink-0" />
+              <span>GitHub Repository (MIT/Apache-2.0)</span>
+              <ExternalLink className="h-3 w-3 text-[#6b675f]" />
+            </a>
+          </div>
 
           <div className="border-y border-[#e7e5e0] py-3 flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-[#6b675f]">
             <span>24 × 15-day periods</span>
