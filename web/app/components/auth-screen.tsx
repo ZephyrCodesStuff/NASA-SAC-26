@@ -10,12 +10,15 @@ import { GithubIcon, GITHUB_REPO_URL } from "@/components/github-icon";
 import { useAuth } from "@/lib/auth-context";
 import { WEB_API_URL } from "@/lib/api";
 
+const DEMO_FARMER_EMAIL = "marco@turinfarm.it";
+const DEMO_FARMER_PASSWORD = "demo-farmer-2026";
+
 export function AuthScreen() {
   const { login, register, loginDemo } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(DEMO_FARMER_EMAIL);
   const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(DEMO_FARMER_PASSWORD);
   const [role, setRole] = useState<"farm_admin" | "viewer">("farm_admin");
   const [submitting, setSubmitting] = useState(false);
   const mobileDialogRef = useRef<HTMLDialogElement | null>(null);
@@ -86,7 +89,13 @@ export function AuthScreen() {
         <button
           type="button"
           autoFocus={isDialog}
-          onClick={() => setMode("login")}
+          onClick={() => {
+            setMode("login");
+            if (!email && !password) {
+              setEmail(DEMO_FARMER_EMAIL);
+              setPassword(DEMO_FARMER_PASSWORD);
+            }
+          }}
           className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
             mode === "login"
               ? "bg-white text-[#1f1915] shadow-xs"
@@ -97,7 +106,13 @@ export function AuthScreen() {
         </button>
         <button
           type="button"
-          onClick={() => setMode("register")}
+          onClick={() => {
+            setMode("register");
+            if (email === DEMO_FARMER_EMAIL && password === DEMO_FARMER_PASSWORD) {
+              setEmail("");
+              setPassword("");
+            }
+          }}
           className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
             mode === "register"
               ? "bg-white text-[#1f1915] shadow-xs"
