@@ -602,9 +602,10 @@ def assess_plot_feasibility(
     )
 
     soil_vals = _values(datasets.get("soil"))
+    topsoil = soil_vals.get("0-5cm") if isinstance(soil_vals.get("0-5cm"), dict) else soil_vals
     has_soilgrids = any(
-        _first(soil_vals, k) is not None
-        for k in ("clay_pct", "sand_pct", "silt_pct", "ph_h2o", "ph", "soc_g_kg")
+        _first(topsoil, k) is not None
+        for k in ("clay", "sand", "silt", "phh2o", "soc", "clay_pct", "ph_h2o", "ph", "soc_g_kg")
     )
 
     terr = _values(datasets.get("terrain"))

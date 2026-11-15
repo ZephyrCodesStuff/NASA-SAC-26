@@ -154,7 +154,7 @@ class InsightsTests(unittest.TestCase):
         arable = assess_plot_feasibility(
             {"worldcover_class": 40, "worldcover_label": "Cropland"},
             {
-                "soil": {"status": "ok", "values": {"clay_pct": 22.0, "ph_h2o": 6.8}},
+                "soil": {"status": "ok", "values": {"0-5cm": {"clay": 22.0, "phh2o": 6.8}}},
                 "terrain": {"status": "ok", "values": {"elevation_m": {"mean": 240.0}, "slope_deg": {"mean": 1.2}}},
                 "power": {"status": "ok", "values": {"temp_c": {"mean": 13.5}}},
             },
