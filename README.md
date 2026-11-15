@@ -1,17 +1,31 @@
-# 🚀 NASA Space Apps Challenge 2026 — Adapting Farms with NASA Data
+<div align="center">
 
-Decision support for farmers: pick a field from the Italian cadastre (or draw one), see what NASA and partner
-datasets say about it (weather, water, soil, terrain, crop history, climate projections, prices, satellite
-images), plug in on-field sensors, and compare crop rotations and their profit.
+  <h1>🌾 <code>ceres</code> 🛰️</h1>
 
-Live demo: **https://nasa.zeph.work**
+  <p>
+    <strong>Crop rotation decision support for farmers — combining NASA Earth observations, cadastral boundaries, on-field IoT sensors, and deterministic agronomy.</strong>
+  </p>
 
-### 🌟 Authors
+  <p>
+    <a href="https://nasa.zeph.work"><img src="https://img.shields.io/badge/demo-nasa.zeph.work-brightgreen?style=flat-square" alt="Live Demo"></a>
+    <a href="https://www.spaceappschallenge.org/"><img src="https://img.shields.io/badge/NASA%20Space%20Apps-2026-0B3D91?style=flat-square" alt="NASA Space Apps 2026"></a>
+    <a href="#-license"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue?style=flat-square" alt="License"></a>
+  </p>
 
-- [zeph](https://github.com/ZephyrCodesStuff)
-- [ardalc](https://github.com/ardlc-1212)
-- [erengrl](https://github.com/erengrl)
-- [CoderXYZ7](https://github.com/CoderXYZ7)
+</div>
+
+**Ceres** helps farmers pick resilient 3-year crop rotations. Select a parcel from the Italian cadastre (or draw any field worldwide), inspect what NASA and partner datasets say about its weather, water, soil, terrain, 5-year crop history, climate projections, and local market prices, plug in live ESP32 field sensors, and compare rotation plans and profitability.
+
+Live demo: **[nasa.zeph.work](https://nasa.zeph.work)**
+
+---
+
+## 🌟 Authors
+
+- [@zeph](https://github.com/ZephyrCodesStuff)
+- [@ardalc](https://github.com/ardlc-1212)
+- [@erengrl](https://github.com/erengrl)
+- [@CoderXYZ7](https://github.com/CoderXYZ7)
 
 ## 🏗️ Architecture
 
@@ -24,105 +38,112 @@ flowchart LR
     WebAPI <-->|"users, farms, user_plots, devices"| PB[("PocketBase :8090")]
     WebAPI -->|"plot data, imagery, map layers"| DataAPI["data-api · FastAPI :8070"]
     WebAPI -->|"3-year rotation & AI briefing"| AnalyticsAPI["analytics-api · FastAPI :8000"]
-    WebAPI -->|"parcels in a drawn area"| Catasto["AdE Catasto WFS + ESA WorldCover"]
-    DataAPI -->|"satellite, model & market data"| Sources["NASA Earthdata · POWER · NEX-GDDP · GIBS<br/>ISRIC · FAOSTAT · World Bank · Eurostat"]
+    WebAPI -->|"parcels & land cover"| Catasto["AdE Catasto WFS · OSM Overpass · ESA WorldCover"]
+    DataAPI -->|"satellite, model & market data"| Sources["NASA Earthdata · POWER · NEX-GDDP · ORNL MODIS<br/>ISRIC · FAOSTAT · World Bank · Eurostat"]
     Web -.->|"GIBS map tiles (direct)"| GIBS["NASA GIBS"]
     WebOld["web-old · NiceGUI :8080 (legacy UI)"] --> PB
     WebOld --> DataAPI
 ```
 
 | Service | Folder | Port | What it does |
-|---|---|---|---|
-| `web` | [`web/app`](web/app) | 3000 (localhost, behind Caddy) | Next.js UI: map workbench, farms and plots, and 4-tab plot workspace (**Field & Map**, **Water, Soil & Climate**, **Rotation Plan**, **Markets & Costs**). On **Rotation Plan** the farmer marks crops as *Grow* (only these) or *Never*; the 3-year plan is re-run with those choices. `/api/*` is proxied to `web-api`. |
-| `web-api` | [`api/web-api`](api/web-api) | 8081 | REST backend: auth, farms, plots, catasto parcel discovery, plot analysis, IoT devices. Relays `data-api` and `analytics-api` for a user's plot. |
-| `data-api` | [`api/data-api`](api/data-api) | 8070 (internal only) | Returns everything we know about a field boundary: 15 datasets, satellite images in many bands, map layers. See [its README](api/data-api/README.md). |
-| `analytics-api` | [`api/analytics-api`](api/analytics-api) | 8000 (internal only) | Field ingestion parser, deterministic 3-year crop rotation optimizer, and plain-language AI briefing (with deterministic fallback). |
-| `pocketbase` | [`pocketbase`](pocketbase) | 8090 (internal only) | Database and auth. Schema in [`pocketbase/pb_migrations`](pocketbase/pb_migrations). |
-| `web-old` | [`web/app-old`](web/app-old) | 8080 (internal only) | The first NiceGUI version of the UI, kept for reference. |
+| --- | --- | --- | --- |
+| `web` | [`web/app`](web/app) | `3000` (localhost, behind Caddy) | Next.js 16 UI: map workbench, farms & plots, and 4-tab plot workspace (**Field & Map**, **Water, Soil & Climate**, **Rotation Plan**, **Markets & Costs**). On **Rotation Plan**, farmers mark crops as *Grow* or *Never* to re-run the 3-year optimizer. Proxies `/api/*` to `web-api`. |
+| `web-api` | [`api/web-api`](api/web-api) | `8081` | FastAPI backend: auth, farms, plots, Catasto/Overpass parcel discovery, plot analysis, and IoT device ingestion. Relays `data-api` and `analytics-api`. |
+| `data-api` | [`api/data-api`](api/data-api) | `8070` (internal only) | Aggregates 15 field datasets (14 fetched sources + derived RUSLE erosion), multi-band satellite PNGs, and NASA GIBS map layers. See [its README](api/data-api/README.md). |
+| `analytics-api` | [`api/analytics-api`](api/analytics-api) | `8000` (internal only) | Field ingestion parser, deterministic 3-year crop rotation optimizer, and plain-language Gemini briefing (with deterministic template fallback). See [its README](api/analytics-api/README.md). |
+| `pocketbase` | [`pocketbase`](pocketbase) | `8090` (internal only) | SQLite database and auth. Schema managed in [`pocketbase/pb_migrations`](pocketbase/pb_migrations). |
+| `web-old` | [`web/app-old`](web/app-old) | `8080` (internal only) | Legacy NiceGUI prototype, kept for reference. |
 
-## ⚡ Quick start
+## ⚡ Quick Start
 
 ```bash
-cp .env.example .env          # add a free NASA Earthdata login (https://urs.earthdata.nasa.gov) and optional GEMINI_API_KEY
+cp .env.example .env          # add a free NASA Earthdata login and optional GEMINI_API_KEY
 docker compose up --build -d
 ```
 
-- Website: http://localhost:3000 (demo login: `marco@turinfarm.it` / `demo-farmer-2026`)
-- web-api docs: http://localhost:8081/docs
+- **Website:** `http://localhost:3000` (demo login: `marco@turinfarm.it` / `demo-farmer-2026`)
+- **`web-api` docs:** `http://localhost:8081/docs`
 
-The Earthdata account must also authorise the **NASA GESDISC DATA ARCHIVE** application (for IMERG rainfall).
-Without a login most NASA datasets return `error`. The data-api saves it on its cache volume, so later
-redeploys keep working.
+> [!IMPORTANT]
+> **NASA Earthdata setup:**
+> 1. Create a free account at [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov) and add `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD` to `.env`.
+> 2. Authorize the **NASA GESDISC DATA ARCHIVE** application in your Earthdata profile (required for GPM IMERG rainfall).
+>
+> Without an Earthdata login, CMR/Earthdata-backed datasets return errors. `data-api` persists credentials and responses on its cache volume so subsequent redeploys keep working.
 
-Local development per service: see the README in each folder (`data-api`: `uv run uvicorn app.main:app --port 8070`,
-`web`: `bun dev`).
+For local development per service, check the README inside each folder (e.g. `data-api`: `uv run uvicorn app.main:app --port 8070`, `web`: `bun dev`).
 
-## 🛰️ Data we can get for a field
+## 🛰️ Data & Capabilities
 
-Full field-by-field reference: [docs/data-catalog.md](docs/data-catalog.md) (spreadsheet:
-[docs/data-catalog.csv](docs/data-catalog.csv)). How the web app calls it: [docs/data-api-for-web.md](docs/data-api-for-web.md).
+Full field-by-field reference: [`docs/tech/data-catalog.md`](docs/tech/data-catalog.md) (CSV: [`docs/tech/data-catalog.csv`](docs/tech/data-catalog.csv)). Web integration guide: [`docs/tech/data-api-for-web.md`](docs/tech/data-api-for-web.md).
 
-- **Weather & climate:** temperature, humidity, dew point, wind, solar radiation, daylight hours, growing degree days,
-  1991–2020 normals, extremes of the last 12 months, and every series summarised into **24 half-month periods**.
-- **Water:** satellite rainfall, soil moisture (surface and root zone), crop evapotranspiration and water-stress
-  index (field 70 m and area 500 m), regional groundwater.
-- **Crop:** NDVI / NDMI / NDRE and field patchiness (30 m), and **the crop grown in each of the last 5 years**,
-  read from the season's vegetation curve.
-- **Soil & terrain:** texture, organic carbon, pH, nitrogen, CEC, bulk density; elevation, slope, field gradient,
-  aspect, low spots; **RUSLE erosion risk**.
-- **Future:** 2030s and 2050s rain, heat, dry spells, water balance and **drought risk** (CMIP6, two scenarios).
-- **Prices:** Italian farm-gate crop prices, electricity, gas and diesel; world oil, fertiliser and grain prices;
-  national yields and production (FAOSTAT).
-- **Images:** true colour, colour infrared, SWIR, NDVI, NDMI, NDRE, thermal, surface temperature, elevation,
-  hillshade, slope, plus NASA GIBS map layers (rain, soil moisture, vegetation, temperature, relief).
-- **On the field:** ESP32 sensor readings (soil moisture, humidity, temperature), posted to `web-api`.
+- **Weather & climate:** Temperature, humidity, dew point, wind, solar radiation, daylight hours, growing degree days (GDD), 1991–2020 normals, last-365-day extremes, and series aggregated into **24 half-month periods**.
+- **Water:** Satellite rainfall (IMERG), surface & root-zone soil moisture (SMAP L4), crop evapotranspiration & evaporative stress index (ECOSTRESS 70 m + MODIS 500 m backup), and regional groundwater storage anomaly (GRACE-FO).
+- **Crop health & history:** 30 m NDVI / NDMI / NDRE, within-field patchiness, and **5-year inferred crop history** derived from HLS phenology curves.
+- **Soil & terrain:** Texture, organic carbon, pH, nitrogen, CEC, bulk density (SoilGrids); elevation, slope, field gradient, aspect, and low-spot waterlogging risk (NASADEM); **RUSLE topsoil erosion risk**.
+- **Climate projections:** 2030s and 2050s rainfall, heat days, dry spells, water balance, and **drought risk** (NEX-GDDP-CMIP6 under SSP2-4.5 & SSP5-8.5).
+- **Markets & yields:** EU/Italian farm-gate crop selling prices, electricity, gas, and diesel; global oil, fertilizer, and grain prices (World Bank); national yields and production (FAOSTAT).
+- **Imagery & map layers:** Parcel-clipped true color, color infrared, SWIR agriculture/moisture, NDVI, NDMI, NDRE, thermal, LST, elevation, hillshade, and slope PNGs, plus 14 NASA GIBS WMTS tile layers.
+- **On-field IoT:** Live ESP32 sensor readings (soil moisture, humidity, temperature) ingested via `POST /api/devices/ingest`.
 
-Not available from public sources (farmer input): seed prices, irrigation water price and connection, exact crop species.
+> [!NOTE]
+> Inputs not available from public satellites/APIs—such as local seed prices, irrigation water costs/connections, and exact crop varieties—are provided or overridden directly by the farmer.
 
-## 📁 Repository layout
+## 📁 Repository Layout
 
-```
+```text
 api/
   data-api/        NASA + global datasets for a field (FastAPI)
-  web-api/         backend for the website (FastAPI)
-  analytics-api/   ingestion parser + rotation optimizer
+  web-api/         Website REST backend, Catasto & IoT ingestion (FastAPI)
+  analytics-api/   Field parser, 3-year rotation optimizer & AI briefing (FastAPI)
 web/
-  app/             Next.js website
-  app-old/         first NiceGUI UI
+  app/             Next.js 16 frontend (Ceres)
+  app-old/         Legacy NiceGUI prototype
 pocketbase/
-  pb_migrations/   database schema
-docs/              data catalog, how the web app uses data-api
-compose.yaml       all services
+  pb_migrations/   Database schema migrations
+docs/
+  tech/            Data catalog & web API integration docs
+  science/         LaTeX scientific documentation
+  external/        Agenzia delle Entrate WFS specification
+scripts/           Demo IoT seeding & deployment scripts
+compose.yaml       Full multi-service Docker Compose stack
 ```
 
-## 📚 Data sources & credits
+## 📚 Data Sources & Credits
 
-**NASA**
-- NASA POWER (daily and climatology) — NASA Langley Research Center POWER Project
-- GPM IMERG Late Run V07 — NASA GES DISC
-- SMAP L4 Global 3-hourly 9 km Surface and Root Zone Soil Moisture (SPL4SMGP) — NASA NSIDC DAAC
-- ECOSTRESS v2 (L2T LSTE, L3T JET, L4T ESI) — NASA LP DAAC
-- Harmonized Landsat Sentinel-2 (HLS) v2.0 — NASA LP DAAC
-- MODIS MOD16A2 v6.1 — NASA LP DAAC, via ORNL DAAC MODIS Web Service
-- NASADEM_HGT v001 — NASA LP DAAC
-- GRACE/GRACE-FO JPL Mascon RL06.3 CRI — NASA JPL / PO.DAAC
-- NEX-GDDP-CMIP6 — NASA Center for Climate Simulation (NCCS)
-- Global Imagery Browse Services (GIBS) — NASA EOSDIS
+### NASA Resources
 
-**Partners & other open data**
-- ISRIC SoilGrids 2.0 — ISRIC World Soil Information (CC BY 4.0)
-- Cartografia catastale — Agenzia delle Entrate (CC BY 4.0)
-- ESA WorldCover — European Space Agency (CC BY 4.0)
-- FAOSTAT — Food and Agriculture Organization of the United Nations
-- World Bank Commodity Price Data (Pink Sheet)
-- Eurostat; EU Weekly Oil Bulletin — European Commission
-- OpenStreetMap (Nominatim) — © OpenStreetMap contributors (ODbL)
-- Basemap imagery — Esri World Imagery
+| Dataset / Service | Provider / System | Endpoint / Resource |
+| --- | --- | --- |
+| Earthdata Login (auth) | NASA EOSDIS | https://urs.earthdata.nasa.gov |
+| CMR Granule Search | NASA Earthdata | https://cmr.earthdata.nasa.gov/search/granules.umm_json |
+| CMR-STAC (`LPCLOUD`) | NASA Earthdata / LP DAAC | https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search |
+| NASA POWER (daily & climatology) | NASA LaRC POWER | https://power.larc.nasa.gov/api/temporal/daily/point |
+| GPM IMERG Late Run V07 (`GPM_3IMERGDL`) | NASA GES DISC (via CMR) | https://cmr.earthdata.nasa.gov/search/granules.umm_json |
+| SMAP L4 Soil Moisture (`SPL4SMGP`) | NASA NSIDC DAAC (via CMR) | https://cmr.earthdata.nasa.gov/search/granules.umm_json |
+| GRACE / GRACE-FO Mascon RL06.3 CRI | NASA JPL / PO.DAAC (via CMR) | https://cmr.earthdata.nasa.gov/search/granules.umm_json |
+| HLS v2.0 (`HLSS30_2.0`, `HLSL30_2.0`) | NASA LP DAAC (via CMR-STAC) | https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search |
+| ECOSTRESS v2 (`L2T LSTE`, `L3T JET`, `L4T ESI`) | NASA LP DAAC (via CMR-STAC) | https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search |
+| NASADEM 1-arcsecond (`NASADEM_HGT_001`) | NASA LP DAAC (via CMR-STAC) | https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search |
+| MODIS MOD16A2 v6.1 (8-day ET/PET) | ORNL DAAC MODIS Web Service | https://modis.ornl.gov/rst/api/v1/MOD16A2/subset |
+| NEX-GDDP-CMIP6 Climate Projections | NASA NCCS THREDDS | https://ds.nccs.nasa.gov/thredds |
+| Global Imagery Browse Services (GIBS) | NASA EOSDIS | https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml |
 
-Formulas: FAO-56 water balance, RUSLE (Renard et al.), EPIC soil erodibility (Williams), Hargreaves reference ET.
+### Partners & Open Data
 
-Recommendations are advisory and support, not replace, local agronomist and farmer judgment.
+- **ISRIC SoilGrids 2.0** (CC BY 4.0) — https://files.isric.org/soilgrids/latest/data & https://rest.isric.org/soilgrids/v2.0/properties/query
+- **Cartografia Catastale** — Agenzia delle Entrate (CC BY 4.0): [WMS](https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php) & [WFS](https://wfs.cartografia.agenziaentrate.gov.it/inspire/wfs/owfs01.php)
+- **ESA WorldCover 2021** (CC BY 4.0) — https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map
+- **FAOSTAT** — Food and Agriculture Organization of the United Nations: https://bulks-faostat.fao.org/production/
+- **World Bank Commodity Price Data (Pink Sheet)** — https://www.worldbank.org/en/research/commodity-markets
+- **Eurostat & European Commission** (EU crop/energy prices & Weekly Oil Bulletin) — https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data, https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en, https://ec.europa.eu/agrifood/api
+- **OpenStreetMap** (© OpenStreetMap contributors, ODbL) — [Overpass API](https://overpass-api.de/api/interpreter), [Nominatim](https://nominatim.openstreetmap.org/reverse), & standard map tiles
+- **Photon (Komoot)** location search — https://photon.komoot.io/api/
+- **Esri World Imagery** basemap — https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+
+> [!NOTE]
+> **Scientific transparency:** Calculations use deterministic agronomic models—FAO-56 water balance, RUSLE (Renard et al.), EPIC soil erodibility (Williams), and Hargreaves reference ET. Recommendations are advisory and support, rather than replace, local agronomist and farmer judgment.
 
 ## 📄 License
 
-Dual-licensed under [Apache 2.0](LICENSE-APACHE) and [MIT](LICENSE-MIT).
+Dual-licensed under [Apache 2.0](LICENSE-APACHE) and [MIT](LICENSE-MIT). See [LICENSE](LICENSE) for details.
