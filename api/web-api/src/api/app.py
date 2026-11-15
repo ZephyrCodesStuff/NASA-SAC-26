@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -22,6 +23,7 @@ from src.farms import (
     polygons_intersect,
 )
 from src.formulas import evaluate_plot_strategies
+from src.providers.analytics_api import AnalyticsApiClient, build_ingestion_payload, shape_projection_response
 from src.providers.catasto import CatastoClient, is_in_italy
 from src.providers.data_api import (
     FAST_DATASETS,
@@ -90,11 +92,13 @@ def create_api_router(
     catasto_client: CatastoClient,
     worldcover_client: WorldCoverClient,
     data_api_client: DataApiClient,
+    analytics_api_client: AnalyticsApiClient | None = None,
     device_store: DeviceStore | None = None,
 ) -> APIRouter:
     """Build the FastAPI `APIRouter` for farms, plots, auth, Catasto, and telemetry."""
     router = APIRouter(tags=["api"])
     devices = device_store or DeviceStore(pb_url=auth_service.pb_url)
+    analytics = analytics_api_client or AnalyticsApiClient()
 
     async def get_current_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
         if not authorization or not authorization.lower().startswith("bearer "):
@@ -347,11 +351,19 @@ def create_api_router(
             soil_override=soil_override,
         )
         explained = explain_plot_insights(baseline_analysis, gaps, plot_label=str(plot.get("label") or "Plot"))
+        projection = None
+        try:
+            ingestion = build_ingestion_payload(plot, datasets, soil_override)
+            result = await asyncio.wait_for(analytics.plan_3year(ingestion), timeout=90)
+            projection = shape_projection_response(result)
+        except Exception:  # noqa: BLE001 — analytics-api is optional; keep the rest working
+            projection = None
         return {
             "payload": payload,
             "baseline_preview": baseline_analysis,
             "explained": explained,
             "gaps": gaps,
+            "projection": projection,
         }
 
     # --- Catasto & WorldCover ---
@@ -471,6 +483,7 @@ def create_fastapi_app(
     catasto_client: CatastoClient | None = None,
     worldcover_client: WorldCoverClient | None = None,
     data_api_client: DataApiClient | None = None,
+    analytics_api_client: AnalyticsApiClient | None = None,
     device_store: DeviceStore | None = None,
 ) -> FastAPI:
     """Create a standalone FastAPI app (with CORS enabled for Next.js) and `/api` routes."""
@@ -493,6 +506,7 @@ def create_fastapi_app(
         catasto_client=catasto_client or CatastoClient(pb_url=pb_url),
         worldcover_client=worldcover_client or WorldCoverClient(),
         data_api_client=data_api_client or DataApiClient(),
+        analytics_api_client=analytics_api_client or AnalyticsApiClient(),
         device_store=device_store or DeviceStore(pb_url=pb_url),
     )
     app.include_router(router, prefix="/api")
