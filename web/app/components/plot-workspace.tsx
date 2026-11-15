@@ -55,20 +55,18 @@ const PERIOD_LABELS = [
   "Nov 1–15", "Nov 16–30", "Dec 1–15", "Dec 16–31",
 ];
 
-// Deterministic Turin Po Valley seasonal curve fallback when telemetry isn't refreshed yet
-function build24PeriodSeries(nasaSnapshot?: Record<string, unknown>): PeriodPoint[] {
+// Build 24-period series only when cached nasa_snapshot actually contains monthly_precip_mm
+function build24PeriodSeries(nasaSnapshot?: Record<string, unknown>): PeriodPoint[] | null {
   const datasets = (nasaSnapshot?.datasets || nasaSnapshot || {}) as Record<string, unknown>;
   const power = (datasets.power || {}) as Record<string, unknown>;
   const monthlyPrecip = Array.isArray(power.monthly_precip_mm) ? (power.monthly_precip_mm as number[]) : null;
   const monthlyTemp = Array.isArray(power.monthly_temp_c) ? (power.monthly_temp_c as number[]) : null;
-
-  const defaultMonthlyPrecip = [48, 52, 68, 86, 98, 72, 42, 48, 78, 96, 84, 54];
-  const defaultMonthlyTemp = [2.5, 4.8, 9.2, 13.1, 17.8, 21.9, 24.5, 23.8, 19.3, 13.6, 7.6, 3.4];
+  if (!monthlyPrecip || monthlyPrecip.length < 12) return null;
 
   return PERIOD_LABELS.map((label, idx) => {
     const m = Math.floor(idx / 2);
-    const pMonth = monthlyPrecip?.[m] ?? defaultMonthlyPrecip[m];
-    const tMonth = monthlyTemp?.[m] ?? defaultMonthlyTemp[m];
+    const pMonth = monthlyPrecip[m] ?? 0;
+    const tMonth = monthlyTemp?.[m] ?? 12;
     const halfFactor = idx % 2 === 0 ? 0.94 : 1.06;
     const precipMm = Math.max(4, (pMonth / 2) * halfFactor);
     const etcMm = Math.max(8, (tMonth * 2.3 + 6) * (idx % 2 === 0 ? 0.97 : 1.03));
@@ -348,6 +346,14 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const eta = okValues(nasa.datasets.evapotranspiration_area);
   const proj = okValues(nasa.datasets.climate_projection);
   const hist = okValues(nasa.datasets.crop_history);
+  const weatherLoading = nasa.datasets.weather?.state === "loading";
+  const etLoading =
+    nasa.datasets.evapotranspiration_field?.state === "loading" &&
+    nasa.datasets.evapotranspiration_area?.state === "loading";
+  const eroLoading = nasa.datasets.erosion?.state === "loading";
+  const projLoading = nasa.datasets.climate_projection?.state === "loading";
+  const histLoading = nasa.datasets.crop_history?.state === "loading";
+
   const esi = num(etf, "esi.mean");
   const etPet = num(eta, "et_pet_ratio");
   const stressIdx = esi ?? etPet;
@@ -493,7 +499,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 {plot.worldcover_label || "Cropland"} ·{" "}
                 {plot.centroid
                   ? `${plot.centroid.lat.toFixed(4)}°N, ${plot.centroid.lon.toFixed(4)}°E`
-                  : "Turin / Po Valley"}
+                  : "Coordinates pending"}
               </p>
               <div className="flex items-center gap-2 pt-1">
                 {isOwner && (
@@ -654,12 +660,22 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 <p className="text-[11px] font-mono text-[#6b675f]">
                   {realPeriods
                     ? "NASA POWER · last 24 half-months · bars = rain, line = evapotranspiration, dashed = mean temp"
-                    : nasa.datasets.weather?.state === "loading"
-                      ? "Loading NASA POWER year… (showing seasonal baseline)"
-                      : "Seasonal baseline (NASA data unavailable)"}
+                    : weatherLoading
+                      ? "Loading NASA POWER 24-period telemetry…"
+                      : periodPoints
+                        ? "Cached NASA POWER snapshot · bars = rain, line = evapotranspiration, dashed = mean temp"
+                        : "NASA POWER weather data unavailable"}
                 </p>
               </div>
-              <PeriodChart points={periodPoints} />
+              {periodPoints ? (
+                <PeriodChart points={periodPoints} />
+              ) : weatherLoading ? (
+                <div className="h-[240px] w-full rounded-md bg-[#f5f4ef] animate-pulse" />
+              ) : (
+                <div className="h-[240px] w-full rounded-md border border-dashed border-[#e7e5e0] flex items-center justify-center text-xs text-[#6b675f]">
+                  NASA POWER weather series unavailable for this plot.
+                </div>
+              )}
             </div>
 
             {/* Asymmetric 2/3 Risk Matrix Table + 1/3 Local Extreme Weather Log */}
@@ -683,70 +699,139 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Water Stress (FAO-56)</td>
                       <td className="px-4 py-2.5">
-                        <LedgerStatus text={waterStress ?? "Moderate"} tone={waterStress === "High" ? "bad" : waterStress === "Low" ? "good" : "warn"} />
+                        {etLoading && !waterStress ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : (
+                          <LedgerStatus
+                            text={waterStress ?? "Unavailable"}
+                            tone={!waterStress ? "neutral" : waterStress === "High" ? "bad" : waterStress === "Low" ? "good" : "warn"}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {stressIdx !== null
-                          ? `${esi !== null ? "ESI" : "ET/PET"} ${stressIdx.toFixed(2)}`
-                          : `${Number(activeStrategy.water_deficit_mm ?? -48)} mm`}
+                        {etLoading && stressIdx === null ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : stressIdx !== null ? (
+                          `${esi !== null ? "ESI" : "ET/PET"} ${stressIdx.toFixed(2)}`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-[#6b675f]">
-                        {peakDeficit ? `Worst: ${peakDeficit.label}` : "Periods 13–16 (Jul–Aug)"}
+                        {weatherLoading && !peakDeficit ? (
+                          <span className="inline-block h-3.5 w-28 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : peakDeficit ? (
+                          `Worst: ${peakDeficit.label}`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Topsoil Erosion (RUSLE)</td>
                       <td className="px-4 py-2.5">
-                        <LedgerStatus
-                          text={erosionRisk ? erosionRisk[0].toUpperCase() + erosionRisk.slice(1) : "Low"}
-                          tone={!erosionRisk || erosionRisk === "low" ? "good" : erosionRisk === "moderate" ? "warn" : "bad"}
-                        />
+                        {eroLoading && !erosionRisk ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : (
+                          <LedgerStatus
+                            text={erosionRisk ? erosionRisk[0].toUpperCase() + erosionRisk.slice(1) : "Unavailable"}
+                            tone={!erosionRisk ? "neutral" : erosionRisk === "low" ? "good" : erosionRisk === "moderate" ? "warn" : "bad"}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {(erosionNow ?? Number(activeStrategy.erosion_t_ha_yr ?? 1.4)).toFixed(1)} t/ha/yr
+                        {eroLoading && erosionNow === null ? (
+                          <span className="inline-block h-3.5 w-20 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : erosionNow !== null ? (
+                          `${erosionNow.toFixed(1)} t/ha/yr`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-[#6b675f]">
-                        {ero ? `Slope ${fmt(num(ero, "slope_deg"), 1, "°")} · bare soil ${fmt(num(ero, "soil_loss_bare_t_ha_yr"), 1)} t/ha` : "Po Valley low slope"}
+                        {eroLoading && !ero ? (
+                          <span className="inline-block h-3.5 w-28 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : ero ? (
+                          `Slope ${fmt(num(ero, "slope_deg"), 1, "°")} · bare soil ${fmt(num(ero, "soil_loss_bare_t_ha_yr"), 1)} t/ha`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Extreme Heat / Frost</td>
                       <td className="px-4 py-2.5">
-                        <LedgerStatus
-                          text={heatDays !== null && heatDays > 5 ? "High" : "Watch"}
-                          tone={heatDays !== null && heatDays > 5 ? "bad" : "warn"}
-                        />
+                        {weatherLoading && heatDays === null ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : heatDays !== null ? (
+                          <LedgerStatus
+                            text={heatDays > 5 ? "High" : "Watch"}
+                            tone={heatDays > 5 ? "bad" : "warn"}
+                          />
+                        ) : (
+                          <LedgerStatus text="Unavailable" tone="neutral" />
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {hottest !== null ? `${hottest.toFixed(1)}°C peak` : "24.5°C peak"}
+                        {weatherLoading && hottest === null ? (
+                          <span className="inline-block h-3.5 w-20 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : hottest !== null ? (
+                          `${hottest.toFixed(1)}°C peak`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-[#6b675f]">
-                        {heatDays !== null ? `${heatDays} days >35°C · ${frostDays} frost days (12 mo)` : "July heatwaves (P13–14)"}
+                        {weatherLoading && heatDays === null ? (
+                          <span className="inline-block h-3.5 w-32 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : heatDays !== null ? (
+                          `${heatDays} days >35°C · ${frostDays ?? "—"} frost days (12 mo)`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Greenhouse Requirement</td>
                       <td className="px-4 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 text-emerald-700">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          Open-field viable
-                        </span>
+                        {weatherLoading && frostDays === null ? (
+                          <span className="inline-block h-3.5 w-24 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            Open-field viable
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">Not required</td>
                       <td className="px-4 py-2.5 text-[#6b675f]">
-                        {frostDays !== null ? `${365 - frostDays} frost-free days (12 mo)` : "210 frost-free days"}
+                        {weatherLoading && frostDays === null ? (
+                          <span className="inline-block h-3.5 w-28 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : frostDays !== null ? (
+                          `${365 - frostDays} frost-free days (12 mo)`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2.5 font-medium">Drought Risk 2050s (CMIP6)</td>
                       <td className="px-4 py-2.5">
-                        <LedgerStatus
-                          text={droughtRisk ? droughtRisk[0].toUpperCase() + droughtRisk.slice(1) : "Loading…"}
-                          tone={!droughtRisk ? "neutral" : droughtRisk === "low" ? "good" : droughtRisk === "moderate" ? "warn" : "bad"}
-                        />
+                        {projLoading && !droughtRisk ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : (
+                          <LedgerStatus
+                            text={droughtRisk ? droughtRisk[0].toUpperCase() + droughtRisk.slice(1) : "Unavailable"}
+                            tone={!droughtRisk ? "neutral" : droughtRisk === "low" ? "good" : droughtRisk === "moderate" ? "warn" : "bad"}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {fmt(num(proj, "projections.ssp245_mid_2050s.water_balance_change_mm"), 0, " mm")}
+                        {projLoading && !proj ? (
+                          <span className="inline-block h-3.5 w-16 rounded bg-[#e7e5e0] animate-pulse" />
+                        ) : (
+                          fmt(num(proj, "projections.ssp245_mid_2050s.water_balance_change_mm"), 0, " mm")
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-[#6b675f]">Water-balance change vs 2000s (SSP2-4.5)</td>
                     </tr>
@@ -759,6 +844,14 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 <h2 className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
                   5-Year Regional Events &amp; Local Eyes
                 </h2>
+                {histLoading && !hist && (
+                  <div className="space-y-2 py-1">
+                    <div className="h-3 w-32 rounded bg-[#e7e5e0] animate-pulse" />
+                    <div className="h-4 w-48 rounded bg-[#e7e5e0] animate-pulse" />
+                    <div className="h-3 w-28 rounded bg-[#e7e5e0] animate-pulse" />
+                    <div className="h-4 w-44 rounded bg-[#e7e5e0] animate-pulse" />
+                  </div>
+                )}
                 {hist && (
                   <div className="divide-y divide-[#e7e5e0] text-xs">
                     {((pick(hist, "seasons") as Array<Record<string, unknown>>) || []).map((s) => (
@@ -772,6 +865,12 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     ))}
                   </div>
                 )}
+                {weatherLoading && !wv && (
+                  <div className="space-y-2 py-2 border-t border-[#e7e5e0]">
+                    <div className="h-3 w-36 rounded bg-[#e7e5e0] animate-pulse" />
+                    <div className="h-4 w-full rounded bg-[#e7e5e0] animate-pulse" />
+                  </div>
+                )}
                 {wv && (
                   <div className="py-2 space-y-0.5 text-xs border-t border-[#e7e5e0]">
                     <p className="font-mono text-[10px] text-[#6b675f]">LAST 12 MONTHS · EXTREMES</p>
@@ -782,19 +881,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                     </p>
                   </div>
                 )}
-                <div className="divide-y divide-[#e7e5e0] text-xs">
-                  <div className="py-2 space-y-0.5">
-                    <p className="font-mono text-[10px] text-[#6b675f]">2022 · PIEDMONT DROUGHT</p>
-                    <p className="text-[#1f1915]">
-                      Po basin summer irrigation restrictions; deep-root rotation reduced yield loss.
-                    </p>
-                  </div>
-                  <div className="py-2 space-y-0.5">
-                    <p className="font-mono text-[10px] text-[#6b675f]">2024 · SPRING FLOODING</p>
-                    <p className="text-[#1f1915]">
-                      Heavy May rainfall (140+ mm) delayed planting; verify field drainage ditches.
-                    </p>
-                  </div>
+                <div className="divide-y divide-[#e7e5e0] text-xs border-t border-[#e7e5e0]">
                   <div className="py-2 space-y-0.5">
                     <p className="font-mono text-[10px] text-[#6b675f]">LOCAL VERIFICATION</p>
                     <p className="text-[#6b675f]">
