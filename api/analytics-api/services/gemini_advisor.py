@@ -32,7 +32,7 @@ class GeminiAdvisorEngine:
 
     def __init__(self, model_name: str = "gemini-3.1-flash-lite"):
         self.model_name = os.getenv("GEMINI_MODEL", model_name)
-        self.api_key = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6I6ahjb2gb7qGyC-sFoWtMzRHnNDZWkaMZt0BqG1Vr40Q")
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
 
     def generate_advisory_report(
         self,
