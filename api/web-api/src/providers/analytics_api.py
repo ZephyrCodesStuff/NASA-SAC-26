@@ -137,7 +137,8 @@ def build_ingestion_payload(
     clay = _first(topsoil, "clay")
     sand = _first(topsoil, "sand")
     silt = _first(topsoil, "silt")
-    soc = _first(topsoil, "soc")
+    soc_g_kg = _first(topsoil, "soc")  # SoilGrids reports soil organic carbon in g/kg; analytics-api wants %
+    soc = round(soc_g_kg / 10.0, 2) if soc_g_kg is not None else None
     soil_ph = _first(topsoil, "phh2o") or 6.7
     texture = topsoil.get("texture_class") if isinstance(topsoil.get("texture_class"), str) else None
 
