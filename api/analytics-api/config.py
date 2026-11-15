@@ -11,9 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Server settings
-API_HOST: str = os.getenv("PARSER_API_HOST", "0.0.0.0")
-API_PORT: int = int(os.getenv("PARSER_API_PORT", "8000"))
-DEBUG: bool = os.getenv("PARSER_API_DEBUG", "True").lower() in ("true", "1", "yes")
+API_HOST: str = os.getenv("NASLOP_HOST", "0.0.0.0")
+API_PORT: int = int(os.getenv("NASLOP_PORT", "8000"))
+DEBUG: bool = os.getenv("NASLOP_DEBUG", "True").lower() in ("true", "1", "yes")
+
+# Local data stores
+SQLITE_PATH: str = os.getenv("NASLOP_SQLITE_PATH", "data/nasa_farming.db")
+DUCKDB_PATH: str = os.getenv("NASLOP_DUCKDB_PATH", "data/nasa_farming.duckdb")
 
 # NASA POWER agro-meteorological parameters
 NASA_AGRO_PARAMETERS: List[str] = [
