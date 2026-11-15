@@ -257,39 +257,49 @@ ALL_GROUPS = ("hls", "lst", "dem")
 IMAGERY_VERSION = 2  # bump to invalidate cached imagery PNGs after a rendering change
 
 
+def _hls_group(geometry, on):
+    item = _find_scene(geometry, on)
+    if not item:
+        return {"status": "no_data", "note": "No HLS scene with ≥60% clear pixels over the parcel in the last 75 days."}
+    layers, meta = _hls_layers(item, geometry)
+    return {"status": "ok", "date": item["properties"]["datetime"][:10], "scene": item["id"],
+            "sensor": "Sentinel-2" if item["collection"].startswith("HLSS30") else "Landsat 8/9",
+            "source": "NASA HLS v2.0", **meta, "layers": layers}
+
+
+def _lst_group(geometry, on):
+    r = _lst_layer(geometry, on)
+    if not r:
+        return {"status": "no_data", "note": "No clear daytime ECOSTRESS overpass in the last 45 days."}
+    return {"status": "ok", "source": "NASA ECOSTRESS L2T LSTE v2", "date": r["date"], "bounds": r["bounds"],
+            "pixel_size_m": r["pixel_size_m"], "legends": {"lst": r["legend"]}, "layers": {"lst": r["png"]}}
+
+
+def _dem_group(geometry, on):
+    r = _dem_layers(geometry)
+    if not r:
+        return {"status": "unavailable", "note": "NASADEM covers 56°S–60°N only."}
+    return {"status": "ok", "source": "NASADEM_HGT v001", "date": "static", **r}
+
+
+_GROUP_FNS = {"hls": _hls_group, "lst": _lst_group, "dem": _dem_group}
+
+
 @ttl_cache(6 * 3600)
-def render(geom_wkt: str, on: date | None = None, groups: tuple = ALL_GROUPS, version: int = IMAGERY_VERSION) -> dict:
+def _render_group(geom_wkt: str, on: date | None, group: str, version: int = IMAGERY_VERSION) -> dict:
+    """One imagery group, cached on its own. Failures raise, and ttl_cache never caches exceptions, so a
+    transient error (e.g. Earthdata login briefly missing) is retried on the next request instead of being
+    served from the cache for hours."""
     from shapely import wkt as W
 
-    geometry = W.loads(geom_wkt)
+    return _GROUP_FNS[group](W.loads(geom_wkt), on)
+
+
+def render(geom_wkt: str, on: date | None = None, groups: tuple = ALL_GROUPS, version: int = IMAGERY_VERSION) -> dict:
     out: dict = {"date_requested": on.isoformat() if on else None, "groups": {}, "descriptions": DESCRIPTIONS,
                  "ramps": {k: [[p, list(c)] for p, c in v] for k, v in RAMPS.items()}}
-
-    def hls_group():
-        item = _find_scene(geometry, on)
-        if not item:
-            return {"status": "no_data", "note": "No HLS scene with ≥60% clear pixels over the parcel in the last 75 days."}
-        layers, meta = _hls_layers(item, geometry)
-        return {"status": "ok", "date": item["properties"]["datetime"][:10], "scene": item["id"],
-                "sensor": "Sentinel-2" if item["collection"].startswith("HLSS30") else "Landsat 8/9",
-                "source": "NASA HLS v2.0", **meta, "layers": layers}
-
-    def lst_group():
-        r = _lst_layer(geometry, on)
-        if not r:
-            return {"status": "no_data", "note": "No clear daytime ECOSTRESS overpass in the last 45 days."}
-        return {"status": "ok", "source": "NASA ECOSTRESS L2T LSTE v2", "date": r["date"], "bounds": r["bounds"],
-                "pixel_size_m": r["pixel_size_m"], "legends": {"lst": r["legend"]}, "layers": {"lst": r["png"]}}
-
-    def dem_group():
-        r = _dem_layers(geometry)
-        if not r:
-            return {"status": "unavailable", "note": "NASADEM covers 56°S–60°N only."}
-        return {"status": "ok", "source": "NASADEM_HGT v001", "date": "static", **r}
-
-    fns = {"hls": hls_group, "lst": lst_group, "dem": dem_group}
     with ThreadPoolExecutor(len(groups)) as ex:
-        futs = {g: ex.submit(fns[g]) for g in groups}
+        futs = {g: ex.submit(_render_group, geom_wkt, on, g, version) for g in groups}
         for g, f in futs.items():
             try:
                 out["groups"][g] = f.result()
