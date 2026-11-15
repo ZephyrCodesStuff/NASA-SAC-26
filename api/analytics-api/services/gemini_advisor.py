@@ -6,6 +6,7 @@ simulation metrics and NASA Earth observations into actionable agronomic guidanc
 
 import os
 import json
+import time
 import hashlib
 import logging
 from typing import Dict, Any, List
@@ -43,6 +44,9 @@ class GeminiAdvisorEngine:
     def __init__(self, model_name: str = "gemini-3.1-flash-lite"):
         self.model_name = os.getenv("GEMINI_MODEL", model_name)
         self.api_key = os.getenv("GEMINI_API_KEY", "")
+        # Total time allowed for Gemini (all candidate models) before using the offline fallback. Keeps the
+        # projection well inside web-api's 90 s wait and Cloudflare's 100 s limit when Gemini is slow or overloaded.
+        self.timeout_s = float(os.getenv("GEMINI_TIMEOUT_S", "45"))
 
     def generate_advisory_report(
         self,
@@ -57,6 +61,11 @@ class GeminiAdvisorEngine:
         """
         cache_key = _advisory_cache_key(parcel_info, climate_baseline, strategies)
         cached = cache_get(cache_key)
+        live = bool(self.api_key and GENAI_SDK_AVAILABLE)
+        # With a key, a cached offline-fallback report (from before the key was set, or from a failed call)
+        # is not reused: try Gemini again.
+        if cached is not None and live and not str(cached.get("model_used") or "").startswith("google-genai/"):
+            cached = None
         if cached is not None:
             try:
                 return GeminiAdvisoryReport(**cached)
@@ -64,18 +73,26 @@ class GeminiAdvisorEngine:
                 pass
 
         # If live API key is present and SDK is available, try live Gemini call
-        if self.api_key and GENAI_SDK_AVAILABLE:
+        if live:
             candidate_models = [self.model_name]
             if "gemini-3.1-flash-lite" not in candidate_models:
                 candidate_models.append("gemini-3.1-flash-lite")
             if "gemini-3.8-flash" not in candidate_models:
                 candidate_models.append("gemini-3.8-flash")
 
-            client = genai.Client(api_key=self.api_key)
             prompt = self._build_grounded_prompt(parcel_info, climate_baseline, strategies)
+            deadline = time.monotonic() + self.timeout_s
 
             for target_model in candidate_models:
+                remaining = deadline - time.monotonic()
+                if remaining < 10:  # Gemini rejects request deadlines under 10 s
+                    logger.warning("Gemini time budget used up; using the offline fallback")
+                    break
                 try:
+                    client = genai.Client(
+                        api_key=self.api_key,
+                        http_options=types.HttpOptions(timeout=int(remaining * 1000)),
+                    )
                     response = client.models.generate_content(
                         model=target_model,
                         contents=prompt,
@@ -98,7 +115,11 @@ class GeminiAdvisorEngine:
 
         # Deterministic Offline Fallback
         report = self._generate_deterministic_fallback(parcel_info, climate_baseline, strategies)
-        cache_set(cache_key, report.model_dump())
+        # Gemini configured but failed: keep the fallback briefly so the next request retries soon
+        if live:
+            cache_set(cache_key, report.model_dump(), ttl=600)
+        else:
+            cache_set(cache_key, report.model_dump())
         return report
 
     def _build_grounded_prompt(
