@@ -24,6 +24,7 @@ import { PeriodChart, PeriodPoint } from "@/components/period-chart";
 import { DeviceReadingRecord, DeviceRecord, FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { NasaDataTab } from "@/components/nasa-data-panel";
+import { ProjectionPlanPanel, ThreeYearPlanResponse } from "@/components/projection-plan-panel";
 import { fmt, num, okValues, pick, str, useNasaData } from "@/lib/use-nasa-data";
 
 
@@ -909,7 +910,13 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
         {/* TAB 2: ROTATION & PROFIT */}
         {tab === "rotation" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="space-y-8">
+            <ProjectionPlanPanel
+              data={(analysisData?.projection as ThreeYearPlanResponse | undefined) ?? null}
+              loading={loading}
+              onRunProjection={isOwner ? handleRefreshTelemetry : undefined}
+            />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Strategy List */}
             <div className="lg:col-span-5 space-y-3">
               <p className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
@@ -1044,6 +1051,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 </tbody>
               </table>
             </div>
+          </div>
           </div>
         )}
 
