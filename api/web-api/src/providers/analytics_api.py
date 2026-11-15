@@ -506,8 +506,9 @@ def build_ingestion_payload(
             }
             if isinstance(r.get("soil_moisture"), (int, float)):
                 item["soil_moisture_vol_pct"] = max(0.0, min(100.0, float(r["soil_moisture"])))
-            if isinstance(r.get("temperature_c"), (int, float)):
-                item["ambient_temperature_c"] = float(r["temperature_c"])
+            temp_val = r.get("temperature_c") if isinstance(r.get("temperature_c"), (int, float)) else r.get("temperature")
+            if isinstance(temp_val, (int, float)):
+                item["ambient_temperature_c"] = float(temp_val)
             if isinstance(r.get("humidity"), (int, float)):
                 item["ambient_humidity_pct"] = max(0.0, min(100.0, float(r["humidity"])))
             if len(item) > 2:
