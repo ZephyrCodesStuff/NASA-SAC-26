@@ -41,6 +41,7 @@ def main() -> None:
             data=json.dumps(r).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
+                "User-Agent": "ceres-iot-seeder/1.0",
                 "X-NASA-Board-SN": args.sn,
             },
             method="POST",
