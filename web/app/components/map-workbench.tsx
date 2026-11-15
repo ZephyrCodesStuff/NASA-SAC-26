@@ -22,11 +22,13 @@ import {
   PanelLeftOpen,
   Satellite,
   Map as MapIcon,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { LocationSearch, LocationSelection } from "@/components/location-search";
 import { FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -64,6 +66,7 @@ export function MapWorkbench() {
   const [mode, setMode] = useState<"viewer" | "editor">("viewer");
   const [baseLayer, setBaseLayer] = useState<"osm" | "satellite">("satellite");
   const [showCatasto, setShowCatasto] = useState(true);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // New farm inline state
   const [creatingFarm, setCreatingFarm] = useState(false);
@@ -114,6 +117,17 @@ export function MapWorkbench() {
     () => plots.find((p) => p.id === selectedPlotId) || null,
     [plots, selectedPlotId]
   );
+
+  const handleLocationSelect = useCallback((loc: LocationSelection) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (loc.bounds) {
+      map.fitBounds(loc.bounds, { padding: [36, 36], maxZoom: 15, animate: true });
+    } else {
+      map.flyTo([loc.lat, loc.lon], 15, { duration: 0.7 });
+    }
+    setMobileSearchOpen(false);
+  }, []);
 
   // Load farms on mount
   const loadFarms = useCallback(async () => {
@@ -605,6 +619,12 @@ export function MapWorkbench() {
           </div>
         </div>
 
+        {/* Desktop Location Search (Top Navbar) */}
+        <LocationSearch
+          onSelect={handleLocationSelect}
+          className="hidden md:block flex-1 max-w-xs lg:max-w-sm mx-2"
+        />
+
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Viewer / Editor Segmented Toggle */}
           <div className="flex items-center rounded-md border border-[#e7e5e0] bg-[#f5f4ef] p-0.5">
@@ -776,6 +796,28 @@ export function MapWorkbench() {
         {/* Map Canvas */}
         <main className={`flex-1 relative isolate min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
           <div ref={mapContainerRef} className="h-full w-full" />
+
+          {/* Mobile Location Search Button / Expandable Input (Top Left next to Zoom) */}
+          <div className={`absolute top-3 left-[54px] md:hidden ${mobileSearchOpen ? "right-3 max-w-xs z-[600]" : "z-[500]"}`}>
+            {mobileSearchOpen ? (
+              <LocationSearch
+                onSelect={handleLocationSelect}
+                onDismiss={() => setMobileSearchOpen(false)}
+                autoFocus
+                className="w-full shadow-md rounded-md"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(true)}
+                className="h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur text-[#1f1915] shadow-sm hover:bg-white"
+                title="Search address or location"
+                aria-label="Search address or location"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
           {/* Floating Layer Switcher Pill (Top Right) */}
           <div className="absolute top-3 right-3 z-[500] max-w-[calc(100%-3.75rem)] overflow-x-auto flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur px-2 py-1.5 shadow-sm">
