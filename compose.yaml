@@ -44,6 +44,7 @@ services:
       PB_URL: http://pocketbase:8090
       PORT: "8081"
       DATA_API_URL: http://data-api:8070
+      ANALYTICS_API_URL: http://analytics-api:8000
     volumes:
       - web_api_cache:/app/.cache
     depends_on:
@@ -51,6 +52,8 @@ services:
         condition: service_healthy
       data-api:
         condition: service_healthy
+      analytics-api:
+        condition: service_started
 
   web:
     build:
@@ -79,6 +82,21 @@ services:
     volumes:
       - data_api_cache:/cache
 
+  analytics-api:
+    build:
+      context: ./api/analytics-api
+    restart: unless-stopped
+    networks:
+      - app_net
+    environment:
+      NASLOP_HOST: 0.0.0.0
+      NASLOP_PORT: "8000"
+      NASLOP_DEBUG: "False"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+    volumes:
+      - analytics_data:/app/data
+
 networks:
   app_net:
     driver: bridge
@@ -86,3 +104,4 @@ networks:
 volumes:
   data_api_cache:
   web_api_cache:
+  analytics_data:
