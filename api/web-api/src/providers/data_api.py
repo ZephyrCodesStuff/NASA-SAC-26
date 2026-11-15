@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from src.crop_preferences import soil_values_only
+
 DATA_API_URL = os.getenv("DATA_API_URL", "http://127.0.0.1:8070").rstrip("/")
 
 FAST_DATASETS = (
@@ -107,7 +109,7 @@ def summarize_sensor_gaps(
                 f"Regional groundwater is below normal ({float(grace_pct):.0f}th percentile, 300 km GRACE-FO)."
             )
 
-    soil_verified = bool(soil_override and any(v is not None for v in soil_override.values()))
+    soil_verified = any(v is not None for v in soil_values_only(soil_override).values())
     return {
         "fallbacks": fallbacks,
         "alerts": alerts,
@@ -119,7 +121,7 @@ def compute_soil_override_flags(soil_override: dict[str, Any] | None) -> list[st
     """Return sorted field paths (`soil.<key>`) for non-None manual soil overrides."""
     if not soil_override or not isinstance(soil_override, dict):
         return []
-    return sorted(f"soil.{k}" for k, v in soil_override.items() if v is not None)
+    return sorted(f"soil.{k}" for k, v in soil_values_only(soil_override).items() if v is not None)
 
 
 def merge_plot_with_overrides(
@@ -128,7 +130,8 @@ def merge_plot_with_overrides(
 ) -> dict[str, dict[str, Any]]:
     """Deep-copy `datasets` and apply manual overrides without mutating `nasa_snapshot`."""
     effective = copy.deepcopy(datasets or {})
-    if soil_override and isinstance(soil_override, dict):
+    soil_override = soil_values_only(soil_override)
+    if soil_override:
         soil_ds = dict(effective.get("soil") or {})
         soil_vals = dict(soil_ds.get("values") or {})
         applied = False

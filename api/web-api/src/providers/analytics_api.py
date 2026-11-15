@@ -14,6 +14,8 @@ from typing import Any
 
 import httpx
 
+from src.crop_preferences import crop_preferences
+
 ANALYTICS_API_URL = os.getenv("ANALYTICS_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
@@ -238,6 +240,13 @@ def build_ingestion_payload(
         lud["lab_soil_organic_matter_pct"] = float(ov["organic_matter_pct"])
     if ov.get("compaction_psi") is not None:
         lud["penetrometer_compaction_psi"] = float(ov["compaction_psi"])
+
+    # Farmer crop choices: "only grow" (needs >= 3 crops to apply) and "never grow"
+    whitelist, blacklist = crop_preferences(ov)
+    if whitelist:
+        lud["preferred_candidate_crops"] = whitelist
+    if blacklist:
+        lud["excluded_crops"] = blacklist
 
     # In-situ sensor readings (latest soil moisture) as user ground truth
     if isinstance(sensor_readings, list) and sensor_readings:

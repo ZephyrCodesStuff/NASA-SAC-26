@@ -34,6 +34,7 @@ import {
   WaterSoilClimateSections,
 } from "@/components/nasa-data-panel";
 import { ProjectionPlanPanel, ThreeYearPlanResponse } from "@/components/projection-plan-panel";
+import { CropPreferences, CropPreferencesCard, readCropPreferences } from "@/components/crop-preferences-card";
 import { fmt, num, okValues, pick, str, useNasaData } from "@/lib/use-nasa-data";
 
 
@@ -116,6 +117,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const tabContainerRef = useRef<HTMLDivElement>(null);
   useGSAP(
     () => {
+      if (!tabContainerRef.current) return; // still loading: no tab panel yet
       const mm = gsap.matchMedia();
       mm.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.fromTo(
@@ -142,6 +144,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const [elecPrice, setElecPrice] = useState("");
   const [waterPrice, setWaterPrice] = useState("");
   const [savingOverrides, setSavingOverrides] = useState(false);
+  const [replanning, setReplanning] = useState(false);
 
   // P&L inline cost inputs (€/ha)
   const [workerCost, setWorkerCost] = useState(420);
@@ -300,7 +303,27 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     setPhInput("");
     setElecPrice("");
     setWaterPrice("");
-    await applyOverrides({}, "Cleared overrides — reverted to NASA data");
+    // Keep the farmer's crop choices: they live in soil_override too but are not soil data
+    const { crop_whitelist, crop_blacklist } = (plot?.soil_override || {}) as Record<string, unknown>;
+    const kept: Record<string, unknown> = {};
+    if (crop_whitelist !== undefined) kept.crop_whitelist = crop_whitelist;
+    if (crop_blacklist !== undefined) kept.crop_blacklist = crop_blacklist;
+    await applyOverrides(kept, "Cleared overrides — reverted to NASA data");
+  };
+
+  const handleSaveCropPreferences = async (prefs: CropPreferences) => {
+    if (!plot) return;
+    const nextOverride: Record<string, unknown> = { ...(plot.soil_override || {}) };
+    delete nextOverride.crop_whitelist;
+    delete nextOverride.crop_blacklist;
+    if (prefs.whitelist.length) nextOverride.crop_whitelist = prefs.whitelist;
+    if (prefs.blacklist.length) nextOverride.crop_blacklist = prefs.blacklist;
+    setReplanning(true);
+    try {
+      await applyOverrides(nextOverride, "Crop choices saved — rotation plan updated");
+    } finally {
+      setReplanning(false);
+    }
   };
 
   const handlePairDevice = async (e: React.FormEvent) => {
@@ -1129,11 +1152,18 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
         {/* TAB 3: ROTATION PLAN */}
         {tab === "rotation" && (
-          <div className="tab-panel-animate">
+          <div className="tab-panel-animate space-y-6">
+            <CropPreferencesCard
+              key={JSON.stringify(readCropPreferences(plot.soil_override))}
+              saved={readCropPreferences(plot.soil_override)}
+              editable={isOwner}
+              saving={replanning}
+              onSave={handleSaveCropPreferences}
+            />
             <ProjectionPlanPanel
               data={(analysisData?.projection as ThreeYearPlanResponse | undefined) ?? null}
               plotName={plot.label}
-              loading={loading}
+              loading={loading || replanning}
               onRunProjection={isOwner ? handleRefreshTelemetry : undefined}
             />
           </div>
