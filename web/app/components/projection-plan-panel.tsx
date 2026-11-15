@@ -11,6 +11,7 @@ import {
   Gauge,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Sprout,
   Table2,
   ClipboardCheck,
@@ -113,6 +114,9 @@ export interface GeminiAdvisoryReport {
   ground_truth_field_checklist?: string[];
   executive_summary?: string;
   parcel_climate_context?: string;
+  strategy_tradeoff_matrix?: string;
+  year_by_year_soil_transformation?: string;
+  extreme_event_resilience_playbook?: string;
 }
 
 export interface ThreeYearPlanResponse {
@@ -156,7 +160,7 @@ function fmtSigned(val: number | undefined | null, digits = 1, suffix = ""): str
 
 /** Highlight key quantitative tokens ($643,983, 568 kg/ha, +149 psi, 29.1 ha, 218%) inside plain prose. */
 function renderHighlightedProse(text: string): React.ReactNode {
-  const regex = /(\$[\d,]+(?:\.\d+)?|[+-]?\d+(?:,\d{3})*(?:\.\d+)?\s?(?:kg\/ha|m³|psi|ha|t\/ha|%))/g;
+  const regex = /(\$[\d,]+(?:\.\d+)?|[+-]?\d+(?:,\d{3})*(?:\.\d+)?\s?(?:kg\/ha|m³|psi|PSI|mm\/year|t\/ha|ha|%))/g;
   const parts = text.split(regex);
   return parts.map((part, i) => {
     if (!part) return null;
@@ -205,16 +209,113 @@ function goalPillMeta(s: ThreeYearCultivationPlan): { label: string; metric: str
 function parseDecisionRules(guide?: string): Record<string, string> {
   const out: Record<string, string> = {};
   if (!guide) return out;
-  const re = /(?:^|\s)(?:\d+\.\s*)?Choose\s+['"]?([^'":]+)['"]?\s+if[:\s]+([\s\S]*?)(?=(?:\s*\d+\.\s*Choose\s)|$)/gi;
+  // "Choose 'Most Income' or 'Highest ROI' if you need cash now. Choose 'Least Effort' if ..." (one or more plan
+  // names per clause, quoted or not, optionally numbered)
+  const re = /(?:^|\s)(?:\d+\.\s*)?Choose\s+(.+?)\s+if\b[:\s]*([\s\S]*?)(?=\s*(?:\d+\.\s*)?Choose\s|$)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(guide)) !== null) {
-    const key = m[1].trim().toLowerCase();
     const raw = m[2].trim().replace(/\.$/, "");
-    if (key && raw) {
-      out[key] = raw.charAt(0).toLowerCase() + raw.slice(1);
+    if (!raw) continue;
+    const quoted = Array.from(m[1].matchAll(/['"\u2018\u2019\u201c\u201d]([^'"\u2018\u2019\u201c\u201d]+)['"\u2018\u2019\u201c\u201d]/g)).map((q) => q[1]);
+    const names = quoted.length > 0 ? quoted : m[1].split(/\s*(?:,|\bor\b|\band\b)\s*/i);
+    for (const name of names) {
+      const key = name.trim().toLowerCase();
+      if (key) out[key] = raw.charAt(0).toLowerCase() + raw.slice(1);
     }
   }
   return out;
+}
+
+/** "google-genai/gemini-3.1-flash-lite" -> "Gemini 3.1 Flash Lite"; null for the built-in (offline) engine. */
+function aiModelLabel(modelUsed?: string): string | null {
+  if (!modelUsed || !modelUsed.startsWith("google-genai/")) return null;
+  return modelUsed
+    .replace("google-genai/", "")
+    .split("-")
+    .map((w) => (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
+const BRIEFING_SECTIONS: Array<{ key: keyof GeminiAdvisoryReport; title: string }> = [
+  { key: "three_year_operational_overview", title: "Your three years at a glance" },
+  { key: "risk_vs_reward_comparison", title: "Risk vs reward" },
+  { key: "strategy_tradeoff_matrix", title: "How the plans trade off" },
+  { key: "year_by_year_soil_transformation", title: "What happens to your soil" },
+  { key: "extreme_event_resilience_playbook", title: "Drought & heavy-rain playbook" },
+  { key: "farmer_decision_guide", title: "How to choose" },
+];
+
+/** The AI agronomist's plain-language briefing (Gemini, or the built-in engine when Gemini is unavailable). */
+function AdvisoryBriefing({ advisory }: { advisory: GeminiAdvisoryReport }) {
+  const [open, setOpen] = useState(false);
+  const model = aiModelLabel(advisory.model_used);
+  const lead = advisory.executive_summary || advisory.farmer_plain_language_summary;
+  const second =
+    advisory.executive_summary && advisory.farmer_plain_language_summary ? advisory.farmer_plain_language_summary : null;
+  const sections = BRIEFING_SECTIONS.filter((s) => typeof advisory[s.key] === "string" && (advisory[s.key] as string).trim());
+  if (!lead && !advisory.parcel_climate_context && sections.length === 0) return null;
+
+  return (
+    <section className="rounded-xl border border-[#20808d]/25 bg-gradient-to-b from-[#20808d]/[0.06] to-transparent p-4 sm:p-5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#20808d]">
+          <Sparkles className="h-3.5 w-3.5" />
+          Agronomist briefing
+        </p>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-mono ${
+            model ? "border-[#20808d]/30 text-[#20808d] bg-white/70" : "border-[#e7e5e0] text-[#6b675f] bg-white/70"
+          }`}
+          title={advisory.model_used}
+        >
+          {model ? `AI · ${model}` : "Offline briefing · built-in rules"}
+        </span>
+      </div>
+
+      {lead && <p className="text-[15px] leading-relaxed text-[#1f1915] max-w-3xl">{renderHighlightedProse(lead)}</p>}
+      {advisory.parcel_climate_context && (
+        <p className="text-sm leading-relaxed text-[#4a4640] max-w-3xl">
+          {renderHighlightedProse(advisory.parcel_climate_context)}
+        </p>
+      )}
+
+      {(second || sections.length > 0) && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1 text-xs font-medium text-[#20808d] hover:underline"
+          >
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {open ? "Hide the full briefing" : `Read the full briefing (${sections.length + (second ? 1 : 0)} sections)`}
+          </button>
+          {open && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-1">
+              {second && (
+                <div className="space-y-1 md:col-span-2">
+                  <p className="text-xs font-semibold text-[#1f1915]">In plain words</p>
+                  <p className="text-sm leading-relaxed text-[#4a4640]">{renderHighlightedProse(second)}</p>
+                </div>
+              )}
+              {sections.map((s) => (
+                <div key={s.key} className="space-y-1">
+                  <p className="text-xs font-semibold text-[#1f1915]">{s.title}</p>
+                  <p className="text-sm leading-relaxed text-[#4a4640]">
+                    {renderHighlightedProse(advisory[s.key] as string)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      <p className="text-[11px] text-[#6b675f]">
+        {model ? "Written by AI from the simulated numbers below; the numbers themselves are computed, not generated." : "Gemini was unavailable, so this briefing was written by the built-in rules from the same numbers."}{" "}
+        Advisory only.
+      </p>
+    </section>
+  );
 }
 
 function editorialBulletForStrategy(
@@ -432,6 +533,10 @@ export function ProjectionPlanPanel({
   const advisory = data.gemini_advisory;
   const friendlyPlotName = plotName?.trim() || "this parcel";
   const decisionRules = parseDecisionRules(advisory?.farmer_decision_guide);
+  const asList = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : typeof v === "string" && v.trim() ? [v] : [];
+  const pros = activeBreakdown ? [...asList(activeBreakdown.benefits_plain_words), ...asList(activeBreakdown.expected_rewards)] : [];
+  const cons = activeBreakdown ? [...asList(activeBreakdown.drawbacks_plain_words), ...asList(activeBreakdown.risks_taken)] : [];
   const checklistItems =
     (advisory?.ground_truth_field_checklist?.length ?? 0) > 0
       ? advisory!.ground_truth_field_checklist!
@@ -439,11 +544,13 @@ export function ProjectionPlanPanel({
 
   return (
     <div ref={planRef} className="space-y-7 font-sans">
+      {advisory && <AdvisoryBriefing advisory={advisory} />}
+
       {/* 1. Hero: Editorial Briefing (No Card, Max-Width Prose + 5-Pathway Bullets) */}
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="max-w-2xl space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#20808d]">
-            Agronomist Briefing
+            Your options
             {data.resolved_soil_type ? ` · ${data.resolved_soil_type}` : ""}
             {data.field_area_ha ? ` · ${data.field_area_ha.toFixed(2)} ha` : ""}
           </p>
@@ -673,32 +780,38 @@ export function ProjectionPlanPanel({
       </div>
 
       {/* Strategy Trade-off Highlights (compact prose if available) */}
-      {activeBreakdown &&
-        ((activeBreakdown.benefits_plain_words?.length ?? 0) > 0 ||
-          (activeBreakdown.drawbacks_plain_words?.length ?? 0) > 0) && (
+      {activeBreakdown && (pros.length > 0 || cons.length > 0 || activeBreakdown.three_year_action_overview) && (
+        <div className="space-y-3">
+          {activeBreakdown.three_year_action_overview && (
+            <p className="text-sm leading-relaxed text-[#1f1915] max-w-3xl">
+              <span className="font-semibold">This plan in practice: </span>
+              {renderHighlightedProse(activeBreakdown.three_year_action_overview)}
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            {(activeBreakdown.benefits_plain_words?.length ?? 0) > 0 && (
+            {pros.length > 0 && (
               <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/40 p-3.5 space-y-1">
                 <p className="font-semibold text-emerald-800">Why pick this plan</p>
-                <ul className="space-y-1 text-[#1f1915]">
-                  {activeBreakdown.benefits_plain_words!.map((b, i) => (
+                <ul className="space-y-1 text-[#1f1915] leading-relaxed">
+                  {pros.map((b, i) => (
                     <li key={i}>• {b}</li>
                   ))}
                 </ul>
               </div>
             )}
-            {(activeBreakdown.drawbacks_plain_words?.length ?? 0) > 0 && (
+            {cons.length > 0 && (
               <div className="rounded-lg border border-amber-200/70 bg-amber-50/40 p-3.5 space-y-1">
-                <p className="font-semibold text-amber-800">Trade-offs to watch</p>
-                <ul className="space-y-1 text-[#1f1915]">
-                  {activeBreakdown.drawbacks_plain_words!.map((d, i) => (
+                <p className="font-semibold text-amber-800">Trade-offs &amp; risks</p>
+                <ul className="space-y-1 text-[#1f1915] leading-relaxed">
+                  {cons.map((d, i) => (
                     <li key={i}>• {d}</li>
                   ))}
                 </ul>
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
       {/* 5. Layer 2: Collapsible Drawers (Closed by Default) */}
       <div className="space-y-2.5">
@@ -820,7 +933,7 @@ export function ProjectionPlanPanel({
           >
             <span className="inline-flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-[#20808d]" />
-              Local Field Verification Checklist &amp; NASA / SoilGrids Sources
+              Field checklist{checklistItems.length ? ` (${checklistItems.length})` : ""} &amp; how this was calculated
             </span>
             {showChecklistDrawer ? <ChevronUp className="h-4 w-4 text-[#6b675f]" /> : <ChevronDown className="h-4 w-4 text-[#6b675f]" />}
           </button>
