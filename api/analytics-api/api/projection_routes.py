@@ -6,6 +6,7 @@ Provides endpoints to:
 3. Query soil physical and hydraulic reference profiles.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import Dict, Any, Optional
@@ -121,7 +122,9 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
         }
 
         advisor = GeminiAdvisorEngine()
-        gemini_report = advisor.generate_advisory_report(
+        # Blocking SDK call: run it off the event loop so other requests aren't stalled
+        gemini_report = await asyncio.to_thread(
+            advisor.generate_advisory_report,
             parcel_info=parcel_context,
             climate_baseline=climate_context,
             strategies=strategies_dict
