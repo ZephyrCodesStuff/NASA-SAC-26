@@ -76,6 +76,18 @@ body {
   line-height: 1.4 !important;
 }
 
+/* Prevent background page scroll chaining when a native modal dialog is open */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(31, 25, 21, 0.45);
+  backdrop-filter: blur(2px);
+}
+
 /* Subtle warm scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
