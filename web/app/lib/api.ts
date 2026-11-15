@@ -158,6 +158,8 @@ export const webApi = {
       { method: "POST", body: JSON.stringify({ name, constraints }) },
       token
     ),
+  deleteFarm: (farmId: string, token: string) =>
+    apiFetch<{ deleted: boolean; deleted_plots?: number }>(`/farms/${farmId}`, { method: "DELETE" }, token),
   listPlots: (farmId: string, token: string) =>
     apiFetch<{ plots: PlotRecord[] }>(`/farms/${farmId}/plots`, {}, token),
   createPlot: (

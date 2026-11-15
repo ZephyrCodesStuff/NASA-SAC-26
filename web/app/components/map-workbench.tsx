@@ -78,6 +78,9 @@ export function MapWorkbench() {
   const [newPlotLabel, setNewPlotLabel] = useState("");
   const [newPlotCrop, setNewPlotCrop] = useState("");
   const [savingPlot, setSavingPlot] = useState(false);
+  const [deleteFarmModalOpen, setDeleteFarmModalOpen] = useState(false);
+  const [deleteFarmConfirmText, setDeleteFarmConfirmText] = useState("");
+  const [deletingFarm, setDeletingFarm] = useState(false);
 
   // Leaflet refs
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -393,6 +396,31 @@ export function MapWorkbench() {
     }
   };
 
+  const handleDeleteFarm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedFarm || deleteFarmConfirmText !== selectedFarm.name) return;
+    setDeletingFarm(true);
+    try {
+      const targetName = selectedFarm.name;
+      const targetId = selectedFarm.id;
+      await webApi.deleteFarm(targetId, token);
+      const remaining = farms.filter((f) => f.id !== targetId);
+      setFarms(remaining);
+      setSelectedFarmId(remaining[0]?.id || "");
+      if (remaining.length === 0) {
+        setPlots([]);
+        setSelectedPlotId(null);
+      }
+      setDeleteFarmModalOpen(false);
+      setDeleteFarmConfirmText("");
+      toast.success(`Deleted farm "${targetName}" and all of its plots`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete farm");
+    } finally {
+      setDeletingFarm(false);
+    }
+  };
+
   const buildDrawnGeoJson = () => {
     const ring = [...drawPoints.map(([lat, lon]) => [lon, lat])];
     if (ring.length > 0) ring.push(ring[0]);
@@ -526,8 +554,25 @@ export function MapWorkbench() {
                 size="sm"
                 className="h-8 px-2 text-xs"
                 onClick={() => setCreatingFarm((v) => !v)}
+                title="Create new farm"
               >
                 <Plus className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {canEdit && selectedFarm && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-xs text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800"
+                onClick={() => {
+                  setDeleteFarmConfirmText("");
+                  setDeleteFarmModalOpen(true);
+                }}
+                title="Delete farm"
+                aria-label="Delete farm"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
@@ -944,6 +989,81 @@ export function MapWorkbench() {
           )}
         </main>
       </div>
+
+      {deleteFarmModalOpen && selectedFarm && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-farm-dialog-title"
+        >
+          <form
+            onSubmit={handleDeleteFarm}
+            className="w-full max-w-md rounded-xl border border-[#e7e5e0] bg-white p-5 shadow-xl space-y-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h2 id="delete-farm-dialog-title" className="font-serif text-lg font-semibold text-rose-800">
+                  Delete Farm
+                </h2>
+                <p className="text-xs text-[#6b675f] leading-relaxed">
+                  This will permanently delete <strong className="text-[#1f1915]">{selectedFarm.name}</strong> and all{" "}
+                  <strong className="text-[#1f1915]">{plots.length}</strong> plot{plots.length === 1 ? "" : "s"} and their
+                  saved data. This action cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteFarmModalOpen(false)}
+                className="text-[#6b675f] hover:text-[#1f1915] p-1"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-[#6b675f] block">
+                Type <code className="px-1.5 py-0.5 rounded bg-[#f5f4ef] font-mono text-[#1f1915]">{selectedFarm.name}</code> to confirm:
+              </label>
+              <Input
+                value={deleteFarmConfirmText}
+                onChange={(e) => setDeleteFarmConfirmText(e.target.value)}
+                placeholder={selectedFarm.name}
+                autoFocus
+                className="h-9 text-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteFarmModalOpen(false)}
+                disabled={deletingFarm}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={deletingFarm || deleteFarmConfirmText !== selectedFarm.name}
+                className="bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-45"
+              >
+                {deletingFarm ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete Farm"
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

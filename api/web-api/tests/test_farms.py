@@ -102,6 +102,24 @@ class FarmTests(unittest.TestCase):
                 self.assertTrue(removed)
                 self.assertEqual(await store.list_plots(created_farm["id"], user=admin), [])
 
+                await store.add_plot(
+                    created_farm["id"],
+                    {
+                        "label": "Cascade Plot",
+                        "area_ha": 0.9,
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[7.7, 45.0], [7.701, 45.0], [7.701, 45.001], [7.7, 45.0]]],
+                        },
+                    },
+                    user=admin,
+                )
+                res_del = await store.remove_farm(created_farm["id"], user=admin)
+                self.assertTrue(res_del["deleted"])
+                self.assertEqual(res_del["deleted_plots"], 1)
+                self.assertFalse(any(f["id"] == created_farm["id"] for f in await store.list_farms(admin)))
+                self.assertEqual(await store.list_plots(created_farm["id"], user=admin), [])
+
         asyncio.run(run_test())
 
     def test_merge_catasto_features_into_one_plot(self) -> None:

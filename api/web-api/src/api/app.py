@@ -173,6 +173,32 @@ def create_api_router(
         farm = await farm_store.create_farm(body.name, user=user, constraints=body.constraints)
         return {"farm": farm}
 
+    @router.delete("/farms/{farm_id}")
+    async def delete_farm(
+        farm_id: str,
+        user: dict[str, Any] = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        farms = await farm_store.list_farms(user=user)
+        farm = next((f for f in farms if f.get("id") == farm_id), None)
+        if not farm:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found")
+        if not is_farm_owner(farm, user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only farm owner can delete this farm")
+        # Best-effort unclaim IoT devices attached to any plot in this farm before deleting plots
+        try:
+            plots = await farm_store.list_plots(farm_id, user=user)
+            for p in plots:
+                pid = p.get("id")
+                if not pid:
+                    continue
+                for dev in await device_store.list_plot_devices(str(pid)):
+                    sn = dev.get("device_id") or dev.get("serial_number")
+                    if sn:
+                        await device_store.unclaim_device(serial_number=str(sn), plot_id=str(pid))
+        except Exception as exc:
+            logger.debug("Best-effort device cleanup during farm delete skipped: %s", exc)
+        return await farm_store.remove_farm(farm_id, user=user)
+
     @router.get("/farms/{farm_id}/plots")
     async def list_plots(
         farm_id: str,

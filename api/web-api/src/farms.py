@@ -740,6 +740,51 @@ class FarmStore:
         self._save_local(local)
         return len(local["user_plots"]) < before
 
+    async def remove_farm(self, farm_id: str, user: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Delete all plots belonging to a farm and then delete the farm record."""
+        plots = await self.list_plots(farm_id, user=user)
+        deleted_plots = 0
+        for p in plots:
+            pid = p.get("id")
+            if pid and await self.remove_plot(str(pid), user=user):
+                deleted_plots += 1
+
+        token = (user or {}).get("token")
+        if self.pb_url:
+            if not token:
+                raise PocketBaseError(401, "PocketBase requires an authenticated token to remove farms")
+            close_after = self._client is None
+            http = await self._http()
+            try:
+                resp = await http.delete(
+                    f"{self.pb_url}/api/collections/farms/records/{farm_id}",
+                    headers=self._headers(token),
+                )
+                if resp.status_code in (200, 204):
+                    return {"deleted": True, "deleted_plots": deleted_plots}
+                if resp.status_code == 404:
+                    return {"deleted": False, "deleted_plots": deleted_plots}
+                logger.error("PocketBase remove_farm failed (%s): %s", resp.status_code, resp.text)
+                raise PocketBaseError(
+                    502 if resp.status_code >= 500 else resp.status_code,
+                    f"PocketBase remove_farm error ({resp.status_code}): {resp.text}",
+                )
+            except PocketBaseError:
+                raise
+            except Exception as exc:
+                logger.error("PocketBase remove_farm unreachable: %s", exc)
+                raise PocketBaseError(502, f"PocketBase unreachable: {exc}") from exc
+            finally:
+                if close_after:
+                    await http.aclose()
+
+        local = self._load_local()
+        before = len(local["farms"])
+        local["farms"] = [f for f in local["farms"] if f.get("id") != farm_id]
+        local["user_plots"] = [p for p in local["user_plots"] if p.get("farm") != farm_id]
+        self._save_local(local)
+        return {"deleted": len(local["farms"]) < before, "deleted_plots": deleted_plots}
+
     async def update_plot(
         self,
         plot_id: str,
