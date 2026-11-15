@@ -1132,6 +1132,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           <div className="tab-panel-animate">
             <ProjectionPlanPanel
               data={(analysisData?.projection as ThreeYearPlanResponse | undefined) ?? null}
+              plotName={plot.label}
               loading={loading}
               onRunProjection={isOwner ? handleRefreshTelemetry : undefined}
             />

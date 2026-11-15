@@ -201,13 +201,121 @@ function goalPillMeta(s: ThreeYearCultivationPlan): { label: string; metric: str
   };
 }
 
+/** Parse numbered/inline "Choose 'Plan' if: ..." clauses from farmer_decision_guide. */
+function parseDecisionRules(guide?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!guide) return out;
+  const re = /(?:^|\s)(?:\d+\.\s*)?Choose\s+['"]?([^'":]+)['"]?\s+if[:\s]+([\s\S]*?)(?=(?:\s*\d+\.\s*Choose\s)|$)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(guide)) !== null) {
+    const key = m[1].trim().toLowerCase();
+    const raw = m[2].trim().replace(/\.$/, "");
+    if (key && raw) {
+      out[key] = raw.charAt(0).toLowerCase() + raw.slice(1);
+    }
+  }
+  return out;
+}
+
+function editorialBulletForStrategy(
+  s: ThreeYearCultivationPlan,
+  rules: Record<string, string>
+): {
+  title: string;
+  crops: string;
+  lead: string;
+  metric: string;
+  tail: string;
+  criteria: string;
+} {
+  const id = (s.strategy_id || "").toLowerCase();
+  const titleLower = (s.strategy_title || "").toLowerCase();
+  const cm = s.cumulative_metrics || {};
+  const crops = (s.rotation_sequence || []).join(" → ");
+
+  const matchedRule =
+    Object.entries(rules).find(
+      ([k]) =>
+        titleLower.includes(k) ||
+        k.includes(titleLower.replace(/\s*strategy$/i, "")) ||
+        (id.includes("income") && k.includes("income")) ||
+        (id.includes("roi") && k.includes("roi")) ||
+        (id.includes("soil") && k.includes("soil")) ||
+        ((id.includes("effort") || id.includes("labor")) && (k.includes("effort") || k.includes("labor"))) ||
+        ((id.includes("risk") || id.includes("loss")) && (k.includes("risk") || k.includes("loss")))
+    )?.[1] || "";
+
+  if (id.includes("income") || titleLower.includes("income")) {
+    return {
+      title: "Most Income",
+      crops,
+      lead: "Delivers ",
+      metric: fmtMoney(cm.total_net_profit_usd),
+      tail: " in 3-year net profit",
+      criteria:
+        matchedRule ||
+        "you have working capital, market contracts in hand, and want maximum total return",
+    };
+  }
+  if (id.includes("roi") || titleLower.includes("roi")) {
+    return {
+      title: "Highest ROI",
+      crops,
+      lead: "Generates ",
+      metric: fmtNum(cm.cumulative_roi_pct, 0, "% ROI"),
+      tail: " per dollar invested",
+      criteria: matchedRule || "working capital is tight and input efficiency matters most",
+    };
+  }
+  if (id.includes("soil") || titleLower.includes("soil")) {
+    return {
+      title: "Best Soil Health",
+      crops,
+      lead: "Fixes ",
+      metric: fmtNum(cm.total_biological_n_fixed_kg_ha, 0, " kg/ha"),
+      tail: " of free nitrogen and rebuilds structure",
+      criteria: matchedRule || "your ground is tired (>250 PSI) and needs long-term restoration",
+    };
+  }
+  if (id.includes("effort") || id.includes("labor") || titleLower.includes("effort")) {
+    return {
+      title: "Least Effort",
+      crops,
+      lead: "Keeps total fieldwork down to ",
+      metric: fmtNum(cm.total_labor_hours, 0, " hours"),
+      tail: " over 3 years",
+      criteria: matchedRule || "you farm part-time, run older machinery, or lack hired labor",
+    };
+  }
+  if (id.includes("risk") || id.includes("loss") || titleLower.includes("risk")) {
+    return {
+      title: "Least Crop Loss Risk",
+      crops,
+      lead: "Holds weather & yield risk to ",
+      metric: fmtNum(cm.composite_loss_risk_score, 0, "/100"),
+      tail: "",
+      criteria: matchedRule || "your top priority is yield stability against erratic rain and heat spikes",
+    };
+  }
+  return {
+    title: s.strategy_title.replace(/\s*Strategy$/i, ""),
+    crops,
+    lead: "Projects ",
+    metric: fmtMoney(cm.total_net_profit_usd),
+    tail: " net profit",
+    criteria: matchedRule || "this aligns with your seasonal priorities",
+  };
+}
+
 export function ProjectionPlanPanel({
   data,
+  plotName,
   loading,
   error,
   onRunProjection,
 }: {
   data: ThreeYearPlanResponse | null;
+  plotName?: string;
   loading?: boolean;
   error?: string | null;
   onRunProjection?: () => void;
@@ -322,8 +430,8 @@ export function ProjectionPlanPanel({
   const cm = active.cumulative_metrics || {};
   const years: AnnualGroundImpact[] = [active.year_1, active.year_2, active.year_3].filter(Boolean);
   const advisory = data.gemini_advisory;
-  const briefingText =
-    advisory?.farmer_plain_language_summary || active.strategic_summary || "";
+  const friendlyPlotName = plotName?.trim() || "this parcel";
+  const decisionRules = parseDecisionRules(advisory?.farmer_decision_guide);
   const checklistItems =
     (advisory?.ground_truth_field_checklist?.length ?? 0) > 0
       ? advisory!.ground_truth_field_checklist!
@@ -331,24 +439,53 @@ export function ProjectionPlanPanel({
 
   return (
     <div ref={planRef} className="space-y-7 font-sans">
-      {/* 1. Hero: Editorial Briefing (No Card, Straight Prose) */}
+      {/* 1. Hero: Editorial Briefing (No Card, Max-Width Prose + 5-Pathway Bullets) */}
       <div className="flex items-start justify-between gap-6 flex-wrap">
-        <div className="max-w-3xl space-y-2.5">
+        <div className="max-w-2xl space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#20808d]">
             Agronomist Briefing
             {data.resolved_soil_type ? ` · ${data.resolved_soil_type}` : ""}
             {data.field_area_ha ? ` · ${data.field_area_ha.toFixed(2)} ha` : ""}
           </p>
-          {briefingText ? (
-            <p className="text-base leading-relaxed text-[#1f1915]">
-              {renderHighlightedProse(briefingText)}
-            </p>
-          ) : null}
-          {advisory?.farmer_decision_guide && (
-            <p className="text-sm leading-relaxed text-[#6b675f]">
-              {advisory.farmer_decision_guide}
-            </p>
-          )}
+
+          <p className="text-[15px] leading-relaxed text-[#1f1915]">
+            Here is your 3-year roadmap for <strong className="font-semibold">{friendlyPlotName}</strong>
+            {data.field_area_ha || data.resolved_soil_type
+              ? ` (${[
+                  data.field_area_ha ? `${data.field_area_ha.toFixed(2)} ha` : null,
+                  data.resolved_soil_type || null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")})`
+              : ""}
+            , simulated across {strategyList.length} pathways to match your farm priorities:
+          </p>
+
+          <ul className="space-y-2 pl-4 list-disc marker:text-[#20808d] text-[14.5px] leading-relaxed text-[#1f1915]">
+            {strategyList.map((s) => {
+              const b = editorialBulletForStrategy(s, decisionRules);
+              return (
+                <li key={s.strategy_id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(s.strategy_id)}
+                    className="text-left font-semibold text-[#1f1915] hover:text-[#20808d] transition-colors"
+                  >
+                    {b.title}
+                  </button>
+                  {b.crops ? (
+                    <span className="italic text-[#6b675f]"> ({b.crops})</span>
+                  ) : null}
+                  {": "}
+                  {b.lead}
+                  <strong className="font-semibold font-mono tabular-nums text-[#1f1915]">
+                    {b.metric}
+                  </strong>
+                  {b.tail}—best if {b.criteria}.
+                </li>
+              );
+            })}
+          </ul>
         </div>
         {onRunProjection && (
           <Button
