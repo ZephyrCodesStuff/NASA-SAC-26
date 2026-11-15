@@ -33,7 +33,7 @@ flowchart LR
 
 | Service | Folder | Port | What it does |
 |---|---|---|---|
-| `web` | [`web/app`](web/app) | 3000 (localhost, behind Caddy) | Next.js UI: map workbench, farms and plots, and 4-tab plot workspace (**Field & Map**, **Water, Soil & Climate**, **Rotation Plan**, **Markets & Costs**). `/api/*` is proxied to `web-api`. |
+| `web` | [`web/app`](web/app) | 3000 (localhost, behind Caddy) | Next.js UI: map workbench, farms and plots, and 4-tab plot workspace (**Field & Map**, **Water, Soil & Climate**, **Rotation Plan**, **Markets & Costs**). On **Rotation Plan** the farmer marks crops as *Grow* (only these) or *Never*; the 3-year plan is re-run with those choices. `/api/*` is proxied to `web-api`. |
 | `web-api` | [`api/web-api`](api/web-api) | 8081 | REST backend: auth, farms, plots, catasto parcel discovery, plot analysis, IoT devices. Relays `data-api` and `analytics-api` for a user's plot. |
 | `data-api` | [`api/data-api`](api/data-api) | 8070 (internal only) | Returns everything we know about a field boundary: 15 datasets, satellite images in many bands, map layers. See [its README](api/data-api/README.md). |
 | `analytics-api` | [`api/analytics-api`](api/analytics-api) | 8000 (internal only) | Field ingestion parser, deterministic 3-year crop rotation optimizer, and plain-language AI briefing (with deterministic fallback). |

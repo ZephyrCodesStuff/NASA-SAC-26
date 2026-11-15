@@ -351,6 +351,8 @@ export function MapWorkbench() {
 
   const focusPlot = useCallback((plot: PlotRecord) => {
     setSelectedPlotId(plot.id);
+    // On phones the plot list covers the map: close it so the selected plot is visible
+    if (window.matchMedia("(max-width: 767px)").matches) setRailOpen(false);
     const map = mapRef.current;
     if (!map || !plot.geometry) return;
     try {
@@ -479,8 +481,8 @@ export function MapWorkbench() {
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#faf9f5] text-[#1f1915]">
       {/* Thin Top Bar */}
-      <header className="h-[52px] shrink-0 border-b border-[#e7e5e0] bg-[#fdfbfa] px-4 flex items-center justify-between gap-4 z-20">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="h-[52px] shrink-0 border-b border-[#e7e5e0] bg-[#fdfbfa] px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 z-20">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setRailOpen((v) => !v)}
@@ -502,11 +504,11 @@ export function MapWorkbench() {
           <span className="text-[#e7e5e0] hidden sm:inline">|</span>
 
           {/* Farm Selector */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <select
               value={selectedFarmId}
               onChange={(e) => setSelectedFarmId(e.target.value)}
-              className="h-8 rounded-md border border-[#e7e5e0] bg-white px-2.5 text-xs font-medium text-[#1f1915] focus:outline-none focus:ring-1 focus:ring-[#20808d]"
+              className="h-8 min-w-0 max-w-[36vw] sm:max-w-none truncate rounded-md border border-[#e7e5e0] bg-white px-2.5 text-xs font-medium text-[#1f1915] focus:outline-none focus:ring-1 focus:ring-[#20808d]"
               disabled={loadingData || farms.length === 0}
             >
               {farms.length === 0 && <option value="">No farms</option>}
@@ -531,7 +533,7 @@ export function MapWorkbench() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Viewer / Editor Segmented Toggle */}
           <div className="flex items-center rounded-md border border-[#e7e5e0] bg-[#f5f4ef] p-0.5">
             <button
@@ -541,6 +543,7 @@ export function MapWorkbench() {
                 setDrawPoints([]);
                 setDiscoveredParcels(null);
               }}
+              title="Browse plots"
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition ${
                 mode === "viewer"
                   ? "bg-white text-[#1f1915] shadow-xs"
@@ -548,7 +551,7 @@ export function MapWorkbench() {
               }`}
             >
               <Eye className="h-3.5 w-3.5" />
-              Viewer
+              <span className="hidden sm:inline">Viewer</span>
             </button>
             <button
               type="button"
@@ -562,7 +565,7 @@ export function MapWorkbench() {
               }`}
             >
               <Pencil className="h-3.5 w-3.5" />
-              Editor
+              <span className="hidden sm:inline">Editor</span>
             </button>
           </div>
 
@@ -618,7 +621,7 @@ export function MapWorkbench() {
       <div className="flex-1 flex min-h-0 relative">
         {/* Left Rail */}
         {railOpen && (
-          <aside className="w-[330px] shrink-0 border-r border-[#e7e5e0] bg-[#fdfbfa] flex flex-col min-h-0 z-10">
+          <aside className="absolute inset-y-0 left-0 z-[1100] w-[min(330px,88vw)] shadow-xl md:static md:z-10 md:w-[330px] md:shadow-none shrink-0 border-r border-[#e7e5e0] bg-[#fdfbfa] flex flex-col min-h-0">
             <div className="px-4 py-3 border-b border-[#e7e5e0] flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#6b675f] font-mono">
@@ -789,7 +792,7 @@ export function MapWorkbench() {
 
           {/* Save Discovered Plot Sheet */}
           {discoveredParcels && (
-            <div className="absolute bottom-5 right-5 z-[500] w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 shadow-lg space-y-3">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 shadow-lg space-y-3">
               <div className="flex items-center justify-between">
                 <p className="font-serif text-sm font-semibold">
                   {useCatastoGeometry && catastoParcels.length > 0
@@ -893,7 +896,7 @@ export function MapWorkbench() {
 
           {/* Selected Plot Quick-Inspect Sheet */}
           {selectedPlot && mode === "viewer" && (
-            <div className="absolute bottom-5 right-5 z-[500] w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur p-4 shadow-lg space-y-3">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-auto sm:right-5 z-[500] sm:w-80 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]/95 backdrop-blur p-4 shadow-lg space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-serif text-base font-semibold truncate">{selectedPlot.label}</p>

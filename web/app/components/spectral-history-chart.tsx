@@ -12,7 +12,7 @@ export interface SpectralPoint {
 
 const SERIES = [
   { key: "ndvi", label: "Vigour (NDVI)", color: "#16a34a" },
-  { key: "ndmi", label: "Moisture (NDMI)", color: "#0d9488" },
+  { key: "ndmi", label: "Moisture (NDMI)", color: "#2563eb" },
   { key: "ndre", label: "Nitrogen (NDRE)", color: "#7c3aed" },
 ] as const;
 
@@ -118,7 +118,7 @@ export function SpectralHistoryChart({ points }: { points: SpectralPoint[] }) {
 
           {data.map((p, i) => (
             <text
-              key={`x-${p.date}`}
+              key={`x-${i}-${p.date}`}
               x={x(i)}
               y={height - 8}
               textAnchor="middle"
@@ -133,7 +133,7 @@ export function SpectralHistoryChart({ points }: { points: SpectralPoint[] }) {
           ))}
 
           {data.map((p, i) => (
-            <g key={p.date} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <g key={`${i}-${p.date}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               <rect
                 x={x(i) - 12}
                 y={padT}

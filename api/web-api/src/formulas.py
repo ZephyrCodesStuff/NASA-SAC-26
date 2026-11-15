@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from src.crop_preferences import soil_values_only
+
 
 @dataclass(frozen=True, slots=True)
 class CropProfile:
@@ -92,7 +94,7 @@ def extract_agronomic_inputs(
 
     soil_vals = dict(soil.get("values") or {}) if soil.get("status") == "ok" else {}
     if soil_override:
-        for k, v in soil_override.items():
+        for k, v in soil_values_only(soil_override).items():
             if v is not None and v != "":
                 soil_vals[k] = v
 
