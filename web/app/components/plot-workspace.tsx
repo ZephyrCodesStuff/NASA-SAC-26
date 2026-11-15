@@ -15,6 +15,9 @@ import {
   SlidersHorizontal,
   CheckCircle2,
   AlertTriangle,
+  Map,
+  Droplets,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,7 +26,11 @@ import { Badge } from "@/components/ui/badge";
 import { PeriodChart, PeriodPoint } from "@/components/period-chart";
 import { DeviceReadingRecord, DeviceRecord, FarmRecord, PlotRecord, webApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { NasaDataTab } from "@/components/nasa-data-panel";
+import {
+  FieldAndMapSections,
+  MarketsAndCostsSections,
+  WaterSoilClimateSections,
+} from "@/components/nasa-data-panel";
 import { ProjectionPlanPanel, ThreeYearPlanResponse } from "@/components/projection-plan-panel";
 import { fmt, num, okValues, pick, str, useNasaData } from "@/lib/use-nasa-data";
 
@@ -38,7 +45,7 @@ const PlotSatelliteThumb = dynamic(
   }
 );
 
-type TabKey = "overview" | "nasa" | "rotation" | "devices";
+type TabKey = "field" | "climate" | "rotation" | "markets";
 
 interface SensorReading {
   ts: string;
@@ -103,7 +110,7 @@ function realPeriodSeries(periods: Array<Record<string, unknown>> | undefined): 
 export function PlotWorkspace({ plotId }: { plotId: string }) {
   const { token } = useAuth();
   const nasa = useNasaData(plotId, token);
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>("field");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -612,36 +619,262 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           </form>
         )}
 
-        {/* 3-Tab Navigation */}
-        <div className="border-b border-[#e7e5e0] flex items-center gap-6">
+        {/* 4-Tab Navigation */}
+        <div className="border-b border-[#e7e5e0] flex items-center gap-6 overflow-x-auto">
           {(
             [
-              { key: "overview", label: "Overview & Conditions" },
-              { key: "nasa", label: `NASA Data & Imagery (${nasa.loaded}/${nasa.total})` },
-              { key: "rotation", label: "Rotation & Profit" },
-              { key: "devices", label: "Devices & Live Telemetry" },
+              { key: "field", label: "Field & Map", icon: Map },
+              { key: "climate", label: "Water, Soil & Climate", icon: Droplets },
+              { key: "rotation", label: "Rotation Plan", icon: Sprout },
+              { key: "markets", label: "Markets & Costs", icon: Coins },
             ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`pb-2.5 text-xs font-medium border-b-2 transition ${
-                tab === t.key
-                  ? "border-[#20808d] text-[#1f1915]"
-                  : "border-transparent text-[#6b675f] hover:text-[#1f1915]"
-              }`}
-            >
-              {t.label}
-              {t.key === "devices" && plotDevices.length > 0 && (
-                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
-              )}
-            </button>
-          ))}
+          ).map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`pb-2.5 text-xs font-medium border-b-2 transition inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  tab === t.key
+                    ? "border-[#20808d] text-[#1f1915]"
+                    : "border-transparent text-[#6b675f] hover:text-[#1f1915]"
+                }`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${tab === t.key ? "text-[#20808d]" : "text-[#6b675f]"}`} />
+                {t.label}
+                {t.key === "field" && plotDevices.length > 0 && (
+                  <span
+                    title="Live ground sensors connected"
+                    className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle"
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* TAB 1: OVERVIEW & CONDITIONS */}
-        {tab === "overview" && (
+        {/* TAB 1: FIELD & MAP */}
+        {tab === "field" && (
+          <div className="space-y-8">
+            {token && (
+              <FieldAndMapSections
+                datasets={nasa.datasets}
+                plotId={plotId}
+                token={token}
+                geometry={plot.geometry}
+                centroid={plot.centroid}
+                loaded={nasa.loaded}
+                total={nasa.total}
+                onNavigateTab={setTab}
+              />
+            )}
+
+            {/* Ground Telemetry (Live Sensors) */}
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between border-b border-[#e7e5e0] pb-1.5">
+                <h2 className="text-[11px] font-mono uppercase tracking-wider text-[#6b675f]">
+                  Ground telemetry · ESP32 field sensors
+                </h2>
+                <span className="text-[10px] font-mono text-[#6b675f]">
+                  {plotDevices.length > 0 ? `${plotDevices.length} board(s) paired` : "Optional ground truth"}
+                </span>
+              </div>
+              <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {isOwner ? (
+                    <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5">
+                      <Cpu className="h-4 w-4 text-[#20808d]" />
+                      <span className="text-xs font-medium">Add Board by S/N:</span>
+                      <Input
+                        value={deviceCodeInput}
+                        onChange={(e) => setDeviceCodeInput(e.target.value)}
+                        placeholder="Enter serial number"
+                        className="h-8 w-52 text-xs font-mono"
+                      />
+                      <Button type="submit" size="sm" className="h-8 text-xs">
+                        Add to Plot
+                      </Button>
+                    </form>
+                  ) : (
+                    <span className="text-xs text-[#6b675f] flex items-center gap-2">
+                      <Cpu className="h-4 w-4 text-[#20808d]" />
+                      Sensors assigned to this plot
+                    </span>
+                  )}
+
+                  {selectedDeviceId && (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${sensorStatus.tone}`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${sensorStatus.dot}`} />
+                        {sensorStatus.label}
+                      </span>
+                      <span className="text-[11px] font-mono text-[#6b675f]">
+                        {livePolling ? "LIVE · 2s" : "PAUSED"}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={simulateProbeDip}
+                      >
+                        Test Probe Dip
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setLivePolling((v) => !v)}
+                      >
+                        {livePolling ? "Pause" : "Resume"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Registered devices selector */}
+                <div className="border-t border-[#e7e5e0] pt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-mono text-[#6b675f] mr-1">
+                    PLOT DEVICES ({plotDevices.length}):
+                  </span>
+                  {plotDevices.length === 0 ? (
+                    <span className="text-xs text-[#6b675f]">
+                      No boards claimed on this plot yet. Enter the physical board serial number above.
+                    </span>
+                  ) : (
+                    plotDevices.map((d) => {
+                      const active = d.device_id === selectedDeviceId;
+                      return (
+                        <div
+                          key={d.device_id}
+                          className={`inline-flex items-center rounded-md border text-xs font-mono transition ${
+                            active
+                              ? "border-[#20808d] bg-[#20808d]/10 text-[#1f1915] font-semibold"
+                              : "border-[#e7e5e0] bg-white text-[#6b675f] hover:border-[#20808d]/50"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDeviceId(d.device_id)}
+                            className="inline-flex items-center gap-2 px-2.5 py-1"
+                          >
+                            <Wifi className={`h-3 w-3 ${active ? "text-emerald-600" : "text-[#6b675f]"}`} />
+                            {d.device_id}
+                            {d.latest_reading && (
+                              <span className="text-[10px] text-[#20808d]">
+                                {d.latest_reading.soil_moisture.toFixed(1)}%
+                              </span>
+                            )}
+                          </button>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDevice(d.device_id)}
+                              title="Remove device from plot"
+                              className="px-1.5 py-1 border-l border-[#e7e5e0] text-[#6b675f] hover:text-rose-700"
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {plotDevices.length > 0 && (
+                <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e7e5e0] pb-3 font-mono tabular-nums">
+                    <div className="flex flex-wrap items-center gap-6 text-sm">
+                      <span>
+                        <strong className="text-[11px] text-[#6b675f] font-normal block">SOIL MOISTURE</strong>
+                        <span className="text-lg font-semibold text-[#20808d]">
+                          {latestReading ? `${latestReading.moisture.toFixed(1)}%` : "—"}
+                        </span>
+                      </span>
+                      <span>
+                        <strong className="text-[11px] text-[#6b675f] font-normal block">AIR HUMIDITY</strong>
+                        <span className="text-lg font-semibold text-[#1f1915]">
+                          {latestReading ? `${latestReading.humidity.toFixed(0)}%` : "—"}
+                        </span>
+                      </span>
+                      <span>
+                        <strong className="text-[11px] text-[#6b675f] font-normal block">TEMPERATURE</strong>
+                        <span className="text-lg font-semibold text-[#d97706]">
+                          {latestReading ? `${latestReading.tempC.toFixed(1)}°C` : "—"}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-[#6b675f]">
+                      {latestReading && latestReading.moisture >= 30 ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      )}
+                      <span>
+                        {latestReading
+                          ? `Last reading ${latestReading.ts} UTC`
+                          : "Waiting for ESP32 readings…"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <svg viewBox="0 0 720 160" className="w-full h-40">
+                    {[0, 25, 50, 75, 100].map((v) => {
+                      const y = 140 - (v / 100) * 120;
+                      return (
+                        <g key={v}>
+                          <line x1={32} y1={y} x2={705} y2={y} stroke="#e7e5e0" strokeWidth={1} />
+                          <text x={26} y={y + 3} textAnchor="end" className="fill-[#6b675f] font-mono text-[9px]">
+                            {v}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    {readings.length > 1 && (
+                      <>
+                        <path
+                          d={readings
+                            .map((r, i) => {
+                              const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
+                              const y = 140 - (r.moisture / 100) * 120;
+                              return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+                            })
+                            .join(" ")}
+                          fill="none"
+                          stroke="#20808d"
+                          strokeWidth={2.2}
+                        />
+                        <path
+                          d={readings
+                            .map((r, i) => {
+                              const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
+                              const y = 140 - (r.humidity / 100) * 120;
+                              return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+                            })
+                            .join(" ")}
+                          fill="none"
+                          stroke="#6b675f"
+                          strokeWidth={1.4}
+                          strokeDasharray="4 3"
+                        />
+                      </>
+                    )}
+                  </svg>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* TAB 2: WATER, SOIL & CLIMATE */}
+        {tab === "climate" && (
           <div className="space-y-6">
             {/* Editorial Headline + Full-width 24-Period Chart */}
             <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-5 space-y-4">
@@ -656,7 +889,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                   topsoil erosion{" "}
                   {erosionNow !== null
                     ? `${erosionRisk} at ${erosionNow.toFixed(1)} t/ha/yr with today's cover.`
-                    : `remains low at ${Number(activeStrategy.erosion_t_ha_yr ?? 1.4).toFixed(1)} t/ha/yr.`}
+                    : "estimate pending."}
                 </p>
                 <p className="text-[11px] font-mono text-[#6b675f]">
                   {realPeriods
@@ -843,37 +1076,16 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
               {/* 1/3 Local Extreme Weather & Field Eyes */}
               <div className="lg:col-span-4 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-3">
                 <h2 className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
-                  5-Year Regional Events &amp; Local Eyes
+                  12-Month Extremes &amp; Local Eyes
                 </h2>
-                {histLoading && !hist && (
-                  <div className="space-y-2 py-1">
-                    <div className="h-3 w-32 rounded bg-[#e7e5e0] animate-pulse" />
-                    <div className="h-4 w-48 rounded bg-[#e7e5e0] animate-pulse" />
-                    <div className="h-3 w-28 rounded bg-[#e7e5e0] animate-pulse" />
-                    <div className="h-4 w-44 rounded bg-[#e7e5e0] animate-pulse" />
-                  </div>
-                )}
-                {hist && (
-                  <div className="divide-y divide-[#e7e5e0] text-xs">
-                    {((pick(hist, "seasons") as Array<Record<string, unknown>>) || []).map((s) => (
-                      <div key={String(s.year)} className="py-1.5 space-y-0.5">
-                        <p className="font-mono text-[10px] text-[#6b675f]">
-                          {String(s.year)}
-                          {s.complete ? "" : " (so far)"} · SATELLITE CROP SIGNATURE
-                        </p>
-                        <p className="text-[#1f1915]">{String(s.crop_group)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
                 {weatherLoading && !wv && (
-                  <div className="space-y-2 py-2 border-t border-[#e7e5e0]">
+                  <div className="space-y-2 py-2">
                     <div className="h-3 w-36 rounded bg-[#e7e5e0] animate-pulse" />
                     <div className="h-4 w-full rounded bg-[#e7e5e0] animate-pulse" />
                   </div>
                 )}
                 {wv && (
-                  <div className="py-2 space-y-0.5 text-xs border-t border-[#e7e5e0]">
+                  <div className="py-1 space-y-1 text-xs">
                     <p className="font-mono text-[10px] text-[#6b675f]">LAST 12 MONTHS · EXTREMES</p>
                     <p className="text-[#1f1915]">
                       Hottest {fmt(hottest, 1, "°C")} ({str(wv, "extremes_last_365_days.hottest_day.date")}), wettest day{" "}
@@ -892,20 +1104,9 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                 </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB: NASA DATA & IMAGERY — every data-api output for this plot */}
-        {tab === "nasa" && token && (
-          <NasaDataTab
-            datasets={nasa.datasets}
-            plotId={plotId}
-            token={token}
-            geometry={plot.geometry}
-            centroid={plot.centroid}
-            loaded={nasa.loaded}
-            total={nasa.total}
-          />
+            <WaterSoilClimateSections datasets={nasa.datasets} />
+          </div>
         )}
 
         {/* TAB 2: ROTATION & PROFIT */}
@@ -917,199 +1118,76 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           />
         )}
 
-        {/* TAB 3: DEVICES & LIVE TELEMETRY */}
-        {tab === "devices" && (
-          <div className="space-y-6">
-            {/* Register + Device List */}
-            <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                {isOwner ? (
-                  <form onSubmit={handlePairDevice} className="flex flex-wrap items-center gap-2.5">
-                    <Cpu className="h-4 w-4 text-[#20808d]" />
-                    <span className="text-xs font-medium">Add Board by S/N:</span>
-                    <Input
-                      value={deviceCodeInput}
-                      onChange={(e) => setDeviceCodeInput(e.target.value)}
-                      placeholder="Enter serial number"
-                      className="h-8 w-52 text-xs font-mono"
-                    />
-                    <Button type="submit" size="sm" className="h-8 text-xs">
-                      Add to Plot
-                    </Button>
-                  </form>
-                ) : (
-                  <span className="text-xs text-[#6b675f] flex items-center gap-2">
-                    <Cpu className="h-4 w-4 text-[#20808d]" />
-                    Sensors assigned to this plot
-                  </span>
-                )}
+        {/* TAB 4: MARKETS & COSTS */}
+        {tab === "markets" && (
+          <div className="space-y-8">
+            <MarketsAndCostsSections datasets={nasa.datasets} />
 
-                {selectedDeviceId && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${sensorStatus.tone}`}
-                    >
-                      <span className={`h-2 w-2 rounded-full ${sensorStatus.dot}`} />
-                      {sensorStatus.label}
-                    </span>
-                    <span className="text-[11px] font-mono text-[#6b675f]">
-                      {livePolling ? "LIVE · 2s" : "PAUSED"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={simulateProbeDip}
-                    >
-                      Test Probe Dip
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setLivePolling((v) => !v)}
-                    >
-                      {livePolling ? "Pause" : "Resume"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Registered devices selector */}
-              <div className="border-t border-[#e7e5e0] pt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-mono text-[#6b675f] mr-1">
-                  PLOT DEVICES ({plotDevices.length}):
+            {/* Farm Cost & Soil Overrides */}
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between border-b border-[#e7e5e0] pb-1.5">
+                <h2 className="text-[11px] font-mono uppercase tracking-wider text-[#6b675f]">
+                  Farm cost &amp; soil overrides
+                </h2>
+                <span className="text-[10px] font-mono text-[#6b675f]">
+                  {isOwner ? "Editable · feeds rotation profit model" : "Read-only"}
                 </span>
-                {plotDevices.length === 0 ? (
-                  <span className="text-xs text-[#6b675f]">
-                    No boards claimed on this plot yet. Enter the physical board serial number above.
-                  </span>
-                ) : (
-                  plotDevices.map((d) => {
-                    const active = d.device_id === selectedDeviceId;
-                    return (
-                      <div
-                        key={d.device_id}
-                        className={`inline-flex items-center rounded-md border text-xs font-mono transition ${
-                          active
-                            ? "border-[#20808d] bg-[#20808d]/10 text-[#1f1915] font-semibold"
-                            : "border-[#e7e5e0] bg-white text-[#6b675f] hover:border-[#20808d]/50"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDeviceId(d.device_id)}
-                          className="inline-flex items-center gap-2 px-2.5 py-1"
-                        >
-                          <Wifi className={`h-3 w-3 ${active ? "text-emerald-600" : "text-[#6b675f]"}`} />
-                          {d.device_id}
-                          {d.latest_reading && (
-                            <span className="text-[10px] text-[#20808d]">
-                              {d.latest_reading.soil_moisture.toFixed(1)}%
-                            </span>
-                          )}
-                        </button>
-                        {isOwner && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveDevice(d.device_id)}
-                            title="Remove device from plot"
-                            className="px-1.5 py-1 border-l border-[#e7e5e0] text-[#6b675f] hover:text-rose-700"
-                          >
-                            &times;
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
               </div>
-            </div>
-
-            {/* Instrument Readout Strip + Single Live Trace */}
-            <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e7e5e0] pb-3 font-mono tabular-nums">
-                <div className="flex flex-wrap items-center gap-6 text-sm">
-                  <span>
-                    <strong className="text-[11px] text-[#6b675f] font-normal block">SOIL MOISTURE</strong>
-                    <span className="text-lg font-semibold text-[#20808d]">
-                      {latestReading ? `${latestReading.moisture.toFixed(1)}%` : "—"}
-                    </span>
-                  </span>
-                  <span>
-                    <strong className="text-[11px] text-[#6b675f] font-normal block">AIR HUMIDITY</strong>
-                    <span className="text-lg font-semibold text-[#1f1915]">
-                      {latestReading ? `${latestReading.humidity.toFixed(0)}%` : "—"}
-                    </span>
-                  </span>
-                  <span>
-                    <strong className="text-[11px] text-[#6b675f] font-normal block">TEMPERATURE</strong>
-                    <span className="text-lg font-semibold text-[#d97706]">
-                      {latestReading ? `${latestReading.tempC.toFixed(1)}°C` : "—"}
-                    </span>
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-[#6b675f]">
-                  {latestReading && latestReading.moisture >= 30 ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  )}
-                  <span>
-                    {latestReading
-                      ? `Last reading ${latestReading.ts} UTC`
-                      : "Waiting for ESP32 readings…"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Single Multi-Trace Live SVG */}
-              <svg viewBox="0 0 720 160" className="w-full h-40">
-                {[0, 25, 50, 75, 100].map((v) => {
-                  const y = 140 - (v / 100) * 120;
-                  return (
-                    <g key={v}>
-                      <line x1={32} y1={y} x2={705} y2={y} stroke="#e7e5e0" strokeWidth={1} />
-                      <text x={26} y={y + 3} textAnchor="end" className="fill-[#6b675f] font-mono text-[9px]">
-                        {v}
-                      </text>
-                    </g>
-                  );
-                })}
-                {readings.length > 1 && (
-                  <>
-                    <path
-                      d={readings
-                        .map((r, i) => {
-                          const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
-                          const y = 140 - (r.moisture / 100) * 120;
-                          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-                        })
-                        .join(" ")}
-                      fill="none"
-                      stroke="#20808d"
-                      strokeWidth={2.2}
+              {isOwner ? (
+                <form
+                  onSubmit={handleSaveOverrides}
+                  className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 flex flex-wrap items-end gap-4"
+                >
+                  <div className="space-y-1 w-32">
+                    <label className="text-[11px] font-mono text-[#6b675f]">Soil pH</label>
+                    <Input
+                      value={phInput}
+                      onChange={(e) => setPhInput(e.target.value)}
+                      placeholder="NASA default"
+                      className="h-8 text-xs font-mono"
                     />
-                    <path
-                      d={readings
-                        .map((r, i) => {
-                          const x = 36 + (i / Math.max(1, readings.length - 1)) * 665;
-                          const y = 140 - (r.humidity / 100) * 120;
-                          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-                        })
-                        .join(" ")}
-                      fill="none"
-                      stroke="#6b675f"
-                      strokeWidth={1.4}
-                      strokeDasharray="4 3"
+                  </div>
+                  <div className="space-y-1 w-40">
+                    <label className="text-[11px] font-mono text-[#6b675f]">Water (€/m³)</label>
+                    <Input
+                      value={waterPrice}
+                      onChange={(e) => setWaterPrice(e.target.value)}
+                      placeholder="Regional default"
+                      className="h-8 text-xs font-mono"
                     />
-                  </>
-                )}
-              </svg>
-            </div>
+                  </div>
+                  <div className="space-y-1 w-40">
+                    <label className="text-[11px] font-mono text-[#6b675f]">Electricity (€/kWh)</label>
+                    <Input
+                      value={elecPrice}
+                      onChange={(e) => setElecPrice(e.target.value)}
+                      placeholder="Eurostat default"
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <Button type="submit" size="sm" className="h-8 text-xs" disabled={savingOverrides}>
+                    {savingOverrides ? "Saving…" : "Save Parameters"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-[#6b675f]"
+                    disabled={savingOverrides}
+                    onClick={handleClearAllOverrides}
+                  >
+                    Clear All
+                  </Button>
+                  <span className="text-[11px] text-[#6b675f]">
+                    Leave any field blank and save to revert to NASA / regional data.
+                  </span>
+                </form>
+              ) : (
+                <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 text-xs text-[#6b675f]">
+                  Using regional Eurostat energy defaults and NASA/SoilGrids soil baseline for this plot.
+                </div>
+              )}
+            </section>
           </div>
         )}
       </main>

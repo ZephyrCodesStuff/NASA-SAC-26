@@ -180,7 +180,7 @@ def build_ingestion_payload(
 
     payload: dict[str, Any] = {
         "parcel_info": {
-            "parcel_id": str(plot.get("id") or "plot"),
+            "parcel_id": str(plot.get("cadastral_ref") or plot.get("label") or plot.get("id") or "plot"),
             "field_name": plot.get("label"),
             "latitude": round(lat, 6),
             "longitude": round(lon, 6),

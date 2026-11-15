@@ -2,16 +2,16 @@
 
 import React, { useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Droplets,
-  Leaf,
+  FlaskConical,
+  Gauge,
   RefreshCw,
-  ShieldAlert,
+  ShieldCheck,
   Sprout,
-  TrendingUp,
+  Table2,
+  ClipboardCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,10 +138,65 @@ function fmtMoney(val: number | undefined | null): string {
   return `${sign}$${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
-function fmtSigned(val: number | undefined | null, digits = 2, suffix = ""): string {
+function fmtCompactMoney(val: number | undefined | null): string {
+  if (val === undefined || val === null || Number.isNaN(val)) return "—";
+  if (Math.abs(val) >= 1000) {
+    return `${val < 0 ? "-" : ""}$${Math.round(Math.abs(val) / 1000)}k`;
+  }
+  return fmtMoney(val);
+}
+
+function fmtSigned(val: number | undefined | null, digits = 1, suffix = ""): string {
   if (val === undefined || val === null || Number.isNaN(val)) return "—";
   const sign = val > 0 ? "+" : "";
   return `${sign}${val.toFixed(digits)}${suffix}`;
+}
+
+/** Highlight key quantitative tokens ($643,983, 568 kg/ha, +149 psi, 29.1 ha, 218%) inside plain prose. */
+function renderHighlightedProse(text: string): React.ReactNode {
+  const regex = /(\$[\d,]+(?:\.\d+)?|[+-]?\d+(?:,\d{3})*(?:\.\d+)?\s?(?:kg\/ha|m³|psi|ha|t\/ha|%))/g;
+  const parts = text.split(regex);
+  return parts.map((part, i) => {
+    if (!part) return null;
+    if (regex.test(part)) {
+      regex.lastIndex = 0;
+      return (
+        <span
+          key={i}
+          className="inline-block bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded font-medium font-mono tabular-nums text-[0.92em]"
+        >
+          {part}
+        </span>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
+function goalPillMeta(s: ThreeYearCultivationPlan): { label: string; metric: string } {
+  const id = (s.strategy_id || "").toLowerCase();
+  const title = (s.strategy_title || "").toLowerCase();
+  const cm = s.cumulative_metrics || {};
+
+  if (id.includes("income") || title.includes("income")) {
+    return { label: "Max Income", metric: fmtCompactMoney(cm.total_net_profit_usd) };
+  }
+  if (id.includes("soil") || title.includes("soil")) {
+    return { label: "Soil Health", metric: fmtNum(cm.cumulative_soil_health_score, 0, "/100") };
+  }
+  if (id.includes("effort") || id.includes("labor") || title.includes("effort") || title.includes("labour")) {
+    return { label: "Least Effort", metric: fmtNum(cm.total_labor_hours, 0, "h") };
+  }
+  if (id.includes("roi") || title.includes("roi")) {
+    return { label: "Highest ROI", metric: fmtNum(cm.cumulative_roi_pct, 0, "%") };
+  }
+  if (id.includes("risk") || title.includes("risk") || title.includes("loss")) {
+    return { label: "Low Risk", metric: fmtNum(cm.composite_loss_risk_score, 0, "/100") };
+  }
+  return {
+    label: s.strategy_title.replace(/\s*Strategy$/i, ""),
+    metric: fmtCompactMoney(cm.total_net_profit_usd),
+  };
 }
 
 export function ProjectionPlanPanel({
@@ -156,7 +211,9 @@ export function ProjectionPlanPanel({
   onRunProjection?: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showProvenance, setShowProvenance] = useState(false);
+  const [showTableDrawer, setShowTableDrawer] = useState(false);
+  const [showChecklistDrawer, setShowChecklistDrawer] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
 
   const strategyList = useMemo<ThreeYearCultivationPlan[]>(() => {
     if (!data?.strategies) return [];
@@ -184,16 +241,20 @@ export function ProjectionPlanPanel({
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="space-y-6 font-sans">
+        <div className="space-y-2 max-w-3xl">
+          <div className="h-4 w-48 rounded bg-[#e7e5e0] animate-pulse" />
+          <div className="h-5 w-full rounded bg-[#e7e5e0] animate-pulse" />
+          <div className="h-5 w-11/12 rounded bg-[#e7e5e0] animate-pulse" />
+        </div>
+        <div className="flex gap-2 flex-wrap">
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 rounded-lg border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />
+            <div key={i} className="h-9 w-36 rounded-full bg-[#e7e5e0] animate-pulse" />
           ))}
         </div>
-        <div className="h-20 rounded-lg border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-64 rounded-lg border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />
+            <div key={i} className="h-52 rounded-xl border border-[#e7e5e0] bg-[#f5f4ef] animate-pulse" />
           ))}
         </div>
       </div>
@@ -202,19 +263,19 @@ export function ProjectionPlanPanel({
 
   if (!data || !active) {
     return (
-      <div className="rounded-lg border border-dashed border-[#e7e5e0] bg-[#fdfbfa] p-6 space-y-3">
+      <div className="rounded-xl border border-dashed border-[#e7e5e0] bg-[#fdfbfa] p-6 font-sans">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Sprout className="h-4 w-4 text-[#20808d]" />
-              <h3 className="font-serif text-base font-semibold">
+              <h3 className="font-serif text-base font-semibold text-[#1f1915]">
                 3-Year Agronomic &amp; Financial Projection
               </h3>
             </div>
-            <p className="text-xs text-[#6b675f] max-w-2xl">
+            <p className="text-sm text-[#6b675f] max-w-2xl leading-relaxed">
               {error
                 ? `Projection endpoint returned: ${error}`
-                : "Awaiting connection to the 3-Year Projection Engine (analytics-api). Once wired, this view compares up to 5 rotation strategies year-by-year across profit, soil organic carbon, compaction, nitrogen credits, irrigation demand, and plain-language risk trade-offs."}
+                : "Awaiting 3-Year Projection Engine output for this plot. Refresh telemetry to run the 5-strategy simulation."}
             </p>
           </div>
           {onRunProjection && (
@@ -237,330 +298,424 @@ export function ProjectionPlanPanel({
   const cm = active.cumulative_metrics || {};
   const years: AnnualGroundImpact[] = [active.year_1, active.year_2, active.year_3].filter(Boolean);
   const advisory = data.gemini_advisory;
+  const briefingText =
+    advisory?.farmer_plain_language_summary || active.strategic_summary || "";
+  const checklistItems =
+    (advisory?.ground_truth_field_checklist?.length ?? 0) > 0
+      ? advisory!.ground_truth_field_checklist!
+      : active.risk_mitigation_actions || [];
 
   return (
-    <div className="space-y-6">
-      {/* Header & Strategy Selector */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <p className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
-              3-Year Projection Strategies ({strategyList.length})
+    <div className="space-y-7 font-sans">
+      {/* 1. Hero: Editorial Briefing (No Card, Straight Prose) */}
+      <div className="flex items-start justify-between gap-6 flex-wrap">
+        <div className="max-w-3xl space-y-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#20808d]">
+            Agronomist Briefing
+            {data.resolved_soil_type ? ` · ${data.resolved_soil_type}` : ""}
+            {data.field_area_ha ? ` · ${data.field_area_ha.toFixed(2)} ha` : ""}
+          </p>
+          {briefingText ? (
+            <p className="text-base leading-relaxed text-[#1f1915]">
+              {renderHighlightedProse(briefingText)}
             </p>
-            {data.resolved_soil_type && (
-              <p className="text-xs text-[#6b675f]">
-                Soil: <span className="text-[#1f1915] font-medium">{data.resolved_soil_type}</span>
-                {data.field_area_ha ? ` · ${data.field_area_ha.toFixed(2)} ha` : ""}
-              </p>
-            )}
-          </div>
-          {onRunProjection && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onRunProjection}
-              className="h-7 text-xs gap-1.5"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Re-run Projection
-            </Button>
+          ) : null}
+          {advisory?.farmer_decision_guide && (
+            <p className="text-sm leading-relaxed text-[#6b675f]">
+              {advisory.farmer_decision_guide}
+            </p>
           )}
         </div>
+        {onRunProjection && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onRunProjection}
+            className="h-8 text-xs gap-1.5 shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Re-run
+          </Button>
+        )}
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* 2. Selector: Horizontal 5-Goal Pill Bar */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {strategyList.map((s) => {
             const isSelected = s.strategy_id === active.strategy_id;
-            const scm = s.cumulative_metrics || {};
+            const pill = goalPillMeta(s);
             return (
               <button
                 key={s.strategy_id}
                 type="button"
                 onClick={() => setSelectedId(s.strategy_id)}
-                className={`text-left rounded-lg border p-3.5 transition space-y-2 ${
+                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium border transition-colors ${
                   isSelected
-                    ? "border-[#20808d] bg-[#fdfbfa] ring-1 ring-[#20808d]"
-                    : "border-[#e7e5e0] bg-[#fdfbfa] hover:border-[#20808d]/50"
+                    ? "bg-[#20808d] text-white border-[#20808d] shadow-sm"
+                    : "bg-[#fdfbfa] text-[#1f1915] border-[#e7e5e0] hover:border-[#20808d]/60"
                 }`}
               >
-                <div className="space-y-0.5">
-                  <p className="font-serif text-sm font-semibold leading-snug">{s.strategy_title}</p>
-                  <p className="text-[11px] font-mono text-[#6b675f] truncate">
-                    {s.rotation_sequence.join(" → ")}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1 border-t border-[#e7e5e0]">
-                  <span className="font-semibold text-[#1f1915]">
-                    {fmtMoney(scm.total_net_profit_usd)}
-                  </span>
-                  <span className="text-[#20808d]">
-                    {fmtNum(scm.cumulative_roi_pct, 1, "% ROI")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#6b675f]">
-                  <span>Soil {fmtNum(scm.cumulative_soil_health_score, 0, "/100")}</span>
-                  <span>Risk {fmtNum(scm.composite_loss_risk_score, 0, "/100")}</span>
-                </div>
+                <span>{pill.label}</span>
+                <span
+                  className={`font-mono tabular-nums text-[11px] px-1.5 py-0.5 rounded-full ${
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : "bg-[#f5f4ef] text-[#6b675f]"
+                  }`}
+                >
+                  {pill.metric}
+                </span>
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* Selected Strategy Cumulative Strip */}
-      <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-3">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h3 className="font-serif text-lg font-semibold">{active.strategy_title}</h3>
-            <p className="text-xs font-mono text-[#20808d]">
-              {active.rotation_sequence.join(" → ")}
-            </p>
-          </div>
+        {/* Full untruncated rotation sequence for the active goal */}
+        <div className="flex flex-wrap items-baseline justify-between gap-2 pt-1">
+          <h3 className="font-serif text-lg font-semibold text-[#1f1915]">
+            {active.rotation_sequence.join(" → ")}
+          </h3>
           {active.core_objective && (
-            <Badge variant="outline" className="text-[11px] font-normal max-w-md truncate">
-              {active.core_objective}
-            </Badge>
+            <span className="text-xs text-[#6b675f]">{active.core_objective}</span>
           )}
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2 border-t border-[#e7e5e0] text-xs font-mono tabular-nums">
-          <div>
-            <p className="text-[10px] text-[#6b675f]">3-YR NET PROFIT</p>
-            <p className="text-sm font-semibold text-[#1f1915]">{fmtMoney(cm.total_net_profit_usd)}</p>
-            <p className="text-[10px] text-[#6b675f]">ROI {fmtNum(cm.cumulative_roi_pct, 1, "%")}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#6b675f]">SOIL CARBON (SOC)</p>
-            <p className="text-sm font-semibold text-[#1f1915]">
-              {fmtSigned(cm.net_soc_change_pct, 3, "%")}
-            </p>
-            <p className="text-[10px] text-[#6b675f]">
-              {fmtNum(cm.initial_soc_pct, 2)}% → {fmtNum(cm.final_soc_pct, 2)}%
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#6b675f]">BIO N FIXED</p>
-            <p className="text-sm font-semibold text-[#1f1915]">
-              {fmtNum(cm.total_biological_n_fixed_kg_ha, 0, " kg/ha")}
-            </p>
-            <p className="text-[10px] text-[#6b675f]">
-              Saved {fmtMoney(cm.synthetic_n_saved_usd)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#6b675f]">IRRIGATION (3 YR)</p>
-            <p className="text-sm font-semibold text-[#1f1915]">
-              {fmtNum(cm.total_irrigation_volume_m3, 0, " m³")}
-            </p>
-            <p className="text-[10px] text-[#6b675f]">
-              Erosion {fmtNum(cm.average_annual_erosion_tons_ha, 2, " t/ha/yr")}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#6b675f]">COMPACTION Δ</p>
-            <p className="text-sm font-semibold text-[#1f1915]">
-              {fmtSigned(cm.net_compaction_change_psi, 1, " psi")}
-            </p>
-            <p className="text-[10px] text-[#6b675f]">
-              {fmtNum(cm.initial_compaction_psi, 0)} → {fmtNum(cm.final_compaction_psi, 0)} psi
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#6b675f]">FIELD OPS (3 YR)</p>
-            <p className="text-sm font-semibold text-[#1f1915]">
-              {fmtNum(cm.total_labor_hours, 0, " hrs")}
-            </p>
-            <p className="text-[10px] text-[#6b675f]">
-              {cm.total_machinery_passes ?? "—"} passes · {fmtNum(cm.total_diesel_liters, 0, " L")}
-            </p>
-          </div>
+      {/* 3. Plan Overview: 4 Headline KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+          <p className="text-xs text-[#6b675f]">3-Year Net Profit</p>
+          <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
+            {fmtMoney(cm.total_net_profit_usd)}
+          </p>
+          <p className="text-xs text-[#20808d] font-mono tabular-nums">
+            {fmtNum(cm.cumulative_roi_pct, 1, "% ROI")}
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+          <p className="text-xs text-[#6b675f]">3-Year Irrigation</p>
+          <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
+            {fmtNum(cm.total_irrigation_volume_m3, 0, " m³")}
+          </p>
+          <p className="text-xs text-[#6b675f] font-mono tabular-nums">
+            Erosion {fmtNum(cm.average_annual_erosion_tons_ha, 2, " t/ha/yr")}
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+          <p className="text-xs text-[#6b675f]">Soil Carbon &amp; Free N</p>
+          <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
+            {fmtSigned(cm.net_soc_change_pct, 3, "% SOC")}
+          </p>
+          <p className="text-xs text-emerald-700 font-mono tabular-nums">
+            +{fmtNum(cm.total_biological_n_fixed_kg_ha, 0, " kg/ha N")} fixed
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] px-4 py-3">
+          <p className="text-xs text-[#6b675f]">Field Labor &amp; Compaction</p>
+          <p className="text-xl font-semibold text-[#1f1915] font-mono tabular-nums mt-0.5">
+            {fmtNum(cm.total_labor_hours, 0, " hrs")}
+          </p>
+          <p className="text-xs text-[#6b675f] font-mono tabular-nums">
+            {fmtSigned(cm.net_compaction_change_psi, 0, " psi")} ·{" "}
+            {cm.total_machinery_passes ?? "—"} passes
+          </p>
         </div>
       </div>
 
-      {/* Year-by-Year Breakdown */}
+      {/* 4. Layer 1: Farmer View — 3-Step Visual Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {years.map((yr) => (
-          <div
-            key={yr.year_index}
-            className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-3 flex flex-col justify-between"
-          >
-            <div className="space-y-2.5">
-              <div className="flex items-start justify-between gap-2">
+        {years.map((yr) => {
+          const irrig = yr.irrigation_water_applied_mm ?? 0;
+          const nBal = yr.nitrogen_balance_kg_ha ?? 0;
+          const compDelta = yr.compaction_change_psi ?? 0;
+
+          const irrigTone =
+            irrig <= 40
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : irrig <= 140
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200";
+          const nTone =
+            nBal >= 0
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : nBal >= -40
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200";
+          const compTone =
+            compDelta <= 0
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : compDelta <= 30
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200";
+
+          return (
+            <div
+              key={yr.year_index}
+              className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] p-4 flex flex-col justify-between gap-3"
+            >
+              <div className="space-y-3">
+                {/* 1. Header */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6b675f]">
+                    Year {yr.year_index}
+                    {yr.season_label ? ` · ${yr.season_label}` : ""}
+                  </span>
+                  <Badge variant="outline" className="font-mono tabular-nums text-xs">
+                    {fmtMoney(yr.net_profit_usd)}
+                  </Badge>
+                </div>
+
+                {/* 2. Crop & Role */}
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#6b675f]">
-                    Year {yr.year_index} {yr.season_label ? `· ${yr.season_label}` : ""}
-                  </p>
-                  <h4 className="font-serif text-base font-semibold">{yr.crop_name}</h4>
+                  <h4 className="font-serif text-base font-semibold text-[#1f1915]">
+                    {yr.crop_name}
+                  </h4>
                   {yr.botanical_family && (
-                    <p className="text-[11px] text-[#6b675f]">{yr.botanical_family}</p>
+                    <p className="text-xs text-[#6b675f]">{yr.botanical_family}</p>
                   )}
                 </div>
-                <Badge variant="outline" className="font-mono text-[11px] tabular-nums">
-                  {fmtMoney(yr.net_profit_usd)}
-                </Badge>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#e7e5e0] text-xs font-mono tabular-nums">
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">Yield</span>
-                  <span>
-                    {fmtNum(yr.projected_yield_tons_ha, 2, " t/ha")}
-                    {yr.total_yield_tons !== undefined ? ` (${fmtNum(yr.total_yield_tons, 1, " t")})` : ""}
+                {/* 3. Three Simple Traffic-Light Status Pills */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium font-mono tabular-nums ${irrigTone}`}
+                  >
+                    <Droplets className="h-3 w-3" />
+                    {fmtNum(irrig, 0, " mm")} irrig
                   </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">ROI / Cost</span>
-                  <span>
-                    {fmtNum(yr.roi_pct, 1, "%")} · {fmtMoney(yr.total_cost_usd)}
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium font-mono tabular-nums ${nTone}`}
+                  >
+                    <FlaskConical className="h-3 w-3" />
+                    {fmtSigned(nBal, 0, " kg/ha")} N
                   </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">Water (ETc / Irrig)</span>
-                  <span>
-                    {fmtNum(yr.water_demand_etc_mm, 0, " mm")} /{" "}
-                    {fmtNum(yr.irrigation_water_applied_mm, 0, " mm")}
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium font-mono tabular-nums ${compTone}`}
+                  >
+                    <Gauge className="h-3 w-3" />
+                    {fmtSigned(compDelta, 0, " psi")}
                   </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">N Balance / Bio-N</span>
-                  <span>
-                    {fmtSigned(yr.nitrogen_balance_kg_ha, 0)} / +{fmtNum(yr.biological_n_fixed_kg_ha, 0, " kg")}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">SOC Δ / Erosion</span>
-                  <span>
-                    {fmtSigned(yr.soc_change_pct, 3, "%")} · {fmtNum(yr.soil_erosion_tons_ha, 2, " t/ha")}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#6b675f] block">Compaction Δ</span>
-                  <span>{fmtSigned(yr.compaction_change_psi, 1, " psi")}</span>
                 </div>
               </div>
 
+              {/* 4. One-Sentence Takeaway */}
               {yr.ground_narrative && (
-                <p className="text-xs text-[#6b675f] leading-relaxed pt-2 border-t border-[#e7e5e0]">
+                <p className="text-xs text-[#6b675f] leading-relaxed pt-2.5 border-t border-[#e7e5e0]">
                   {yr.ground_narrative}
                 </p>
               )}
             </div>
-
-            <div className="flex items-center justify-between text-[11px] font-mono text-[#6b675f] pt-2 border-t border-[#e7e5e0]">
-              <span>Vitality {fmtNum(yr.rhizosphere_vitality_score, 0)}</span>
-              <span>Disease {fmtNum(yr.pathogen_disease_risk_score, 0)}</span>
-              <span>Extreme {fmtNum(yr.extreme_event_vulnerability_score, 0)}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Plain-Language Trade-offs & Local Verification Checklist */}
-      {(advisory || active.strategic_summary || (active.risk_mitigation_actions?.length ?? 0) > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-7 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#20808d]" />
-              <h4 className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
-                Plain-Language Agronomist Trade-Offs
-              </h4>
-            </div>
-            {(advisory?.farmer_plain_language_summary || active.strategic_summary) && (
-              <p className="text-xs text-[#1f1915] leading-relaxed">
-                {advisory?.farmer_plain_language_summary || active.strategic_summary}
-              </p>
-            )}
-            {activeBreakdown && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#e7e5e0] text-xs">
-                {(activeBreakdown.benefits_plain_words?.length ?? 0) > 0 && (
-                  <div className="space-y-1">
-                    <p className="font-mono text-[10px] uppercase text-emerald-700 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Benefits
-                    </p>
-                    <ul className="space-y-1 text-[#1f1915]">
-                      {activeBreakdown.benefits_plain_words!.map((b, i) => (
-                        <li key={i}>• {b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {(activeBreakdown.drawbacks_plain_words?.length ?? 0) > 0 && (
-                  <div className="space-y-1">
-                    <p className="font-mono text-[10px] uppercase text-amber-700 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" /> Trade-offs &amp; Risks
-                    </p>
-                    <ul className="space-y-1 text-[#1f1915]">
-                      {activeBreakdown.drawbacks_plain_words!.map((d, i) => (
-                        <li key={i}>• {d}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+      {/* Strategy Trade-off Highlights (compact prose if available) */}
+      {activeBreakdown &&
+        ((activeBreakdown.benefits_plain_words?.length ?? 0) > 0 ||
+          (activeBreakdown.drawbacks_plain_words?.length ?? 0) > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {(activeBreakdown.benefits_plain_words?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/40 p-3.5 space-y-1">
+                <p className="font-semibold text-emerald-800">Why pick this plan</p>
+                <ul className="space-y-1 text-[#1f1915]">
+                  {activeBreakdown.benefits_plain_words!.map((b, i) => (
+                    <li key={i}>• {b}</li>
+                  ))}
+                </ul>
               </div>
             )}
-            {advisory?.farmer_decision_guide && (
-              <p className="text-xs text-[#6b675f] pt-2 border-t border-[#e7e5e0]">
-                <strong className="text-[#1f1915]">Decision guide:</strong> {advisory.farmer_decision_guide}
-              </p>
-            )}
-          </div>
-
-          <div className="lg:col-span-5 rounded-lg border border-[#e7e5e0] bg-[#fdfbfa] p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-amber-600" />
-              <h4 className="text-xs font-mono uppercase tracking-wider text-[#6b675f]">
-                Where Satellite Data Needs Local Eyes
-              </h4>
-            </div>
-            {(advisory?.ground_truth_field_checklist?.length ?? 0) > 0 ? (
-              <ul className="space-y-1.5 text-xs text-[#1f1915]">
-                {advisory!.ground_truth_field_checklist!.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Leaf className="h-3.5 w-3.5 text-[#20808d] shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (active.risk_mitigation_actions?.length ?? 0) > 0 ? (
-              <ul className="space-y-1.5 text-xs text-[#1f1915]">
-                {active.risk_mitigation_actions!.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Droplets className="h-3.5 w-3.5 text-[#20808d] shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <p className="text-[11px] text-[#6b675f] pt-2 border-t border-[#e7e5e0]">
-              Recommendations support—and do not replace—local agronomist and farmer judgment.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Expandable Sources & Provenance */}
-      <div className="rounded-lg border border-[#e7e5e0] bg-[#fdfbfa]">
-        <button
-          type="button"
-          onClick={() => setShowProvenance((v) => !v)}
-          className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-mono text-[#6b675f] hover:text-[#1f1915]"
-        >
-          <span>How this was calculated &amp; NASA / SoilGrids sources</span>
-          {showProvenance ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        {showProvenance && (
-          <div className="px-4 pb-3 pt-1 border-t border-[#e7e5e0] text-[11px] font-mono text-[#6b675f] space-y-1.5">
-            <p>
-              Deterministic FAO-56 water balance, RUSLE erosion, and IPCC/FAO nitrogen + SOC budgets
-              {advisory?.model_used ? ` · Plain-language summary via ${advisory.model_used}` : ""}
-            </p>
-            {data.data_layering_provenance && (
-              <pre className="whitespace-pre-wrap break-all bg-[#faf9f5] p-2 rounded border border-[#e7e5e0] text-[10px]">
-                {JSON.stringify(data.data_layering_provenance, null, 2)}
-              </pre>
+            {(activeBreakdown.drawbacks_plain_words?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-amber-200/70 bg-amber-50/40 p-3.5 space-y-1">
+                <p className="font-semibold text-amber-800">Trade-offs to watch</p>
+                <ul className="space-y-1 text-[#1f1915]">
+                  {activeBreakdown.drawbacks_plain_words!.map((d, i) => (
+                    <li key={i}>• {d}</li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}
+
+      {/* 5. Layer 2: Collapsible Drawers (Closed by Default) */}
+      <div className="space-y-2.5">
+        {/* Drawer 1: Full Agronomic & Financial Table */}
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowTableDrawer((v) => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between text-xs font-medium text-[#1f1915] hover:bg-[#f5f4ef]/60 transition-colors"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Table2 className="h-4 w-4 text-[#20808d]" />
+              Detailed Year-by-Year Agronomic &amp; Financial Table
+            </span>
+            {showTableDrawer ? <ChevronUp className="h-4 w-4 text-[#6b675f]" /> : <ChevronDown className="h-4 w-4 text-[#6b675f]" />}
+          </button>
+          {showTableDrawer && (
+            <div className="border-t border-[#e7e5e0] overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-[#faf9f5] border-b border-[#e7e5e0] text-[#6b675f]">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">Metric</th>
+                    {years.map((yr) => (
+                      <th key={yr.year_index} className="text-right px-4 py-2 font-medium">
+                        Year {yr.year_index} ({yr.crop_name})
+                      </th>
+                    ))}
+                    <th className="text-right px-4 py-2 font-semibold text-[#1f1915]">3-Year Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e7e5e0] font-mono tabular-nums">
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">Projected Yield (t/ha)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtNum(yr.projected_yield_tons_ha, 2)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold">—</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">Net Profit &amp; ROI</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtMoney(yr.net_profit_usd)} ({fmtNum(yr.roi_pct, 0, "%")})
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold text-[#20808d]">
+                      {fmtMoney(cm.total_net_profit_usd)} ({fmtNum(cm.cumulative_roi_pct, 1, "%")})
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">Water Demand ETc / Irrig (mm)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtNum(yr.water_demand_etc_mm, 0)} / {fmtNum(yr.irrigation_water_applied_mm, 0)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {fmtNum(cm.total_irrigation_volume_m3, 0, " m³")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">N Balance / Bio-N (kg/ha)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtSigned(yr.nitrogen_balance_kg_ha, 0)} / +{fmtNum(yr.biological_n_fixed_kg_ha, 0)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold text-emerald-700">
+                      +{fmtNum(cm.total_biological_n_fixed_kg_ha, 0, " kg/ha")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">SOC Δ &amp; Erosion (t/ha)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtSigned(yr.soc_change_pct, 3, "%")} · {fmtNum(yr.soil_erosion_tons_ha, 2)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {fmtSigned(cm.net_soc_change_pct, 3, "%")} · {fmtNum(cm.average_annual_erosion_tons_ha, 2, " avg")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">Compaction Δ (psi)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtSigned(yr.compaction_change_psi, 1)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {fmtSigned(cm.net_compaction_change_psi, 1, " psi")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-sans text-[#6b675f]">Tractor Hours &amp; Diesel (L)</td>
+                    {years.map((yr) => (
+                      <td key={yr.year_index} className="px-4 py-2 text-right">
+                        {fmtNum(yr.labor_hours_total, 0, "h")} · {fmtNum(yr.fuel_consumed_liters, 0, "L")}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {fmtNum(cm.total_labor_hours, 0, "h")} · {fmtNum(cm.total_diesel_liters, 0, "L")}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Drawer 2: Local Field Verification Checklist & Formula Sources */}
+        <div className="rounded-xl border border-[#e7e5e0] bg-[#fdfbfa] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowChecklistDrawer((v) => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between text-xs font-medium text-[#1f1915] hover:bg-[#f5f4ef]/60 transition-colors"
+          >
+            <span className="inline-flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-[#20808d]" />
+              Local Field Verification Checklist &amp; NASA / SoilGrids Sources
+            </span>
+            {showChecklistDrawer ? <ChevronUp className="h-4 w-4 text-[#6b675f]" /> : <ChevronDown className="h-4 w-4 text-[#6b675f]" />}
+          </button>
+          {showChecklistDrawer && (
+            <div className="px-4 pb-4 pt-3 border-t border-[#e7e5e0] space-y-4">
+              {checklistItems.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-[#1f1915]">
+                    Where Satellite Data Needs Local Eyes
+                  </p>
+                  <div className="space-y-1.5">
+                    {checklistItems.map((item, idx) => (
+                      <label
+                        key={idx}
+                        className="flex items-start gap-2.5 text-xs text-[#1f1915] cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(checkedItems[idx])}
+                          onChange={(e) =>
+                            setCheckedItems((prev) => ({ ...prev, [idx]: e.target.checked }))
+                          }
+                          className="mt-0.5 rounded border-[#e7e5e0] text-[#20808d] focus:ring-[#20808d]"
+                        />
+                        <span className={checkedItems[idx] ? "line-through text-[#6b675f]" : ""}>
+                          {item}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-[#e7e5e0] space-y-1.5 text-xs text-[#6b675f]">
+                <div className="flex items-center gap-1.5 text-[#1f1915] font-medium">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#20808d]" />
+                  <span>Models &amp; Data Provenance</span>
+                </div>
+                <p>
+                  Water balance via FAO-56 (<code className="font-mono">ETc = Kc × ET0</code>),
+                  erosion via RUSLE (<code className="font-mono">A = R · K · LS · C · P</code>),
+                  organic carbon via Henin-Dupuis, and compaction via ASAE machinery load curves
+                  {advisory?.model_used ? ` · Plain-language translation via ${advisory.model_used}` : ""}.
+                </p>
+                <p className="text-[11px]">
+                  Advisory only — recommendations support and do not replace local agronomist and farmer judgment.
+                </p>
+                {data.data_layering_provenance && (
+                  <pre className="whitespace-pre-wrap break-all bg-[#faf9f5] p-2.5 rounded border border-[#e7e5e0] font-mono text-[10px]">
+                    {JSON.stringify(data.data_layering_provenance, null, 2)}
+                  </pre>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

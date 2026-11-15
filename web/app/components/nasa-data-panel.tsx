@@ -266,34 +266,8 @@ function Sparkline({ values }: { values: Array<number | null> }) {
   );
 }
 
-// ---------------------------------------------------------------- the tab
-const NAV = [
-  ["map", "Map"],
-  ["weather", "Weather"],
-  ["water", "Water"],
-  ["crop", "Crop"],
-  ["soil", "Soil & terrain"],
-  ["future", "Future"],
-  ["prices", "Prices"],
-] as const;
-
-export function NasaDataTab({
-  datasets,
-  plotId,
-  token,
-  geometry,
-  centroid,
-  loaded,
-  total,
-}: {
-  datasets: Datasets;
-  plotId: string;
-  token: string;
-  geometry?: Record<string, unknown>;
-  centroid?: { lat: number; lon: number };
-  loaded: number;
-  total: number;
-}) {
+// ---------------------------------------------------------------- shared dataset extraction
+function useNasaExtracted(datasets: Datasets) {
   const w = okValues(datasets.weather);
   const rain = okValues(datasets.rainfall);
   const sm = okValues(datasets.soil_moisture);
@@ -341,6 +315,39 @@ export function NasaDataTab({
   const elecSeries = pick(local, "energy.electricity.MWH500-1999.excl_taxes") as Array<Record<string, unknown>> | undefined;
   const elec = elecSeries?.[elecSeries.length - 1];
 
+  return {
+    w, rain, sm, etf, eta, gw, ch, soil, terr, ero, hist, proj, local, market, fao,
+    ndvi, esi, wet, rain30, normalDay, rainRatio, eroRisk, drought,
+    vText, vTone, tText, tTone, wText, wTone, rText, rTone,
+    topsoil, seasons, curves, spectral, ext, base, p245, p585, elec,
+  };
+}
+
+export function FieldAndMapSections({
+  datasets,
+  plotId,
+  token,
+  geometry,
+  centroid,
+  loaded,
+  total,
+  onNavigateTab,
+}: {
+  datasets: Datasets;
+  plotId: string;
+  token: string;
+  geometry?: Record<string, unknown>;
+  centroid?: { lat: number; lon: number };
+  loaded: number;
+  total: number;
+  onNavigateTab?: (tab: "climate") => void;
+}) {
+  const {
+    ch, hist, ero, ndvi, esi, wet, rain30, eroRisk, drought,
+    vText, vTone, tText, tTone, wText, wTone, rText, rTone,
+    seasons, curves, spectral, p245,
+  } = useNasaExtracted(datasets);
+
   return (
     <div className="space-y-8">
       {/* At a glance */}
@@ -350,119 +357,30 @@ export function NasaDataTab({
           <span className="text-[11px] font-mono text-[#6b675f]">
             {loaded < total ? (
               <span className="inline-flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> loading NASA data {loaded}/{total}
+                <Loader2 className="h-3 w-3 animate-spin" /> loading satellite data {loaded}/{total}
               </span>
             ) : (
-              `${total} NASA & open datasets`
+              `${total} satellite & open datasets`
             )}
           </span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <GlanceTile icon={Leaf} question="Are the plants healthy?" ds={datasets.crop_health} verdict={vText} tone={vTone} value={`NDVI ${fmt(ndvi, 2)}`} href="#crop" />
-          <GlanceTile icon={Droplets} question="Are they thirsty?" ds={datasets.evapotranspiration_field} verdict={tText} tone={tTone} value={`stress index ${fmt(esi, 2)}`} href="#water" />
-          <GlanceTile icon={Waves} question="Is the soil wet?" ds={datasets.soil_moisture} verdict={wText} tone={wTone} value={`${fmt(wet !== null ? wet * 100 : null, 0)}% of saturation`} href="#water" />
-          <GlanceTile icon={CloudRain} question="Enough rain lately?" ds={datasets.weather} verdict={rText} tone={rTone} value={`${fmt(rain30, 0)} mm in 30 days`} href="#weather" />
-          <GlanceTile icon={Mountain} question="Is soil washing away?" ds={datasets.erosion} verdict={eroRisk ? `${cap(eroRisk)} erosion` : "—"} tone={riskTone(eroRisk)} value={`${fmt(num(ero, "soil_loss_current_cover_t_ha_yr"), 1)} t/ha/yr`} href="#soil" />
-          <GlanceTile icon={TrendingUp} question="Drought by 2050?" ds={datasets.climate_projection} verdict={drought ? `${cap(drought)} risk` : "—"} tone={riskTone(drought)} value={`water balance ${fmt(num(p245, "water_balance_change_mm"), 0)} mm`} href="#future" />
+          <div onClick={() => onNavigateTab?.("climate")} className="contents">
+            <GlanceTile icon={Droplets} question="Are they thirsty?" ds={datasets.evapotranspiration_field} verdict={tText} tone={tTone} value={`stress index ${fmt(esi, 2)}`} href="#water" />
+            <GlanceTile icon={Waves} question="Is the soil wet?" ds={datasets.soil_moisture} verdict={wText} tone={wTone} value={`${fmt(wet !== null ? wet * 100 : null, 0)}% of saturation`} href="#water" />
+            <GlanceTile icon={CloudRain} question="Enough rain lately?" ds={datasets.weather} verdict={rText} tone={rTone} value={`${fmt(rain30, 0)} mm in 30 days`} href="#weather" />
+            <GlanceTile icon={Mountain} question="Is soil washing away?" ds={datasets.erosion} verdict={eroRisk ? `${cap(eroRisk)} erosion` : "—"} tone={riskTone(eroRisk)} value={`${fmt(num(ero, "soil_loss_current_cover_t_ha_yr"), 1)} t/ha/yr`} href="#soil" />
+            <GlanceTile icon={TrendingUp} question="Drought by 2050?" ds={datasets.climate_projection} verdict={drought ? `${cap(drought)} risk` : "—"} tone={riskTone(drought)} value={`water balance ${fmt(num(p245, "water_balance_change_mm"), 0)} mm`} href="#future" />
+          </div>
         </div>
       </div>
-
-      {/* Section nav */}
-      <nav className="sticky top-[52px] z-10 -mx-1 px-1 py-2 bg-[#faf9f5]/95 backdrop-blur flex gap-1.5 overflow-x-auto">
-        {NAV.map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#e7e5e0] bg-white px-3 py-1 text-xs hover:border-[#20808d] hover:text-[#20808d]">
-            {label}
-          </a>
-        ))}
-      </nav>
 
       <Section id="map" icon={Sun} title="Satellite views" lead="Pick a view to see it over your field.">
         <NasaLayerMap key={plotId} plotId={plotId} token={token} geometry={geometry} centroid={centroid} />
       </Section>
 
-      <Section id="weather" icon={ThermometerSun} title="Weather" lead="NASA POWER, surrounding ~50 km.">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card title="Right now" subtitle={`Latest full day · ${str(w, "latest.date") || ""}`} ds={datasets.weather}
-            details={<>
-              <Row k="Min / max" v={`${fmt(num(w, "latest.T2M_MIN"))} / ${fmt(num(w, "latest.T2M_MAX"), 1, " °C")}`} />
-              <Row k="Dew point" v={fmt(num(w, "latest.T2MDEW"), 1, " °C")} />
-              <Row k="Wind (max)" v={`${fmt(num(w, "latest.WS2M"))} (${fmt(num(w, "latest.WS2M_MAX"))}) m/s`} />
-              <Row k="Solar radiation" v={fmt(num(w, "latest.ALLSKY_SFC_SW_DWN"), 1, " MJ/m²")} />
-              <Row k="Day length range" v={`${fmt(num(w, "today.daylight_h_shortest_day"))}–${fmt(num(w, "today.daylight_h_longest_day"), 1, " h")}`} />
-            </>}>
-            <div className="grid grid-cols-3 gap-3">
-              <Metric label="Temperature" value={fmt(num(w, "latest.T2M"), 1, "°")} />
-              <Metric label="Humidity" value={fmt(num(w, "latest.RH2M"), 0, "%")} />
-              <Metric label="Daylight" value={fmt(num(w, "today.daylight_h"), 1, " h")} />
-            </div>
-          </Card>
-          <Card title="Last 30 days" subtitle="Compared with the 1991–2020 average" ds={datasets.weather} verdict={<Chip text={rText} tone={rTone} />}
-            details={<>
-              <Row k="Rain last 7 days" v={fmt(num(w, "last_7_days.precip_mm"), 0, " mm")} />
-              <Row k="Normal mean temperature" v={fmt(num(w, "last_30_days.normal_t_mean_c_this_month"), 1, " °C")} />
-              <Row k="Humidity" v={fmt(num(w, "last_30_days.rh_mean_pct"), 0, " %")} />
-              <Row k="Sunshine (1 = cloudless)" v={fmt(num(w, "last_30_days.sunshine_fraction"), 2)} />
-              <Row k="Evapotranspiration" v={fmt(num(w, "last_30_days.evapotranspiration_mm"), 0, " mm")} />
-              <Row k="Growing degree days since 1 Jan" v={fmt(num(w, "gdd_since_jan1.value"), 0, " °C·d")} />
-            </>}>
-            <div className="grid grid-cols-3 gap-3">
-              <Metric label="Rain" value={fmt(rain30, 0, " mm")} />
-              <Metric label="Normal" value={fmt(normalDay !== null ? normalDay * 30 : null, 0, " mm")} />
-              <Metric label="Mean temp" value={fmt(num(w, "last_30_days.t_mean_c"), 1, "°")} />
-            </div>
-          </Card>
-          <Card title="Extremes this year" subtitle="Last 365 days" ds={datasets.weather}
-            details={<>
-              <Row k="Windiest day" v={`${fmt(num(ext, "windiest_day.wind_max_ms"), 1, " m/s")} · ${str(ext, "windiest_day.date") || ""}`} />
-              <Row k="Heavy-rain days (≥ 30 mm)" v={num(ext, "heavy_rain_days_over_30mm") ?? "—"} />
-              <Row k="Gale days" v={num(ext, "gale_days_wind_over_10_8ms") ?? "—"} />
-              <Row k="Total rain" v={fmt(num(ext, "total_precip_mm"), 0, " mm")} />
-            </>}>
-            <div className="grid grid-cols-2 gap-3">
-              <Metric label={`Hottest · ${str(ext, "hottest_day.date")?.slice(5) || ""}`} value={fmt(num(ext, "hottest_day.t_max_c"), 1, "°")} tone="bad" />
-              <Metric label={`Coldest · ${str(ext, "coldest_night.date")?.slice(5) || ""}`} value={fmt(num(ext, "coldest_night.t_min_c"), 1, "°")} tone="neutral" />
-              <Metric label="Frost / heat days" value={`${num(ext, "frost_days") ?? "—"} / ${num(ext, "heat_days_over_35c") ?? "—"}`} />
-              <Metric label="Longest dry spell" value={fmt(num(ext, "longest_dry_spell_days"), 0, " d")} />
-            </div>
-          </Card>
-        </div>
-      </Section>
-
-      <Section id="water" icon={Droplets} title="Water" lead="Rain, soil moisture, crop thirst and groundwater.">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card title="Rainfall" subtitle="Satellite, ~10 km" ds={datasets.rainfall}
-            details={<Row k="Last day" v={`${fmt(num(rain, "latest_day.precip_mm"), 1, " mm")} · ${str(rain, "latest_day.date") || ""}`} />}>
-            <div className="grid grid-cols-2 gap-3">
-              <Metric label="Last 7 days" value={fmt(num(rain, "total_7d_mm"), 0, " mm")} />
-              <Metric label="Dry days in a row" value={num(rain, "consecutive_dry_days") ?? "—"} />
-            </div>
-          </Card>
-          <Card title="Soil moisture" subtitle="Root zone, 0–100 cm" ds={datasets.soil_moisture} verdict={<Chip text={wText} tone={wTone} />}
-            details={<>
-              <Row k="Surface 0–5 cm" v={fmt(num(sm, "surface_m3m3"), 3, " m³/m³")} />
-              <Row k="Root zone" v={fmt(num(sm, "rootzone_m3m3"), 3, " m³/m³")} />
-            </>}>
-            <Metric label="Wetness" value={fmt(wet !== null ? wet * 100 : null, 0, "%")} tone={wTone} hint="% of saturation" />
-          </Card>
-          <Card title="Crop thirst" subtitle="Measured on your field" ds={datasets.evapotranspiration_field} verdict={<Chip text={tText} tone={tTone} />}
-            details={<>
-              <Row k="Evaporative stress index" v={fmt(num(etf, "esi.mean"), 2)} hint="actual / potential ET; 1 = no stress" />
-              <Row k="Surface temperature" v={fmt(num(etf, "lst.mean"), 1, " °C")} />
-              <Row k="Area ET / potential (MODIS)" v={`${fmt(num(eta, "et_mm_8day"), 1)} / ${fmt(num(eta, "pet_mm_8day"), 1, " mm per 8 d")}`} />
-            </>}>
-            <Metric label="Water used by the crop" value={fmt(num(etf, "et_daily.mean"), 1, " mm/day")} />
-          </Card>
-          <Card title="Groundwater" subtitle="Regional, ~300 km" ds={datasets.groundwater} verdict={<Chip text={cap(str(gw, "interpretation"))} tone={riskTone(str(gw, "interpretation"))} />}
-            details={<>
-              <Row k="Anomaly" v={`${fmt(num(gw, "latest.anomaly_cm"), 1, " cm")} · ${str(gw, "latest.month") || ""}`} />
-              <Row k="Percentile vs same month" v={fmt(num(gw, "percentile_vs_same_month_all_years"), 0)} />
-            </>}>
-            <Metric label="Change in 12 months" value={fmt(num(gw, "trend_last_12_months_cm"), 1, " cm")} />
-          </Card>
-        </div>
-      </Section>
-
-      <Section id="crop" icon={Sprout} title="Crop" lead="Health today and what grew here before.">
+      <Section id="crop" icon={Sprout} title="Crop vigour & 5-year history" lead="Health today and what grew here before.">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card title="Crop health today" subtitle={`${str(ch, "sensor") || ""} · ${str(ch, "date") || ""}`} ds={datasets.crop_health} verdict={<Chip text={vText} tone={vTone} />}
             details={<>
@@ -508,6 +426,52 @@ export function NasaDataTab({
           <SpectralHistoryChart points={spectral} />
         </Card>
       </Section>
+    </div>
+  );
+}
+
+export function WaterSoilClimateSections({ datasets }: { datasets: Datasets }) {
+  const {
+    w, rain, rain30, normalDay, sm, etf, eta, gw, terr, ero,
+    tText, tTone, wText, wTone, rText, rTone, eroRisk, drought,
+    topsoil, ext, base, p245, p585,
+  } = useNasaExtracted(datasets);
+
+  return (
+    <div className="space-y-8">
+      <Section id="water" icon={Droplets} title="Water" lead="Rain, soil moisture, crop thirst and groundwater.">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card title="Rainfall" subtitle="Satellite, ~10 km" ds={datasets.rainfall}
+            details={<Row k="Last day" v={`${fmt(num(rain, "latest_day.precip_mm"), 1, " mm")} · ${str(rain, "latest_day.date") || ""}`} />}>
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Last 7 days" value={fmt(num(rain, "total_7d_mm"), 0, " mm")} />
+              <Metric label="Dry days in a row" value={num(rain, "consecutive_dry_days") ?? "—"} />
+            </div>
+          </Card>
+          <Card title="Soil moisture" subtitle="Root zone, 0–100 cm" ds={datasets.soil_moisture} verdict={<Chip text={wText} tone={wTone} />}
+            details={<>
+              <Row k="Surface 0–5 cm" v={fmt(num(sm, "surface_m3m3"), 3, " m³/m³")} />
+              <Row k="Root zone" v={fmt(num(sm, "rootzone_m3m3"), 3, " m³/m³")} />
+            </>}>
+            <Metric label="Wetness" value={fmt(num(sm, "rootzone_wetness") !== null ? num(sm, "rootzone_wetness")! * 100 : null, 0, "%")} tone={wTone} hint="% of saturation" />
+          </Card>
+          <Card title="Crop thirst" subtitle="Measured on your field" ds={datasets.evapotranspiration_field} verdict={<Chip text={tText} tone={tTone} />}
+            details={<>
+              <Row k="Evaporative stress index" v={fmt(num(etf, "esi.mean"), 2)} hint="actual / potential ET; 1 = no stress" />
+              <Row k="Surface temperature" v={fmt(num(etf, "lst.mean"), 1, " °C")} />
+              <Row k="Area ET / potential (MODIS)" v={`${fmt(num(eta, "et_mm_8day"), 1)} / ${fmt(num(eta, "pet_mm_8day"), 1, " mm per 8 d")}`} />
+            </>}>
+            <Metric label="Water used by the crop" value={fmt(num(etf, "et_daily.mean"), 1, " mm/day")} />
+          </Card>
+          <Card title="Groundwater" subtitle="Regional, ~300 km" ds={datasets.groundwater} verdict={<Chip text={cap(str(gw, "interpretation"))} tone={riskTone(str(gw, "interpretation"))} />}
+            details={<>
+              <Row k="Anomaly" v={`${fmt(num(gw, "latest.anomaly_cm"), 1, " cm")} · ${str(gw, "latest.month") || ""}`} />
+              <Row k="Percentile vs same month" v={fmt(num(gw, "percentile_vs_same_month_all_years"), 0)} />
+            </>}>
+            <Metric label="Change in 12 months" value={fmt(num(gw, "trend_last_12_months_cm"), 1, " cm")} />
+          </Card>
+        </div>
+      </Section>
 
       <Section id="soil" icon={Mountain} title="Soil & terrain" lead="Texture, nutrients, slope and erosion.">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -551,8 +515,54 @@ export function NasaDataTab({
         </div>
       </Section>
 
-      <Section id="future" icon={TrendingUp} title="Future climate" lead="2000s vs 2050s, NASA NEX-GDDP-CMIP6, ~25 km.">
-        <Card title="How the 2050s could look" subtitle="Middle-of-the-road scenario (SSP2-4.5); grey = 2000s, orange = 2050s" ds={datasets.climate_projection}
+      <Section id="weather" icon={ThermometerSun} title="Weather & 2050 outlook" lead="Current conditions, 30-day anomalies, and CMIP6 projections.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card title="Right now" subtitle={`Latest full day · ${str(w, "latest.date") || ""}`} ds={datasets.weather}
+            details={<>
+              <Row k="Min / max" v={`${fmt(num(w, "latest.T2M_MIN"))} / ${fmt(num(w, "latest.T2M_MAX"), 1, " °C")}`} />
+              <Row k="Dew point" v={fmt(num(w, "latest.T2MDEW"), 1, " °C")} />
+              <Row k="Wind (max)" v={`${fmt(num(w, "latest.WS2M"))} (${fmt(num(w, "latest.WS2M_MAX"))}) m/s`} />
+              <Row k="Solar radiation" v={fmt(num(w, "latest.ALLSKY_SFC_SW_DWN"), 1, " MJ/m²")} />
+              <Row k="Day length range" v={`${fmt(num(w, "today.daylight_h_shortest_day"))}–${fmt(num(w, "today.daylight_h_longest_day"), 1, " h")}`} />
+            </>}>
+            <div className="grid grid-cols-3 gap-3">
+              <Metric label="Temperature" value={fmt(num(w, "latest.T2M"), 1, "°")} />
+              <Metric label="Humidity" value={fmt(num(w, "latest.RH2M"), 0, "%")} />
+              <Metric label="Daylight" value={fmt(num(w, "today.daylight_h"), 1, " h")} />
+            </div>
+          </Card>
+          <Card title="Last 30 days" subtitle="Compared with the 1991–2020 average" ds={datasets.weather} verdict={<Chip text={rText} tone={rTone} />}
+            details={<>
+              <Row k="Rain last 7 days" v={fmt(num(w, "last_7_days.precip_mm"), 0, " mm")} />
+              <Row k="Normal mean temperature" v={fmt(num(w, "last_30_days.normal_t_mean_c_this_month"), 1, " °C")} />
+              <Row k="Humidity" v={fmt(num(w, "last_30_days.rh_mean_pct"), 0, " %")} />
+              <Row k="Sunshine (1 = cloudless)" v={fmt(num(w, "last_30_days.sunshine_fraction"), 2)} />
+              <Row k="Evapotranspiration" v={fmt(num(w, "last_30_days.evapotranspiration_mm"), 0, " mm")} />
+              <Row k="Growing degree days since 1 Jan" v={fmt(num(w, "gdd_since_jan1.value"), 0, " °C·d")} />
+            </>}>
+            <div className="grid grid-cols-3 gap-3">
+              <Metric label="Rain" value={fmt(rain30, 0, " mm")} />
+              <Metric label="Normal" value={fmt(normalDay !== null ? normalDay * 30 : null, 0, " mm")} />
+              <Metric label="Mean temp" value={fmt(num(w, "last_30_days.t_mean_c"), 1, "°")} />
+            </div>
+          </Card>
+          <Card title="Extremes this year" subtitle="Last 365 days" ds={datasets.weather}
+            details={<>
+              <Row k="Windiest day" v={`${fmt(num(ext, "windiest_day.wind_max_ms"), 1, " m/s")} · ${str(ext, "windiest_day.date") || ""}`} />
+              <Row k="Heavy-rain days (≥ 30 mm)" v={num(ext, "heavy_rain_days_over_30mm") ?? "—"} />
+              <Row k="Gale days" v={num(ext, "gale_days_wind_over_10_8ms") ?? "—"} />
+              <Row k="Total rain" v={fmt(num(ext, "total_precip_mm"), 0, " mm")} />
+            </>}>
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label={`Hottest · ${str(ext, "hottest_day.date")?.slice(5) || ""}`} value={fmt(num(ext, "hottest_day.t_max_c"), 1, "°")} tone="bad" />
+              <Metric label={`Coldest · ${str(ext, "coldest_night.date")?.slice(5) || ""}`} value={fmt(num(ext, "coldest_night.t_min_c"), 1, "°")} tone="neutral" />
+              <Metric label="Frost / heat days" value={`${num(ext, "frost_days") ?? "—"} / ${num(ext, "heat_days_over_35c") ?? "—"}`} />
+              <Metric label="Longest dry spell" value={fmt(num(ext, "longest_dry_spell_days"), 0, " d")} />
+            </div>
+          </Card>
+        </div>
+
+        <Card title="2050s Climate Shift" subtitle="Middle-of-the-road scenario (SSP2-4.5); grey = 2000s, orange = 2050s" ds={datasets.climate_projection}
           verdict={drought ? <Chip text={`Drought risk: ${drought}`} tone={riskTone(drought)} /> : undefined}
           details={<>
             <p className="text-[11px] text-[#6b675f] pb-1">High-emissions scenario (SSP5-8.5), 2050s:</p>
@@ -569,47 +579,53 @@ export function NasaDataTab({
           </div>
         </Card>
       </Section>
-
-      <Section id="prices" icon={TrendingUp} title="Prices" lead="What you could earn and what inputs cost.">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card title="Farm-gate crop prices" subtitle={`${str(local, "country.name") || "Country"} · Eurostat`} ds={datasets.local_prices}>
-            {((pick(local, "crop_selling_prices") as Array<Record<string, unknown>>) || [])
-              .filter((c) => /wheat|maize|rice|barley|soya|sunflower|rape/i.test(String(c.crop)))
-              .slice(0, 7)
-              .map((c) => (
-                <Row key={String(c.crop)} k={String(c.crop)} v={`€${fmt(num(c, "latest.eur_per_t"), 0)}/t · ${str(c, "latest.year") || ""}`} />
-              ))}
-          </Card>
-          <Card title="Your input costs" subtitle="National averages, before taxes" ds={datasets.local_prices}>
-            <div className="grid grid-cols-3 gap-3">
-              <Metric label="Electricity" value={elec ? `€${fmt(num(elec, "price"), 3)}` : "—"} hint="per kWh, large farm" />
-              <Metric label="Diesel" value={`€${fmt(num(local, "fuel.diesel.latest_without_taxes.eur_per_litre"), 2)}`} hint="per litre, without taxes (farm diesel is tax-reduced)" />
-              <Metric label="Gas" value={(() => {
-                const s = pick(local, "energy.natural_gas.GJ1000-9999.excl_taxes") as Array<Record<string, unknown>> | undefined;
-                return s?.length ? `€${fmt(num(s[s.length - 1], "price"), 3)}` : "—";
-              })()} hint="per kWh, greenhouse heating scale" />
-            </div>
-            <p className="text-[11px] text-[#6b675f]">Water and seed prices: enter your own in Soil &amp; Utility Inputs.</p>
-          </Card>
-          <Card title="World market" subtitle="World Bank, monthly · change vs a year ago" ds={datasets.market_prices}
-            details={<>
-              {((pick(fao, "crops") as Array<Record<string, unknown>>) || []).slice(0, 8).map((c) => (
-                <Row key={String(c.crop)} k={`${String(c.crop)} (national yield)`} v={fmt(num(c, "latest.yield_kg_per_ha") !== null ? num(c, "latest.yield_kg_per_ha")! / 1000 : null, 1, " t/ha")} />
-              ))}
-            </>}>
-            {Object.entries(market || {})
-              .filter(([k]) => ["crude_oil_brent", "urea", "dap", "maize", "wheat_us_hrw", "rice_thai_5pct"].includes(k))
-              .map(([k, v]) => {
-                const ch12 = num(v, "change_12m_pct");
-                return (
-                  <Row key={k} k={str(v, "name") || k}
-                    v={<>{fmt(num(v, "latest.price"), 0)} <span className="text-[#6b675f]">{str(v, "unit")}</span>{" "}
-                      <span className={ch12 !== null && ch12 >= 0 ? "text-rose-700" : "text-emerald-700"}>{ch12 !== null ? `${ch12 >= 0 ? "▲" : "▼"}${Math.abs(ch12).toFixed(0)}%` : ""}</span></>} />
-                );
-              })}
-          </Card>
-        </div>
-      </Section>
     </div>
+  );
+}
+
+export function MarketsAndCostsSections({ datasets }: { datasets: Datasets }) {
+  const { local, market, fao, elec } = useNasaExtracted(datasets);
+
+  return (
+    <Section id="prices" icon={TrendingUp} title="Market benchmarks & input costs" lead="Farm-gate crop prices, national energy rates, and world commodities.">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card title="Farm-gate crop prices" subtitle={`${str(local, "country.name") || "Country"} · Eurostat`} ds={datasets.local_prices}>
+          {((pick(local, "crop_selling_prices") as Array<Record<string, unknown>>) || [])
+            .filter((c) => /wheat|maize|rice|barley|soya|sunflower|rape/i.test(String(c.crop)))
+            .slice(0, 7)
+            .map((c) => (
+              <Row key={String(c.crop)} k={String(c.crop)} v={`€${fmt(num(c, "latest.eur_per_t"), 0)}/t · ${str(c, "latest.year") || ""}`} />
+            ))}
+        </Card>
+        <Card title="Your input costs" subtitle="National averages, before taxes" ds={datasets.local_prices}>
+          <div className="grid grid-cols-3 gap-3">
+            <Metric label="Electricity" value={elec ? `€${fmt(num(elec, "price"), 3)}` : "—"} hint="per kWh, large farm" />
+            <Metric label="Diesel" value={`€${fmt(num(local, "fuel.diesel.latest_without_taxes.eur_per_litre"), 2)}`} hint="per litre, without taxes (farm diesel is tax-reduced)" />
+            <Metric label="Gas" value={(() => {
+              const s = pick(local, "energy.natural_gas.GJ1000-9999.excl_taxes") as Array<Record<string, unknown>> | undefined;
+              return s?.length ? `€${fmt(num(s[s.length - 1], "price"), 3)}` : "—";
+            })()} hint="per kWh, greenhouse heating scale" />
+          </div>
+          <p className="text-[11px] text-[#6b675f]">Override your farm&apos;s exact utility and soil pH values below.</p>
+        </Card>
+        <Card title="World market" subtitle="World Bank, monthly · change vs a year ago" ds={datasets.market_prices}
+          details={<>
+            {((pick(fao, "crops") as Array<Record<string, unknown>>) || []).slice(0, 8).map((c) => (
+              <Row key={String(c.crop)} k={`${String(c.crop)} (national yield)`} v={fmt(num(c, "latest.yield_kg_per_ha") !== null ? num(c, "latest.yield_kg_per_ha")! / 1000 : null, 1, " t/ha")} />
+            ))}
+          </>}>
+          {Object.entries(market || {})
+            .filter(([k]) => ["crude_oil_brent", "urea", "dap", "maize", "wheat_us_hrw", "rice_thai_5pct"].includes(k))
+            .map(([k, v]) => {
+              const ch12 = num(v, "change_12m_pct");
+              return (
+                <Row key={k} k={str(v, "name") || k}
+                  v={<>{fmt(num(v, "latest.price"), 0)} <span className="text-[#6b675f]">{str(v, "unit")}</span>{" "}
+                    <span className={ch12 !== null && ch12 >= 0 ? "text-rose-700" : "text-emerald-700"}>{ch12 !== null ? `${ch12 >= 0 ? "▲" : "▼"}${Math.abs(ch12).toFixed(0)}%` : ""}</span></>} />
+              );
+            })}
+        </Card>
+      </div>
+    </Section>
   );
 }
