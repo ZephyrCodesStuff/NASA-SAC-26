@@ -244,7 +244,7 @@ TRANSLATION & FORMATTING GUIDELINES:
                     "you have significant capital tied up in seed, fertilizer, and irrigation water."
                 ),
                 expected_rewards=(
-                    f"Peak cumulative profit of ${p_inc.cumulative_metrics.total_net_profit_usd:,.2f} and a healthy 58% ROI."
+                    f"Peak cumulative profit of ${p_inc.cumulative_metrics.total_net_profit_usd:,.2f} and a {p_inc.cumulative_metrics.cumulative_roi_pct:.1f}% ROI."
                 ),
                 three_year_action_overview=(
                     f"Year 1: Plant {p_inc.rotation_sequence[0]}, fertilize for high yield, and manage moisture. "
@@ -319,8 +319,8 @@ TRANSLATION & FORMATTING GUIDELINES:
                 ),
                 three_year_action_overview=(
                     f"Year 1: Plant {p_roi.rotation_sequence[0]} with targeted fertilizer. "
-                    f"Year 2: Rotate to {p_roi.rotation_sequence[1]} to break pest cycles and leave free organic nitrogen in the ground. "
-                    f"Year 3: Plant {p_roi.rotation_sequence[2]} using zero synthetic nitrogen thanks to the Year 2 legume credit, saving over $4,000."
+                    f"Year 2: Rotate to {p_roi.rotation_sequence[1]} to break pest cycles and leave biological or scavenged nitrogen in the soil. "
+                    f"Year 3: Plant {p_roi.rotation_sequence[2]} tapering synthetic nitrogen by the Year 2 residual N credit, saving ${p_roi.cumulative_metrics.synthetic_n_saved_usd:,.0f}."
                 )
             ),
             StrategyPlainLanguageBreakdown(
@@ -360,10 +360,10 @@ TRANSLATION & FORMATTING GUIDELINES:
 
         risk_reward = (
             "RISK VS. REWARD COMPARISON:\n"
-            "- High-Reward / High-Investment ('Most Income'): You invest ~$68k upfront to chase ~$40k net profit. If weather is normal, you win big; if weather fails, high input costs hurt.\n"
-            "- High-Efficiency / Low-Exposure ('Highest ROI'): You spend ~$57k to earn ~$37k profit. You risk less cash out of pocket while capturing 65% returns.\n"
-            "- Low-Stress / Low-Labor ('Least Effort'): Lowest time demand (212 hrs). You sacrifice subsoil bio-drilling to gain lifestyle freedom and steady profits.\n"
-            "- Low-Risk / Maximum Resilience ('Least Crop Loss Risk'): Lowest risk score (22.8/100). You give up peak speculative profit to guarantee you never face catastrophic crop failure."
+            f"- High-Reward / High-Investment ('Most Income'): Invests ${p_inc.cumulative_metrics.total_cost_usd:,.0f} upfront for ${p_inc.cumulative_metrics.total_net_profit_usd:,.0f} projected net profit ({p_inc.cumulative_metrics.cumulative_roi_pct:.1f}% ROI).\n"
+            f"- High-Efficiency / Low-Exposure ('Highest ROI'): Spends ${p_roi.cumulative_metrics.total_cost_usd:,.0f} to return ${p_roi.cumulative_metrics.total_net_profit_usd:,.0f} ({p_roi.cumulative_metrics.cumulative_roi_pct:.1f}% ROI).\n"
+            f"- Low-Stress / Low-Labor ('Least Effort'): Lowest fieldwork load ({p_lab.cumulative_metrics.total_labor_hours:.0f} hrs, {p_lab.cumulative_metrics.total_machinery_passes} tractor passes) with ${p_lab.cumulative_metrics.total_net_profit_usd:,.0f} net profit.\n"
+            f"- Low-Risk / Maximum Resilience ('Least Crop Loss Risk'): Lowest site-weighted loss score ({p_risk.cumulative_metrics.composite_loss_risk_score:.1f}/100) while returning ${p_risk.cumulative_metrics.total_net_profit_usd:,.0f}."
         )
 
         decision_guide = (
@@ -408,8 +408,8 @@ TRANSLATION & FORMATTING GUIDELINES:
         )
 
         soil_narrative = (
-            f"Year 1 establishes root structure. Year 2 leverages biological carryover, leaving 50-120 kg/ha of organic nitrogen. "
-            f"Year 3 consolidates soil organic matter, stabilizing subsoil compaction below the 250 PSI root-restriction threshold."
+            f"Year 1 establishes root architecture and canopy protection. Year 2 leverages rotational diversity and residual nitrogen credits. "
+            f"Over 3 years, SOC shifts by {p_soil.cumulative_metrics.net_soc_change_pct:+.2f}% and modeled topsoil/subsoil resistance moves toward {p_soil.cumulative_metrics.final_compaction_psi:.0f} PSI (confirm actual plowpan depth with a spade test)."
         )
 
         resilience_playbook = (

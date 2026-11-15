@@ -83,6 +83,12 @@ class CropAgronomicProfile(BaseModel):
     biofumigant_active: bool = False              # Releases glucosinolates / suppressive bio-compounds
     pest_break_families: List[BotanicalFamily] = Field(default_factory=list)
     rotational_break_needed_years: int = 1        # Minimum years before repeating this exact family safely
+    optimal_temp_min_c: float = 10.0              # Lower optimal mean growing temperature (°C)
+    optimal_temp_max_c: float = 28.0              # Upper optimal mean growing temperature (°C)
+    frost_kill_temp_c: Optional[float] = None     # Freezing threshold (°C) for acute frost kill
+    optimal_ph_min: float = 5.8                   # Lower soil pH tolerance before yield/nutrient lockout
+    optimal_ph_max: float = 7.6                   # Upper soil pH tolerance before iron/micronutrient lockup
+    fao33_ky: float = 1.0                         # FAO Irrigation & Drainage Paper 33 seasonal yield response factor (Ky)
 
 
 # Comprehensive Master Catalog of 12 Validated Agricultural Crops
@@ -128,6 +134,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.SOLANACEAE, BotanicalFamily.FABACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=14.0,
+        optimal_temp_max_c=27.0,
+        frost_kill_temp_c=0.0,
+        optimal_ph_min=5.8,
+        optimal_ph_max=7.4,
+        fao33_ky=1.25,
     ),
     "soybeans": CropAgronomicProfile(
         crop_id="soybeans",
@@ -170,6 +182,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=14.0,
+        optimal_temp_max_c=26.5,
+        frost_kill_temp_c=0.0,
+        optimal_ph_min=6.0,
+        optimal_ph_max=7.2,
+        fao33_ky=0.85,
     ),
     "winter_wheat": CropAgronomicProfile(
         crop_id="winter_wheat",
@@ -212,6 +230,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.FABACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=4.0,
+        optimal_temp_max_c=21.0,
+        frost_kill_temp_c=-15.0,
+        optimal_ph_min=5.8,
+        optimal_ph_max=7.8,
+        fao33_ky=1.00,
     ),
     "grain_sorghum": CropAgronomicProfile(
         crop_id="grain_sorghum",
@@ -254,6 +278,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.FABACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=16.0,
+        optimal_temp_max_c=32.0,
+        frost_kill_temp_c=0.0,
+        optimal_ph_min=5.5,
+        optimal_ph_max=8.2,
+        fao33_ky=0.90,
     ),
     "alfalfa": CropAgronomicProfile(
         crop_id="alfalfa",
@@ -261,12 +291,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         botanical_family=BotanicalFamily.FABACEAE,
         category="Perennial Deep-Rooted Soil Builder & Forage",
         season_type="Full Season Perennial",
-        potential_yield_tons_ha=11.5,
-        market_price_usd_ton=235.0,
-        seed_cost_usd_ha=195.0,
-        fixed_operational_cost_usd_ha=180.0,
-        labor_hours_per_ha=6.5,
-        machinery_passes_count=5,
+        potential_yield_tons_ha=10.5,
+        market_price_usd_ton=190.0,
+        seed_cost_usd_ha=220.0,
+        fixed_operational_cost_usd_ha=240.0,
+        labor_hours_per_ha=12.0,
+        machinery_passes_count=6,
         fuel_consumption_liters_ha=48.0,
         nitrogen_uptake_kg_per_ton=28.0,
         p2o5_uptake_kg_per_ton=6.0,
@@ -296,6 +326,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=2,
+        optimal_temp_min_c=7.0,
+        optimal_temp_max_c=25.0,
+        frost_kill_temp_c=-12.0,
+        optimal_ph_min=6.5,
+        optimal_ph_max=8.2,
+        fao33_ky=1.10,
     ),
     "sunflowers": CropAgronomicProfile(
         crop_id="sunflowers",
@@ -338,6 +374,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.FABACEAE],
         rotational_break_needed_years=2,
+        optimal_temp_min_c=14.0,
+        optimal_temp_max_c=29.0,
+        frost_kill_temp_c=-1.0,
+        optimal_ph_min=6.0,
+        optimal_ph_max=7.8,
+        fao33_ky=0.95,
     ),
     "canola": CropAgronomicProfile(
         crop_id="canola",
@@ -380,6 +422,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=True,                 # Glucosinolate biofumigation
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=2,
+        optimal_temp_min_c=5.0,
+        optimal_temp_max_c=21.0,
+        frost_kill_temp_c=-8.0,
+        optimal_ph_min=5.8,
+        optimal_ph_max=7.8,
+        fao33_ky=1.00,
     ),
     "field_peas": CropAgronomicProfile(
         crop_id="field_peas",
@@ -422,6 +470,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.ASTERACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=6.0,
+        optimal_temp_max_c=22.0,
+        frost_kill_temp_c=-5.0,
+        optimal_ph_min=6.0,
+        optimal_ph_max=7.5,
+        fao33_ky=1.15,
     ),
     "processing_tomatoes": CropAgronomicProfile(
         crop_id="processing_tomatoes",
@@ -429,14 +483,14 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         botanical_family=BotanicalFamily.SOLANACEAE,
         category="High Gross Margin Specialty Crop",
         season_type="Warm Season (Spring/Summer)",
-        potential_yield_tons_ha=75.0,
-        market_price_usd_ton=128.0,              # ~$9,600/ha gross revenue
-        seed_cost_usd_ha=780.0,
-        fixed_operational_cost_usd_ha=1200.0,    # Intensive spray, bed prep, harvest contract
-        labor_hours_per_ha=16.0,
+        potential_yield_tons_ha=72.0,
+        market_price_usd_ton=115.0,              # Contract cannery bulk field price (~$8,280/ha gross)
+        seed_cost_usd_ha=950.0,                  # Plug transplants
+        fixed_operational_cost_usd_ha=2400.0,    # Drip tape, fungicide blight sprays, harvest hauling
+        labor_hours_per_ha=75.0,                 # Transplanting, irrigation management & harvest sorting
         machinery_passes_count=7,
         fuel_consumption_liters_ha=76.0,
-        nitrogen_uptake_kg_per_ton=2.8,          # ~210 kg N/ha
+        nitrogen_uptake_kg_per_ton=2.8,          # ~200 kg N/ha
         p2o5_uptake_kg_per_ton=0.9,
         k2o_uptake_kg_per_ton=4.4,
         is_legume=False,
@@ -464,6 +518,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.FABACEAE],
         rotational_break_needed_years=3,        # Strict 3-year break to avoid Fusarium/Verticillium
+        optimal_temp_min_c=15.0,
+        optimal_temp_max_c=30.0,
+        frost_kill_temp_c=0.0,
+        optimal_ph_min=6.0,
+        optimal_ph_max=7.2,
+        fao33_ky=1.05,
     ),
     "daikon_radish_cover": CropAgronomicProfile(
         crop_id="daikon_radish_cover",
@@ -506,6 +566,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=True,                 # Powerful biofumigant suppresses nematodes
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.SOLANACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=6.0,
+        optimal_temp_max_c=24.0,
+        frost_kill_temp_c=-6.0,
+        optimal_ph_min=5.8,
+        optimal_ph_max=7.6,
+        fao33_ky=0.70,
     ),
     "bell_peppers": CropAgronomicProfile(
         crop_id="bell_peppers",
@@ -513,11 +579,11 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         botanical_family=BotanicalFamily.SOLANACEAE,
         category="High Gross Value Specialty Vegetable",
         season_type="Warm Season (Spring/Summer)",
-        potential_yield_tons_ha=28.0,
-        market_price_usd_ton=880.0,              # ~$24,640/ha gross revenue!
-        seed_cost_usd_ha=1150.0,
-        fixed_operational_cost_usd_ha=2600.0,    # Mulch, fertigation, trellis, scouting
-        labor_hours_per_ha=42.0,                 # High labor harvesting & management
+        potential_yield_tons_ha=25.0,
+        market_price_usd_ton=520.0,              # Wholesale field-gate bulk price after grading/culls (~$13,000/ha gross)
+        seed_cost_usd_ha=1850.0,                 # Nursery plug transplants
+        fixed_operational_cost_usd_ha=3600.0,    # Plastic mulch, drip lines, stakes, IPM sprays, field cooling/packing
+        labor_hours_per_ha=220.0,                # High hand-transplanting & multi-pick hand harvest labor
         machinery_passes_count=8,
         fuel_consumption_liters_ha=82.0,
         nitrogen_uptake_kg_per_ton=5.5,
@@ -548,18 +614,24 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.FABACEAE],
         rotational_break_needed_years=3,
+        optimal_temp_min_c=16.0,
+        optimal_temp_max_c=29.0,
+        frost_kill_temp_c=0.5,
+        optimal_ph_min=6.0,
+        optimal_ph_max=7.0,
+        fao33_ky=1.10,
     ),
     "spinach": CropAgronomicProfile(
         crop_id="spinach",
         common_name="Spinach (Fresh / Processing)",
         botanical_family=BotanicalFamily.AMARANTHACEAE,
-        category="Rapid Cycle Leafy Green / High ROI Vegetable",
+        category="Rapid Cycle Leafy Green / Cool-Season Cash Crop",
         season_type="Cool Season (Spring or Autumn)",
-        potential_yield_tons_ha=16.0,
-        market_price_usd_ton=920.0,              # ~$14,720/ha gross revenue
-        seed_cost_usd_ha=380.0,
-        fixed_operational_cost_usd_ha=1400.0,
-        labor_hours_per_ha=20.0,
+        potential_yield_tons_ha=14.0,
+        market_price_usd_ton=340.0,              # Bulk farm-gate wholesale/freezer contract price (~$4,760/ha gross)
+        seed_cost_usd_ha=420.0,
+        fixed_operational_cost_usd_ha=1650.0,    # Precision bed prep, downy mildew control, hydrocooling/hauling
+        labor_hours_per_ha=65.0,                 # Precision scouting, hand weeding & perishable harvest handling
         machinery_passes_count=4,
         fuel_consumption_liters_ha=36.0,
         nitrogen_uptake_kg_per_ton=8.0,
@@ -590,6 +662,12 @@ MASTER_CROPS_CATALOG: Dict[str, CropAgronomicProfile] = {
         biofumigant_active=False,
         pest_break_families=[BotanicalFamily.POACEAE, BotanicalFamily.SOLANACEAE, BotanicalFamily.FABACEAE],
         rotational_break_needed_years=1,
+        optimal_temp_min_c=6.0,
+        optimal_temp_max_c=21.0,
+        frost_kill_temp_c=-6.0,
+        optimal_ph_min=6.2,
+        optimal_ph_max=7.5,
+        fao33_ky=0.90,
     ),
 }
 

@@ -380,6 +380,14 @@ class EconomicPricesInput(BaseModel):
         ge=0.0,
         description="Farm equipment operator / laborer hourly wage ($/hour)"
     )
+    crop_market_prices_usd_t: Optional[Dict[str, float]] = Field(
+        default=None,
+        description="Regional/live market crop selling prices (USD/tonne) keyed by crop_id"
+    )
+    regional_crop_yields_t_ha: Optional[Dict[str, float]] = Field(
+        default=None,
+        description="Regional FAOSTAT benchmark yields (tonnes/ha) keyed by crop_id"
+    )
 
 
 # ==============================================================================
@@ -497,6 +505,8 @@ class DatedInSituSensorReading(BaseModel):
     soil_organic_matter_pct: Optional[float] = Field(None, ge=0.0, le=30.0, description="SOM % from portable NIR/LOI")
     soil_compaction_psi: Optional[float] = Field(None, ge=0.0, description="Cone penetrometer resistance (PSI)")
     soil_temperature_c: Optional[float] = Field(None, description="Soil temperature at sensor depth (°C)")
+    ambient_temperature_c: Optional[float] = Field(None, description="In-situ canopy/ambient air temperature (°C)")
+    ambient_humidity_pct: Optional[float] = Field(None, ge=0.0, le=100.0, description="In-situ relative air humidity (%)")
     device_model: Optional[str] = Field(None, description="Hardware make/model (e.g. 'Spectrum FieldScout TDR-350')")
     notes: Optional[str] = Field(None, description="Agronomist field notes for this reading")
 
@@ -533,6 +543,15 @@ class NasaPowerPayload(BaseModel):
     wind_speed_2m_ms: Optional[float] = Field(None, description="2m wind speed (m/s)")
     growing_degree_days_base10: Optional[float] = Field(None, description="Annual accumulated GDD (Base 10°C)")
     fao56_et0_annual_mm: Optional[float] = Field(None, description="Annual Penman-Monteith reference ET0 (mm)")
+    frost_days_count: Optional[int] = Field(None, ge=0, description="Observed frost days (Tmin <= 0°C) in past 365 days")
+    heatwave_days_count: Optional[int] = Field(None, ge=0, description="Observed heatwave days (Tmax >= 35°C) in past 365 days")
+    coldest_night_c: Optional[float] = Field(None, description="Coldest daily minimum air temperature over past 365 days (°C)")
+    hottest_day_c: Optional[float] = Field(None, description="Hottest daily maximum air temperature over past 365 days (°C)")
+    longest_dry_spell_days: Optional[int] = Field(None, ge=0, description="Longest consecutive dry spell (<1 mm/day) in past 365 days")
+    warm_season_et0_mm: Optional[float] = Field(None, ge=0.0, description="Warm-season (growing half-year) cumulative ET0 (mm)")
+    warm_season_precip_mm: Optional[float] = Field(None, ge=0.0, description="Warm-season cumulative precipitation (mm)")
+    cool_season_et0_mm: Optional[float] = Field(None, ge=0.0, description="Cool-season (winter half-year) cumulative ET0 (mm)")
+    cool_season_precip_mm: Optional[float] = Field(None, ge=0.0, description="Cool-season cumulative precipitation (mm)")
 
 
 class GpmImergPayload(BaseModel):

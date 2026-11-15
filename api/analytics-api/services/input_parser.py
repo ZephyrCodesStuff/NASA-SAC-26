@@ -361,6 +361,8 @@ class ParsedFieldNormalized(BaseModel):
     potassium_fertilizer_usd_kg: float
     labor_hourly_wage_usd: float
     custom_seed_prices: Dict[str, float]
+    crop_market_prices_usd_t: Dict[str, float] = Field(default_factory=dict)
+    regional_crop_yields_t_ha: Dict[str, float] = Field(default_factory=dict)
 
     # 4. Seed Variety Specifications (Greenhouse Need & Extreme Event Resistances)
     seed_catalog: Dict[str, SeedDataInput] = Field(default_factory=dict)
@@ -439,7 +441,18 @@ class ParsedFieldNormalized(BaseModel):
     soilgrids_texture_class: str
     soilgrids_organic_carbon_pct: float
     soilgrids_ph: float
+    soilgrids_sand_pct: Optional[float] = None
+    soilgrids_silt_pct: Optional[float] = None
+    soilgrids_clay_pct: Optional[float] = None
+    soilgrids_bulk_density_g_cm3: Optional[float] = None
+    soilgrids_total_nitrogen_g_kg: Optional[float] = None
     grace_groundwater_trend: str
+    nasa_power_coldest_night_c: Optional[float] = None
+    nasa_power_hottest_day_c: Optional[float] = None
+    warm_season_et0_mm: Optional[float] = None
+    warm_season_precip_mm: Optional[float] = None
+    cool_season_et0_mm: Optional[float] = None
+    cool_season_precip_mm: Optional[float] = None
 
     # 8. Long-Term Weather Shift Projections
     climate_scenario_name: str
@@ -455,6 +468,8 @@ class ParsedFieldNormalized(BaseModel):
     calibrated_soc_pct: Optional[float] = None
     calibrated_compaction_psi: Optional[float] = None
     calibrated_soil_moisture_vol_pct: Optional[float] = None
+    in_situ_ambient_temp_c: Optional[float] = None
+    in_situ_ambient_humidity_pct: Optional[float] = None
     effective_rainfall_annual_mm: float = 620.0
     effective_et0_annual_mm: float = 1200.0
     effective_temp_mean_c: float = 18.5
@@ -626,6 +641,8 @@ class FieldIngestionParser:
         k_price = econ.potassium_price_usd_kg or 0.95
         labor_wage = econ.labor_hourly_wage_usd or 22.0
         custom_seed_prices = econ.seed_prices_usd_per_ha or {}
+        crop_market_prices = econ.crop_market_prices_usd_t or {}
+        regional_crop_yields = econ.regional_crop_yields_t_ha or {}
         for c_name, s_data in seed_catalog.items():
             if s_data.seed_cost_usd_per_ha is not None and c_name not in custom_seed_prices:
                 custom_seed_prices[c_name] = s_data.seed_cost_usd_per_ha
@@ -650,6 +667,12 @@ class FieldIngestionParser:
         frost_days_count = 0
         heatwave_days_count = 0
         max_consecutive_dry_days = 0
+        coldest_night_c: Optional[float] = None
+        hottest_day_c: Optional[float] = None
+        warm_season_et0_mm: Optional[float] = None
+        warm_season_precip_mm: Optional[float] = None
+        cool_season_et0_mm: Optional[float] = None
+        cool_season_precip_mm: Optional[float] = None
         peak_storm_date = None
         peak_storm_mm = None
         peak_ndvi_date = None
@@ -662,6 +685,11 @@ class FieldIngestionParser:
         raw_soilgrids_soc = 2.15
         raw_soilgrids_ph = 6.7
         raw_soilgrids_tex = "Clay Loam"
+        sg_sand_pct: Optional[float] = None
+        sg_silt_pct: Optional[float] = None
+        sg_clay_pct: Optional[float] = None
+        sg_bdod: Optional[float] = None
+        sg_total_n_g_kg: Optional[float] = None
 
         nasa = payload.nasa_data
         if nasa:
@@ -704,10 +732,22 @@ class FieldIngestionParser:
                             cur_dry = 0
                 else:
                     # Fallback to scalar inputs if timeseries absent
-                    t_mean = nasa.nasa_power.t2m_mean_c or 18.5
-                    solar = nasa.nasa_power.solar_radiation_mj_m2 or 18.2
-                    gdd = nasa.nasa_power.growing_degree_days_base10 or 1650.0
-                    et0 = nasa.nasa_power.fao56_et0_annual_mm or 1220.0
+                    t_mean = nasa.nasa_power.t2m_mean_c if nasa.nasa_power.t2m_mean_c is not None else 18.5
+                    solar = nasa.nasa_power.solar_radiation_mj_m2 if nasa.nasa_power.solar_radiation_mj_m2 is not None else 18.2
+                    gdd = nasa.nasa_power.growing_degree_days_base10 if nasa.nasa_power.growing_degree_days_base10 is not None else 1650.0
+                    et0 = nasa.nasa_power.fao56_et0_annual_mm if nasa.nasa_power.fao56_et0_annual_mm is not None else 1220.0
+                    if nasa.nasa_power.frost_days_count is not None:
+                        frost_days_count = nasa.nasa_power.frost_days_count
+                    if nasa.nasa_power.heatwave_days_count is not None:
+                        heatwave_days_count = nasa.nasa_power.heatwave_days_count
+                    if nasa.nasa_power.longest_dry_spell_days is not None:
+                        max_consecutive_dry_days = nasa.nasa_power.longest_dry_spell_days
+                    coldest_night_c = nasa.nasa_power.coldest_night_c if nasa.nasa_power.coldest_night_c is not None else nasa.nasa_power.t2m_min_c
+                    hottest_day_c = nasa.nasa_power.hottest_day_c if nasa.nasa_power.hottest_day_c is not None else nasa.nasa_power.t2m_max_c
+                    warm_season_et0_mm = nasa.nasa_power.warm_season_et0_mm
+                    warm_season_precip_mm = nasa.nasa_power.warm_season_precip_mm
+                    cool_season_et0_mm = nasa.nasa_power.cool_season_et0_mm
+                    cool_season_precip_mm = nasa.nasa_power.cool_season_precip_mm
 
             # 5B. NASA GPM IMERG (Extract daily precipitation & storm events)
             if nasa.gpm_imerg:
@@ -772,10 +812,20 @@ class FieldIngestionParser:
                     top_layer = soil_depth_layers[0]
                     soil_soc = top_layer.soil_organic_carbon_pct or 2.15
                     soil_ph = top_layer.soil_ph_h2o or 6.7
+                    sg_sand_pct = top_layer.sand_pct
+                    sg_silt_pct = top_layer.silt_pct
+                    sg_clay_pct = top_layer.clay_pct
+                    sg_bdod = top_layer.bulk_density_g_cm3
+                    sg_total_n_g_kg = top_layer.total_nitrogen_g_kg
                     audit_logs.append(f"Extracted {len(soil_depth_layers)} depth-stratified horizon layers from SoilGrids 2.0.")
                 else:
                     soil_soc = nasa.soilgrids.soil_organic_carbon_pct or 2.15
                     soil_ph = nasa.soilgrids.soil_ph_h2o or 6.7
+                    sg_sand_pct = nasa.soilgrids.sand_percentage
+                    sg_silt_pct = nasa.soilgrids.silt_percentage
+                    sg_clay_pct = nasa.soilgrids.clay_percentage
+                    sg_bdod = nasa.soilgrids.bulk_density_g_cm3
+                    sg_total_n_g_kg = nasa.soilgrids.total_nitrogen_g_kg
                 soil_tex = nasa.soilgrids.texture_class or "Clay Loam"
                 raw_soilgrids_soc = soil_soc
                 raw_soilgrids_ph = soil_ph
@@ -840,10 +890,12 @@ class FieldIngestionParser:
         calib_soc = None
         calib_comp_psi = None
         calib_moist = None
+        calib_amb_temp: Optional[float] = None
+        calib_amb_hum: Optional[float] = None
         effective_rain = rain_ann
         effective_temp = t_mean
         effective_et0 = et0
-        comp_tag = "Optimal Tilth (<200 PSI)"
+        comp_tag = "Unmeasured (modeled from bulk density & traffic)"
         dated_sensor_list: List[DatedInSituSensorReading] = []
         earliest_ts = None
         latest_ts = None
@@ -876,6 +928,10 @@ class FieldIngestionParser:
                     calib_comp_psi = latest_reading.soil_compaction_psi
                 if latest_reading.soil_moisture_vol_pct is not None:
                     calib_moist = round(latest_reading.soil_moisture_vol_pct, 1)
+                if latest_reading.ambient_temperature_c is not None:
+                    calib_amb_temp = round(latest_reading.ambient_temperature_c, 2)
+                if latest_reading.ambient_humidity_pct is not None:
+                    calib_amb_hum = round(latest_reading.ambient_humidity_pct, 1)
                 audit_logs.append(
                     f"Fused {len(dated_sensor_list)} dated in-situ sensor readings ({earliest_ts} to {latest_ts})."
                 )
@@ -996,8 +1052,9 @@ class FieldIngestionParser:
             else f"NASA SoilGrids Satellite Baseline ({raw_soilgrids_soc:.2f}% SOC)"
         )
         provenance["soil_compaction"] = (
-            f"User Cone Penetrometer ({calib_comp_psi:.0f} PSI - {comp_tag}) ground-truthed on top of regional standard (215 PSI)"
-            if calib_comp_psi is not None else "Regional Agricultural Standard Baseline (215 PSI)"
+            f"User Cone Penetrometer ({calib_comp_psi:.0f} PSI - {comp_tag}) ground-truthed on field"
+            if calib_comp_psi is not None
+            else "Unmeasured (modeled from machinery passes & soil texture; verify with spade/penetrometer)"
         )
         provenance["rootzone_moisture"] = (
             f"User In-Situ Ground Probe ({calib_moist:.1f}%) calibrated on top of NASA SMAP L4 ({smap_root:.1f}%)"
@@ -1053,6 +1110,8 @@ class FieldIngestionParser:
             potassium_fertilizer_usd_kg=k_price,
             labor_hourly_wage_usd=labor_wage,
             custom_seed_prices=custom_seed_prices,
+            crop_market_prices_usd_t=crop_market_prices,
+            regional_crop_yields_t_ha=regional_crop_yields,
             seed_catalog=seed_catalog,
             greenhouse_compatible_crops=greenhouse_compat,
             greenhouse_required_crops=greenhouse_req,
@@ -1096,7 +1155,18 @@ class FieldIngestionParser:
             soilgrids_texture_class=raw_soilgrids_tex,
             soilgrids_organic_carbon_pct=raw_soilgrids_soc,
             soilgrids_ph=raw_soilgrids_ph,
+            soilgrids_sand_pct=sg_sand_pct,
+            soilgrids_silt_pct=sg_silt_pct,
+            soilgrids_clay_pct=sg_clay_pct,
+            soilgrids_bulk_density_g_cm3=sg_bdod,
+            soilgrids_total_nitrogen_g_kg=sg_total_n_g_kg,
             grace_groundwater_trend=grace_trend,
+            nasa_power_coldest_night_c=coldest_night_c,
+            nasa_power_hottest_day_c=hottest_day_c,
+            warm_season_et0_mm=warm_season_et0_mm,
+            warm_season_precip_mm=warm_season_precip_mm,
+            cool_season_et0_mm=cool_season_et0_mm,
+            cool_season_precip_mm=cool_season_precip_mm,
             climate_scenario_name=scenario_name,
             has_custom_climate_projections=has_lt,
             projected_temp_rise_c=temp_rise,
@@ -1108,6 +1178,8 @@ class FieldIngestionParser:
             calibrated_soc_pct=calib_soc,
             calibrated_compaction_psi=calib_comp_psi,
             calibrated_soil_moisture_vol_pct=calib_moist,
+            in_situ_ambient_temp_c=calib_amb_temp,
+            in_situ_ambient_humidity_pct=calib_amb_hum,
             effective_rainfall_annual_mm=effective_rain,
             effective_et0_annual_mm=effective_et0,
             effective_temp_mean_c=effective_temp,

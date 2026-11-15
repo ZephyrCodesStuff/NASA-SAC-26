@@ -39,17 +39,46 @@ class PlanOptimizerEngine:
 
         # Initial soil state (calibrated from in-situ sensors or SoilGrids)
         self.init_soc_pct = float(normalized_field.get("baseline_soc_pct", 1.85))
-        self.init_compaction_psi = float(normalized_field.get("baseline_compaction_psi", 215.0))
+        self.compaction_is_measured = bool(normalized_field.get("compaction_is_measured", normalized_field.get("baseline_compaction_psi") is not None))
+        default_texture_psi = 230.0 if self.soil_props["clay_pct"] >= 35.0 else (180.0 if self.soil_props["clay_pct"] <= 12.0 else 205.0)
+        self.init_compaction_psi = float(
+            normalized_field["baseline_compaction_psi"]
+            if normalized_field.get("baseline_compaction_psi") is not None
+            else default_texture_psi
+        )
         self.init_nitrate_ppm = float(normalized_field.get("baseline_nitrate_ppm", 22.0))
+        self.init_soil_n_kg_ha = normalized_field.get("baseline_soil_n_kg_ha")
+        self.soil_ph = float(normalized_field.get("soil_ph", 6.7))
+        self.soilgrids_sand_pct = normalized_field.get("soilgrids_sand_pct")
+        self.soilgrids_silt_pct = normalized_field.get("soilgrids_silt_pct")
+        self.soilgrids_clay_pct = normalized_field.get("soilgrids_clay_pct")
+        self.soilgrids_bdod = normalized_field.get("soilgrids_bulk_density_g_cm3")
 
-        # Climate baselines from NASA data
+        # Climate & seasonal baselines from NASA POWER / GPM / SMAP
         self.annual_et0_mm = float(normalized_field.get("annual_et0_mm", 1080.0))
         self.annual_precip_mm = float(normalized_field.get("annual_precip_mm", 640.0))
+        self.warm_season_et0_mm = normalized_field.get("warm_season_et0_mm")
+        self.warm_season_precip_mm = normalized_field.get("warm_season_precip_mm")
+        self.cool_season_et0_mm = normalized_field.get("cool_season_et0_mm")
+        self.cool_season_precip_mm = normalized_field.get("cool_season_precip_mm")
         self.mean_temp_c = float(normalized_field.get("mean_temp_c", 13.5))
+        self.frost_days_count = int(normalized_field.get("frost_days_count") or 0)
+        self.heatwave_days_count = int(normalized_field.get("heatwave_days_count") or 0)
+        self.longest_dry_spell_days = int(normalized_field.get("longest_dry_spell_days") or 0)
+        self.coldest_night_c = normalized_field.get("coldest_night_c")
+        self.hottest_day_c = normalized_field.get("hottest_day_c")
         self.smap_moisture = float(normalized_field.get("smap_rootzone_moisture", 0.26))
         self.low_spot_risk = bool(normalized_field.get("low_spot_waterlogging_hazard", False))
 
-        # Economic price structure
+        # Management & live IoT context
+        self.irrigation_system = str(normalized_field.get("irrigation_system") or "Center Pivot Sprinkler")
+        self.has_irrigation = "rainfed" not in self.irrigation_system.lower()
+        tillage_str = str(normalized_field.get("tillage_practice") or "").lower()
+        self.tillage_factor = 0.50 if "no-till" in tillage_str else (0.70 if "strip" in tillage_str or "reduced" in tillage_str else 1.0)
+        self.ambient_temp_c = normalized_field.get("ambient_temp_c")
+        self.ambient_humidity_pct = normalized_field.get("ambient_humidity_pct")
+
+        # Economic price structure & regional FAOSTAT yield benchmarks
         self.p_seed_mult = float(normalized_field.get("seed_price_multiplier", 1.0))
         self.p_water_m3 = float(normalized_field.get("water_price_usd_m3", 0.08))
         self.p_diesel_liter = float(normalized_field.get("diesel_price_usd_liter", 1.15))
@@ -57,6 +86,8 @@ class PlanOptimizerEngine:
         self.p_p2o5_kg = float(normalized_field.get("fertilizer_p_price_usd_kg", 1.60))
         self.p_k2o_kg = float(normalized_field.get("fertilizer_k_price_usd_kg", 0.95))
         self.p_labor_hour = float(normalized_field.get("labor_hourly_wage_usd", 22.0))
+        self.crop_market_prices = normalized_field.get("crop_market_prices_usd_t") or {}
+        self.regional_crop_yields = normalized_field.get("regional_crop_yields_t_ha") or {}
 
         # Preceding crop from history
         self.hist_crop_name = normalized_field.get("preceding_crop_name", "corn")
@@ -91,6 +122,18 @@ class PlanOptimizerEngine:
             # Severe flood/waterlogging depression risk
             if self.low_spot_risk and crop.flood_resistance < 2.0:
                 continue
+            # Extreme thermal/frost envelope pruning (open-field)
+            if not self.has_greenhouse:
+                is_warm_crop = "warm" in crop.season_type.lower()
+                # Cold/boreal sites (annual mean < 9.5C or >130 frost days) cannot sustain warm-season grain/vegetable cycles
+                if is_warm_crop and crop.frost_resistance <= 2.2 and (self.mean_temp_c < 9.5 or self.frost_days_count > 130):
+                    continue
+                # Cool leafy greens bolt severely in hot arid summers without cooling (>22C annual mean or >35 heatwave days)
+                if crop.crop_id == "spinach" and (self.mean_temp_c > 22.0 or self.heatwave_days_count >= 35):
+                    continue
+            # Severe acid/alkaline soil pH lockout (> 1.8 units outside tolerance)
+            if self.soil_ph < (crop.optimal_ph_min - 1.6) or self.soil_ph > (crop.optimal_ph_max + 1.6):
+                continue
             admissible.append(crop)
 
         # Safety fallback if constraints over-pruned the search space
@@ -111,41 +154,94 @@ class PlanOptimizerEngine:
         Simulates physical, chemical, and economic impact of one crop year on the parcel.
         Returns: (AnnualGroundImpact, legume_n_credit_for_next_year)
         """
-        # 1. Hydrology (FAO-56)
+        # 1. Hydrology (FAO-56) with seasonal weather & legal water quota awareness
+        is_cool = "cool" in crop.season_type.lower() or "cover" in crop.season_type.lower()
+        seasonal_et0_override = self.cool_season_et0_mm if is_cool else self.warm_season_et0_mm
+        seasonal_precip_override = self.cool_season_precip_mm if is_cool else self.warm_season_precip_mm
+        annual_quota_mm_ha = (
+            (float(self.water_quota_m3) / max(0.1, self.area_ha) / 10.0)
+            if self.water_quota_m3 is not None
+            else None
+        )
         etc_mm, peff_mm, irr_applied_mm, irr_m3_ha, ks = SoilPhysicsEngine.simulate_crop_hydrology(
             crop=crop,
             soil_props=self.soil_props,
             annual_et0_mm=self.annual_et0_mm,
             annual_precip_mm=self.annual_precip_mm,
-            smap_rootzone_moisture=self.smap_moisture
+            smap_rootzone_moisture=self.smap_moisture,
+            seasonal_et0_override_mm=seasonal_et0_override,
+            seasonal_precip_override_mm=seasonal_precip_override,
+            has_irrigation=self.has_irrigation,
+            water_quota_mm_ha=annual_quota_mm_ha,
         )
 
-        # 2. Yield & Economics
-        # FAO-33 water-stress yield reduction factor
-        yield_reduction_fraction = max(0.0, (1.0 - ks) * 0.70)
-        actual_yield_tons_ha = round(crop.potential_yield_tons_ha * (1.0 - yield_reduction_fraction), 2)
+        # 2. Yield & Economics (FAO-33 water stress + thermal + pH + compaction + regional yield + live price)
+        # Water stress (FAO-33 Ky * (1 - Ks))
+        water_loss_frac = max(0.0, min(0.65, crop.fao33_ky * (1.0 - ks)))
+
+        # Soil pH nutrient availability penalty (smoothly penalizes outside optimal range)
+        ph_dist = max(0.0, crop.optimal_ph_min - self.soil_ph, self.soil_ph - crop.optimal_ph_max)
+        ph_loss_frac = min(0.40, ph_dist * 0.14)
+
+        # Thermal / heatwave / frost stress suitability
+        # Growing-season warm temperature estimate is ~mean_temp + 5C; cool season ~mean_temp - 3C
+        est_season_temp = (
+            self.mean_temp_c - 2.5 if is_cool else (self.mean_temp_c + 4.5 if "warm" in crop.season_type.lower() else self.mean_temp_c)
+        )
+        # Blend in live IoT ambient canopy sensor when active (20% calibration signal for current conditions)
+        if self.ambient_temp_c is not None and -15.0 <= self.ambient_temp_c <= 50.0:
+            est_season_temp = (0.85 * est_season_temp) + (0.15 * self.ambient_temp_c)
+        temp_dist = max(0.0, crop.optimal_temp_min_c - est_season_temp, est_season_temp - crop.optimal_temp_max_c)
+        thermal_loss_frac = min(0.45, temp_dist * 0.045)
+        if self.heatwave_days_count > 10 and crop.extreme_heat_resistance < 2.5:
+            thermal_loss_frac = min(0.55, thermal_loss_frac + ((self.heatwave_days_count - 10) * 0.012))
+
+        # Compaction root-impedance drag (when measured/modeled PSI exceeds crop threshold and not a bio-driller)
+        comp_excess = max(0.0, start_compaction_psi - crop.critical_compaction_limit_psi)
+        comp_loss_frac = min(0.25, comp_excess * 0.0025) if crop.compaction_relief_delta_psi >= 0.0 else 0.0
+
+        # Same-family pathogen drag (continuous cropping yield drag replacing fake USD fines)
+        same_family_repeat = preceding_crop is not None and crop.botanical_family == preceding_crop.botanical_family
+        pathology_loss_frac = 0.12 if same_family_repeat else 0.0
+
+        combined_yield_mult = max(
+            0.25,
+            (1.0 - water_loss_frac) * (1.0 - ph_loss_frac) * (1.0 - thermal_loss_frac) * (1.0 - comp_loss_frac) * (1.0 - pathology_loss_frac),
+        )
+
+        # Anchor potential yield with FAOSTAT national/regional benchmark if provided
+        regional_bench = self.regional_crop_yields.get(crop.crop_id)
+        base_yield = crop.potential_yield_tons_ha
+        if regional_bench is not None and regional_bench > 0:
+            # Blend 50/50 between catalog target and 1.15x regional national average, bounded to sensible range
+            calibrated_ceiling = regional_bench * 1.15
+            base_yield = max(crop.potential_yield_tons_ha * 0.55, min(crop.potential_yield_tons_ha * 1.35, (crop.potential_yield_tons_ha + calibrated_ceiling) / 2.0))
+
+        actual_yield_tons_ha = round(base_yield * combined_yield_mult, 2)
         total_yield_tons = round(actual_yield_tons_ha * self.area_ha, 2)
-        gross_rev_ha = actual_yield_tons_ha * crop.market_price_usd_ton
+        effective_market_price = float(self.crop_market_prices.get(crop.crop_id) or crop.market_price_usd_ton)
+        gross_rev_ha = actual_yield_tons_ha * effective_market_price
 
         # 3. Nitrogen Balances (Herridge & Peoples BNF)
         net_n_bal, bio_n_fixed, synth_n_needed, leg_credit_used = SoilPhysicsEngine.calculate_nitrogen_balance(
             crop=crop,
             yield_tons_ha=actual_yield_tons_ha,
             preceding_legume_credit_kg_ha=preceding_legume_credit_kg_ha,
-            in_situ_soil_nitrate_ppm=self.init_nitrate_ppm
+            in_situ_soil_nitrate_ppm=self.init_nitrate_ppm,
+            in_situ_soil_n_kg_ha=self.init_soil_n_kg_ha,
         )
 
         # 4. Itemized Costs ($/ha)
         seed_cost = crop.seed_cost_usd_ha * self.p_seed_mult
         water_cost = irr_m3_ha * self.p_water_m3
-        fuel_cost = crop.machinery_passes_count * 8.5 * self.p_diesel_liter
+        fuel_cost = crop.fuel_consumption_liters_ha * self.p_diesel_liter
         fert_n_cost = synth_n_needed * self.p_nitrogen_kg
         fert_p_cost = (actual_yield_tons_ha * crop.p2o5_uptake_kg_per_ton) * self.p_p2o5_kg
         fert_k_cost = (actual_yield_tons_ha * crop.k2o_uptake_kg_per_ton) * self.p_k2o_kg
         labor_cost = crop.labor_hours_per_ha * self.p_labor_hour
-        protection_cost = crop.fixed_operational_cost_usd_ha
+        protection_cost = crop.fixed_operational_cost_usd_ha * (1.20 if same_family_repeat else 1.0)
 
-        # Rotational pathology evaluation
+        # Rotational pathology evaluation (score-only, zero fabricated USD penalty)
         pathogen_score, rhizo_score, bot_penalty = SoilPhysicsEngine.evaluate_rotational_health(
             current_crop=crop,
             preceding_crop=preceding_crop
@@ -180,7 +276,11 @@ class PlanOptimizerEngine:
             crop=crop,
             soil_props=self.soil_props,
             current_soc_pct=start_soc_pct,
-            mean_annual_temp_c=self.mean_temp_c
+            mean_annual_temp_c=self.mean_temp_c,
+            tillage_factor=self.tillage_factor,
+            actual_yield_tons_ha=actual_yield_tons_ha,
+            soilgrids_clay_pct=self.soilgrids_clay_pct,
+            soilgrids_bulk_density_g_cm3=self.soilgrids_bdod,
         )
 
         # 6. Soil Compaction (ASAE S313.3 Cone Index)
@@ -195,17 +295,31 @@ class PlanOptimizerEngine:
             crop=crop,
             soil_props=self.soil_props,
             slope_pct=self.slope_pct,
-            annual_precip_mm=self.annual_precip_mm
+            annual_precip_mm=self.annual_precip_mm,
+            soilgrids_sand_pct=self.soilgrids_sand_pct,
+            soilgrids_silt_pct=self.soilgrids_silt_pct,
+            soilgrids_clay_pct=self.soilgrids_clay_pct,
+            soilgrids_soc_pct=start_soc_pct,
+            area_hectares=self.area_ha,
         )
 
-        # 8. Extreme Weather Shock Vulnerability Score (0-100)
-        # Weighted combination of crop sensitivity to drought, flood, wind, frost, heat
+        # 8. Site-Grounded Climate & Hazard Vulnerability Score (0-100)
+        # Weights crop sensitivities by ACTUAL NASA POWER/SMAP/SoilGrids exposures at this field
+        aridity_ratio = self.annual_et0_mm / max(120.0, self.annual_precip_mm)
+        drought_exposure = min(2.2, max(0.4, (aridity_ratio - 0.5) * 1.1 + (self.longest_dry_spell_days / 45.0) + (2.0 * (1.0 - ks))))
+        flood_exposure = 2.0 if self.low_spot_risk else (1.3 if self.annual_precip_mm > 900.0 else 0.5)
+        frost_exposure = min(2.2, max(0.3, self.frost_days_count / 60.0))
+        heat_exposure = min(2.4, max(0.4, (self.heatwave_days_count / 18.0) + (0.6 if self.mean_temp_c > 20.0 else 0.0)))
+        wind_exposure = 1.0
+
         climate_vuln = (
-            (5.0 - crop.drought_resistance) * 4.0 +
-            (5.0 - crop.flood_resistance) * 4.0 +
-            (5.0 - crop.wind_lodging_resistance) * 3.0 +
-            (5.0 - crop.frost_resistance) * 4.0 +
-            (5.0 - crop.extreme_heat_resistance) * 5.0
+            (5.0 - crop.drought_resistance) * 3.8 * drought_exposure +
+            (5.0 - crop.flood_resistance) * 3.5 * flood_exposure +
+            (5.0 - crop.wind_lodging_resistance) * 2.5 * wind_exposure +
+            (5.0 - crop.frost_resistance) * 3.8 * frost_exposure +
+            (5.0 - crop.extreme_heat_resistance) * 4.2 * heat_exposure +
+            (ph_loss_frac * 25.0) +
+            (water_loss_frac * 35.0)
         )
         climate_vuln_score = round(max(5.0, min(100.0, climate_vuln)), 1)
 
@@ -228,8 +342,8 @@ class PlanOptimizerEngine:
 
         ground_narrative = " ".join(narrative_parts)
 
-        # Next season legume credit calculation
-        next_legume_credit = crop.residual_soil_n_credit_kg_ha if crop.is_legume else 0.0
+        # Next season residual nitrogen credit (both BNF legumes and scavenged winterkill cover crops)
+        next_legume_credit = crop.residual_soil_n_credit_kg_ha if (crop.is_legume or crop.residual_soil_n_credit_kg_ha > 0) else 0.0
 
         impact = AnnualGroundImpact(
             year_index=year_idx,
@@ -413,17 +527,62 @@ class PlanOptimizerEngine:
         valid_triplets: List[Tuple[CropAgronomicProfile, CropAgronomicProfile, CropAgronomicProfile]] = []
 
         for c1 in candidates:
+            # Enforce break relative to field's preceding crop if farmer just grew that heavy-pathogen family
+            if (
+                self.initial_preceding_crop is not None
+                and c1.rotational_break_needed_years >= 3
+                and c1.botanical_family == self.initial_preceding_crop.botanical_family
+            ):
+                continue
             for c2 in candidates:
                 for c3 in candidates:
                     # Hard Pruning Rule 1: No 3 consecutive seasons of the same botanical family
                     if c1.botanical_family == c2.botanical_family == c3.botanical_family:
                         continue
-                    # Hard Pruning Rule 2: Nightshade (Solanaceae) cannot follow Nightshade directly
-                    if c1.botanical_family == BotanicalFamily.SOLANACEAE and c2.botanical_family == BotanicalFamily.SOLANACEAE:
+                    # Do not repeat pure cover crops back-to-back as consecutive primary years
+                    if (c1.crop_id == "daikon_radish_cover" and c2.crop_id == "daikon_radish_cover") or (
+                        c2.crop_id == "daikon_radish_cover" and c3.crop_id == "daikon_radish_cover"
+                    ):
                         continue
-                    if c2.botanical_family == BotanicalFamily.SOLANACEAE and c3.botanical_family == BotanicalFamily.SOLANACEAE:
+                    # Hard Pruning Rule 2: Enforce rotational_break_needed_years dynamically
+                    # If break >= 3 years (e.g., Solanaceae / Bell Peppers / Processing Tomatoes), allow at most ONCE in 3-year cycle
+                    if (
+                        (c1.rotational_break_needed_years >= 3 or c2.rotational_break_needed_years >= 3)
+                        and c1.botanical_family == c2.botanical_family
+                    ):
+                        continue
+                    if (
+                        (c2.rotational_break_needed_years >= 3 or c3.rotational_break_needed_years >= 3)
+                        and c2.botanical_family == c3.botanical_family
+                    ):
+                        continue
+                    if (
+                        (c1.rotational_break_needed_years >= 3 or c3.rotational_break_needed_years >= 3)
+                        and c1.botanical_family == c3.botanical_family
+                    ):
+                        continue
+                    # If break == 2 years (e.g., Alfalfa, Canola, Sunflowers), disallow consecutive years of that family
+                    if (
+                        (c1.rotational_break_needed_years >= 2 or c2.rotational_break_needed_years >= 2)
+                        and c1.botanical_family == c2.botanical_family
+                    ):
+                        continue
+                    if (
+                        (c2.rotational_break_needed_years >= 2 or c3.rotational_break_needed_years >= 2)
+                        and c2.botanical_family == c3.botanical_family
+                    ):
                         continue
                     valid_triplets.append((c1, c2, c3))
+
+        # Safety fallback if user whitelisted only 3 crops with strict breaks
+        if not valid_triplets:
+            for c1 in candidates:
+                for c2 in candidates:
+                    for c3 in candidates:
+                        if not (c1.botanical_family == c2.botanical_family == c3.botanical_family):
+                            valid_triplets.append((c1, c2, c3))
+        if not valid_triplets:
+            valid_triplets = [(c1, c2, c3) for c1 in candidates for c2 in candidates for c3 in candidates]
 
         # Evaluate candidate pool
         evaluated_plans: List[Tuple[Tuple[str, str, str], ThreeYearCultivationPlan]] = []

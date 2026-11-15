@@ -148,19 +148,36 @@ class SoilPhysicsEngine:
         soil_props: Dict[str, float],
         annual_et0_mm: float,
         annual_precip_mm: float,
-        smap_rootzone_moisture: float = 0.25
+        smap_rootzone_moisture: float = 0.25,
+        seasonal_et0_override_mm: Optional[float] = None,
+        seasonal_precip_override_mm: Optional[float] = None,
+        has_irrigation: bool = True,
+        water_quota_mm_ha: Optional[float] = None,
     ) -> Tuple[float, float, float, float, float]:
         """
         Simulates seasonal FAO-56 dual crop water balance:
         Returns: (water_demand_etc_mm, effective_precip_mm, irrigation_needed_mm, irrigation_m3_ha, stress_ks)
         """
-        season_fraction = crop.growth_cycle_days / 365.0
+        is_cool = "cool" in crop.season_type.lower() or "cover" in crop.season_type.lower()
+        is_perennial = "perennial" in crop.season_type.lower()
+
+        if seasonal_et0_override_mm is not None and seasonal_et0_override_mm > 0:
+            seasonal_et0 = seasonal_et0_override_mm * min(1.0, crop.growth_cycle_days / (210.0 if is_cool else 160.0))
+        else:
+            # Seasonal radiative concentration: summer crops transpire more ET0 per day than cool/winter crops
+            et_weight = 0.72 if not is_cool and not is_perennial else (0.30 if is_cool else 0.90)
+            seasonal_et0 = annual_et0_mm * et_weight * min(1.0, crop.growth_cycle_days / (210.0 if is_cool else 165.0))
+
         # FAO-56 Kc time-weighted average across growth stages
         kc_seasonal = (crop.fao56_kcb_initial * 0.2) + (crop.fao56_kcb_mid * 0.5) + (crop.fao56_kcb_end * 0.3)
-        etc_mm = max(100.0, round(annual_et0_mm * season_fraction * kc_seasonal, 1))
+        etc_mm = max(80.0, round(seasonal_et0 * kc_seasonal, 1))
 
-        # Effective precipitation via USDA SCS method (P_eff = max(0, 0.8 * P - 5))
-        seasonal_rain = annual_precip_mm * season_fraction
+        # Effective precipitation via USDA SCS approximation over the active growing window
+        if seasonal_precip_override_mm is not None and seasonal_precip_override_mm >= 0:
+            seasonal_rain = seasonal_precip_override_mm * min(1.0, crop.growth_cycle_days / (210.0 if is_cool else 160.0))
+        else:
+            rain_weight = 0.48 if not is_cool and not is_perennial else (0.52 if is_cool else 0.85)
+            seasonal_rain = annual_precip_mm * rain_weight * min(1.0, crop.growth_cycle_days / (210.0 if is_cool else 165.0))
         peff_mm = max(0.0, round(0.75 * seasonal_rain - 10.0, 1))
 
         # Root zone storage and available water capacity
@@ -172,15 +189,26 @@ class SoilPhysicsEngine:
         theta_curr = max(soil_props["theta_wp"], min(soil_props["theta_fc"], smap_rootzone_moisture))
         available_soil_water_mm = 1000.0 * (theta_curr - soil_props["theta_wp"]) * zr
 
-        # Net irrigation requirement to avoid drought stress (maintaining Dr <= RAW)
+        # Seasonal crop water deficit before irrigation
         net_water_deficit_mm = max(0.0, etc_mm - peff_mm - (available_soil_water_mm * 0.4))
-        # 85% application efficiency (standard drip / modern sprinkler)
-        irrigation_applied_mm = round(net_water_deficit_mm / 0.85, 1)
+
+        if has_irrigation:
+            desired_irrigation_mm = round(net_water_deficit_mm / 0.85, 1)
+            if water_quota_mm_ha is not None:
+                irrigation_applied_mm = round(min(desired_irrigation_mm, max(0.0, water_quota_mm_ha)), 1)
+            else:
+                irrigation_applied_mm = desired_irrigation_mm
+            effective_irrig_mm = irrigation_applied_mm * 0.85
+            unmet_deficit_mm = max(0.0, net_water_deficit_mm - effective_irrig_mm)
+        else:
+            irrigation_applied_mm = 0.0
+            unmet_deficit_mm = net_water_deficit_mm
+
         irrigation_volume_m3 = round(irrigation_applied_mm * 10.0, 1)  # 1 mm = 10 m3/ha
 
-        # If rainfed only and deficit occurs, calculate Ks
-        if net_water_deficit_mm > raw_mm:
-            ks = max(0.35, (taw_mm - net_water_deficit_mm) / max(1.0, (1.0 - crop.depletion_fraction_p) * taw_mm))
+        # FAO-56 Ks water stress coefficient applies ONLY to remaining unmet deficit
+        if unmet_deficit_mm > raw_mm:
+            ks = max(0.30, (taw_mm - unmet_deficit_mm) / max(1.0, (1.0 - crop.depletion_fraction_p) * taw_mm))
         else:
             ks = 1.0
 
@@ -193,14 +221,17 @@ class SoilPhysicsEngine:
         current_soc_pct: float,
         mean_annual_temp_c: float = 14.0,
         tillage_factor: float = 1.0,  # 1.0 for conventional, 0.7 for min-till, 0.5 for no-till
-        plow_depth_m: float = 0.30
+        plow_depth_m: float = 0.30,
+        actual_yield_tons_ha: Optional[float] = None,
+        soilgrids_clay_pct: Optional[float] = None,
+        soilgrids_bulk_density_g_cm3: Optional[float] = None,
     ) -> Tuple[float, float, float, float]:
         """
         Henin-Dupuis & IPCC Tier 2 model of Soil Organic Carbon evolution.
         Returns: (soc_pct_end, delta_soc_pct, carbon_input_tons_ha, k2_rate)
         """
-        rho_b = soil_props["bulk_density_g_cm3"]
-        clay_pct = soil_props["clay_pct"]
+        rho_b = soilgrids_bulk_density_g_cm3 or soil_props["bulk_density_g_cm3"]
+        clay_pct = soilgrids_clay_pct if soilgrids_clay_pct is not None else soil_props["clay_pct"]
 
         # Initial SOC stock (t C / ha in top 30cm)
         # Stock (t C/ha) = 100 * rho_b (g/cm3) * depth (m) * SOC %
@@ -213,8 +244,11 @@ class SoilPhysicsEngine:
         k2_base = max(0.012, (1.2 * max(6.0, mean_annual_temp_c) - 6.0) / (10.0 * clay_pct + 200.0))
         k2 = k2_base * effective_tillage
 
-        # Carbon input from crop residues (IPCC Tier 2 / Bolinder et al.)
-        dry_matter_yield = crop.potential_yield_tons_ha * 0.86
+        # Carbon input from crop residues scaled by actual simulated yield (fresh weight -> DM approx)
+        harvested_yield = actual_yield_tons_ha if actual_yield_tons_ha is not None else crop.potential_yield_tons_ha
+        # Fresh horticultural produce (peppers, tomatoes, spinach) is ~85-92% water, dry grains ~14% moisture
+        dm_factor = 0.14 if crop.botanical_family == BotanicalFamily.SOLANACEAE or crop.crop_id == "spinach" else 0.86
+        dry_matter_yield = harvested_yield * dm_factor
         # Aboveground residue
         if crop.crop_id in ("alfalfa", "daikon_radish_cover"):
             ag_residue_c = dry_matter_yield * 0.35 * crop.biomass_carbon_fraction
@@ -251,9 +285,10 @@ class SoilPhysicsEngine:
         - Deep taproots and bio-drill crops (Daikon radish, Alfalfa) fracture plowpans.
         Returns: (compaction_psi_end, compaction_delta_psi)
         """
-        # Traffic compaction accumulation: Delta = 38 * (1 - exp(-0.85 * passes))
-        traffic_addition = 38.0 * (1.0 - math.exp(-0.85 * max(1, crop.machinery_passes_count)))
-        
+        # Traffic compaction accumulation proportional to axle passes (avoids saturating at 2 passes)
+        passes = max(1, crop.machinery_passes_count)
+        traffic_addition = 8.0 + (4.0 * min(10, passes))
+
         # Heavy clay is more susceptible to wheel compaction
         clay_factor = 1.0 + (soil_props["clay_pct"] / 100.0)
         traffic_psi = traffic_addition * clay_factor
@@ -271,7 +306,8 @@ class SoilPhysicsEngine:
         crop: CropAgronomicProfile,
         yield_tons_ha: float,
         preceding_legume_credit_kg_ha: float = 0.0,
-        in_situ_soil_nitrate_ppm: float = 25.0
+        in_situ_soil_nitrate_ppm: float = 25.0,
+        in_situ_soil_n_kg_ha: Optional[float] = None,
     ) -> Tuple[float, float, float, float]:
         """
         Herridge & Peoples Symbiotic Biological Nitrogen Fixation and N Balance.
@@ -280,27 +316,33 @@ class SoilPhysicsEngine:
         # Total nitrogen uptake requirement
         total_n_required = yield_tons_ha * crop.nitrogen_uptake_kg_per_ton
 
-        # Soil residual mineral N available from in-situ sensor (ppm to kg/ha factor ~ 2.0 to 2.5)
-        available_soil_mineral_n = in_situ_soil_nitrate_ppm * 2.2
+        # Avoid unit bug: only multiply ppm -> kg/ha (~2.2 in top 18cm at 1.25 g/cm3) when kg/ha not passed directly
+        available_soil_mineral_n = (
+            in_situ_soil_n_kg_ha
+            if in_situ_soil_n_kg_ha is not None
+            else (in_situ_soil_nitrate_ppm * 2.2)
+        )
 
         if crop.is_legume:
             # Fixes atmospheric N via rhizobial nodules (%Ndfa)
-            # Total plant N = Shoot N * (1 + BGF), BGF ~ 0.35
             plant_n = total_n_required * 1.35
             bio_fixed_n = plant_n * crop.ndfa_fraction
             seed_harvest_removal = yield_tons_ha * crop.nitrogen_uptake_kg_per_ton
-            # Net residual soil N balance (+ credit to following season)
             net_n_balance = bio_fixed_n - seed_harvest_removal + crop.residual_soil_n_credit_kg_ha
-            synthetic_n_applied = 0.0  # Legumes require 0 synthetic N fertilizer
+            synthetic_n_applied = 0.0
             legume_credit_used = 0.0
         else:
             bio_fixed_n = 0.0
-            # Use legume credit from preceding crop
             legume_credit_used = min(total_n_required, preceding_legume_credit_kg_ha)
-            remaining_demand = max(0.0, total_n_required - legume_credit_used - (available_soil_mineral_n * 0.3))
+            # Only ~30% of baseline mineral pool is immediately plant-available without luxury mining
+            mineral_contribution = min(total_n_required * 0.45, available_soil_mineral_n * 0.30)
+            remaining_demand = max(0.0, total_n_required - legume_credit_used - mineral_contribution)
             synthetic_n_applied = round(remaining_demand, 1)
-            # Non-legumes extract N from soil profile
-            net_n_balance = -(synthetic_n_applied + legume_credit_used)
+            # Partial mass balance: inputs + scavenged cover-crop spring credit minus harvested export
+            net_n_balance = max(
+                -80.0,
+                synthetic_n_applied + legume_credit_used + crop.residual_soil_n_credit_kg_ha - total_n_required,
+            )
 
         return round(net_n_balance, 1), round(bio_fixed_n, 1), synthetic_n_applied, round(legume_credit_used, 1)
 
@@ -309,29 +351,59 @@ class SoilPhysicsEngine:
         crop: CropAgronomicProfile,
         soil_props: Dict[str, float],
         slope_pct: float,
-        annual_precip_mm: float
+        annual_precip_mm: float,
+        soilgrids_sand_pct: Optional[float] = None,
+        soilgrids_silt_pct: Optional[float] = None,
+        soilgrids_clay_pct: Optional[float] = None,
+        soilgrids_soc_pct: Optional[float] = None,
+        area_hectares: float = 10.0,
     ) -> float:
         """
         Revised Universal Soil Loss Equation (RUSLE): A = R * K * LS * C * P (t / ha / yr).
+        Uses Renard & Freimund (1994) R, Williams (1995) EPIC K (when SoilGrids fractions provided),
+        Moore & Burch (1986) LS, and P = 1.0 (no unverified support practices assumed).
         """
-        # Rainfall erosivity factor R (Brown & Foster / Renard)
-        r_factor = max(80.0, annual_precip_mm * 0.28)
-        # Soil erodibility factor K
-        k_factor = soil_props["rusle_k_factor"]
-        # Topographic slope-length factor LS (McCool et al. 1987)
-        s_deg = math.degrees(math.atan(slope_pct / 100.0))
-        if slope_pct < 9.0:
-            s_factor = 10.8 * math.sin(math.radians(s_deg)) + 0.03
+        # Rainfall erosivity factor R (Renard & Freimund 1994, MJ mm / (ha h yr))
+        p_mm = max(50.0, annual_precip_mm)
+        if p_mm <= 850.0:
+            r_factor = max(40.0, 0.04830 * (p_mm ** 1.61))
         else:
-            s_factor = 16.8 * math.sin(math.radians(s_deg)) - 0.50
-        ls_factor = max(0.12, s_factor * 1.2)
-        # Cover management factor C
+            r_factor = max(40.0, 587.8 - (1.219 * p_mm) + (0.004105 * (p_mm ** 2)))
+
+        # Soil erodibility factor K: EPIC Williams (1995) when particle fractions exist, else texture lookup
+        if (
+            soilgrids_sand_pct is not None
+            and soilgrids_silt_pct is not None
+            and soilgrids_clay_pct is not None
+        ):
+            sand = max(0.0, min(100.0, soilgrids_sand_pct))
+            silt = max(0.0, min(100.0, soilgrids_silt_pct))
+            clay = max(0.0, min(100.0, soilgrids_clay_pct))
+            soc = max(0.1, soilgrids_soc_pct if soilgrids_soc_pct is not None else 1.5)
+            sn1 = 1.0 - sand / 100.0
+            f_csand = 0.2 + 0.3 * math.exp(-0.256 * sand * (1.0 - silt / 100.0))
+            f_cl_si = (silt / max(1.0, clay + silt)) ** 0.3
+            f_orgc = 1.0 - (0.25 * soc) / (soc + math.exp(3.72 - 2.95 * soc))
+            f_hisand = 1.0 - (0.7 * sn1) / (sn1 + math.exp(-5.51 + 22.9 * sn1))
+            # EPIC K in t*ha*h / (ha*MJ*mm) (~0.1317 conversion from US customary)
+            k_factor = max(0.005, min(0.08, f_csand * f_cl_si * f_orgc * f_hisand * 0.1317))
+        else:
+            # Convert US customary RUSLE K (~0.20-0.42) to SI EPIC units cleanly if needed (~x0.1317)
+            k_factor = soil_props["rusle_k_factor"] * 0.1317
+
+        # Moore & Burch (1986) unit stream power LS factor capped for field flow path (~sqrt(area_m2)/2, max 150m)
+        slope_rad = math.atan(max(0.1, slope_pct) / 100.0)
+        flow_length_m = max(22.13, min(150.0, math.sqrt(max(0.5, area_hectares) * 10000.0) * 0.5))
+        ls_factor = max(
+            0.05,
+            ((flow_length_m / 22.13) ** 0.4) * ((math.sin(slope_rad) / 0.0896) ** 1.3),
+        )
         c_factor = crop.rusle_c_factor
-        # Practice factor P (assumed contouring baseline 0.9)
-        p_factor = 0.90
+        # Do not invent conservation terracing/contouring unless explicitly surveyed
+        p_factor = 1.0
 
         erosion_tons_ha = r_factor * k_factor * ls_factor * c_factor * p_factor
-        return round(max(0.1, erosion_tons_ha), 2)
+        return round(max(0.05, erosion_tons_ha), 2)
 
     @staticmethod
     def evaluate_rotational_health(
@@ -339,7 +411,8 @@ class SoilPhysicsEngine:
         preceding_crop: Optional[CropAgronomicProfile]
     ) -> Tuple[float, float, float]:
         """
-        Evaluates Botanical Pathology Risk, Rhizosphere Vitality, and Botanical Penalty ($/ha).
+        Evaluates Botanical Pathology Risk & Rhizosphere Vitality (returns 0.0 arbitrary USD fines;
+        pest/disease rotation breaks are enforced via agronomic eligibility and yield penalties).
         Returns: (pathogen_risk_score, rhizosphere_score, botanical_penalty_usd_ha)
         """
         if preceding_crop is None:
@@ -349,26 +422,21 @@ class SoilPhysicsEngine:
 
         if same_family:
             if current_crop.botanical_family == BotanicalFamily.SOLANACEAE:
-                # Severe Verticillium/Fusarium blight & nematode propagation
-                return 85.0, 30.0, 380.0
+                return 85.0, 30.0, 0.0
             elif current_crop.botanical_family == BotanicalFamily.BRASSICACEAE:
-                # Clubroot (Plasmodiophora brassicae)
-                return 75.0, 40.0, 240.0
+                return 75.0, 40.0, 0.0
             elif current_crop.botanical_family == BotanicalFamily.FABACEAE:
-                # Aphanomyces root rot / Fusarium solani
-                return 70.0, 45.0, 160.0
+                return 70.0, 45.0, 0.0
             elif current_crop.botanical_family == BotanicalFamily.POACEAE:
-                # Fusarium head blight / corn rootworm
-                return 65.0, 50.0, 130.0
+                return 65.0, 50.0, 0.0
             else:
-                return 60.0, 55.0, 100.0
+                return 60.0, 55.0, 0.0
 
         # Beneficial botanical rotation
         pathogen_score = 20.0
         rhizosphere_score = 80.0
-        penalty_usd = 0.0
 
-        # Biofumigant bonus (Canola or Daikon Radish breaks nematodes)
+        # Biofumigant bonus (Canola or Daikon Radish suppresses soil-borne nematodes)
         if preceding_crop.biofumigant_active:
             pathogen_score -= 10.0
             rhizosphere_score += 10.0
@@ -377,4 +445,4 @@ class SoilPhysicsEngine:
         if preceding_crop.is_legume and not current_crop.is_legume:
             rhizosphere_score += 10.0
 
-        return max(5.0, pathogen_score), min(100.0, rhizosphere_score), penalty_usd
+        return max(5.0, pathogen_score), min(100.0, rhizosphere_score), 0.0

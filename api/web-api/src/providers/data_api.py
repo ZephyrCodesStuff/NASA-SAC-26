@@ -15,7 +15,8 @@ DATA_API_URL = os.getenv("DATA_API_URL", "http://127.0.0.1:8070").rstrip("/")
 
 FAST_DATASETS = (
     "crop_health,evapotranspiration_field,terrain,"
-    "weather,rainfall,soil_moisture,soil,groundwater"
+    "weather,rainfall,soil_moisture,soil,groundwater,"
+    "market_prices,local_prices,regional_production"
 )
 SLOW_DATASETS = "evapotranspiration_area"
 

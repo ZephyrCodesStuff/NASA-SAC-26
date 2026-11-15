@@ -64,8 +64,15 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             smap_moisture = (normalized.smap_rootzone_moisture_vol_pct or 26.0) / 100.0
 
         base_soc = normalized.calibrated_soc_pct or normalized.soilgrids_organic_carbon_pct or 1.85
-        base_compaction = normalized.calibrated_compaction_psi or 215.0
-        base_nitrate = normalized.calibrated_topsoil_n_kg_ha or 24.0
+        compaction_is_measured = normalized.calibrated_compaction_psi is not None
+        base_compaction = normalized.calibrated_compaction_psi  # None -> texture-derived in optimizer
+
+        # Preserve explicit units: SoilGrids total N (g/kg -> ~25x kg/ha plant-available) vs user lab N (kg/ha)
+        baseline_soil_n_kg_ha = normalized.calibrated_topsoil_n_kg_ha
+        if baseline_soil_n_kg_ha is None and normalized.soilgrids_total_nitrogen_g_kg is not None:
+            baseline_soil_n_kg_ha = round(normalized.soilgrids_total_nitrogen_g_kg * 25.0, 1)
+
+        effective_soil_ph = normalized.calibrated_soil_ph or normalized.soilgrids_ph or 6.7
 
         preceding_crop = normalized.past_crops_sequence[-1] if normalized.past_crops_sequence else "Corn (Maize)"
         elevation_val = normalized.elevation_mean_m or 150.0
@@ -83,12 +90,32 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             "legal_water_quota_m3": (payload.local_user_data.local_water_quota_m3 if payload.local_user_data and payload.local_user_data.local_water_quota_m3 is not None else parcel.annual_water_quota_m3),
             "baseline_soc_pct": base_soc,
             "baseline_compaction_psi": base_compaction,
-            "baseline_nitrate_ppm": base_nitrate,
+            "compaction_is_measured": compaction_is_measured,
+            "baseline_nitrate_ppm": 24.0,
+            "baseline_soil_n_kg_ha": baseline_soil_n_kg_ha,
+            "soil_ph": effective_soil_ph,
+            "soilgrids_sand_pct": normalized.soilgrids_sand_pct,
+            "soilgrids_silt_pct": normalized.soilgrids_silt_pct,
+            "soilgrids_clay_pct": normalized.soilgrids_clay_pct,
+            "soilgrids_bulk_density_g_cm3": normalized.soilgrids_bulk_density_g_cm3,
             "annual_et0_mm": annual_et0,
             "annual_precip_mm": annual_precip,
+            "warm_season_et0_mm": normalized.warm_season_et0_mm,
+            "warm_season_precip_mm": normalized.warm_season_precip_mm,
+            "cool_season_et0_mm": normalized.cool_season_et0_mm,
+            "cool_season_precip_mm": normalized.cool_season_precip_mm,
             "mean_temp_c": mean_temp,
+            "frost_days_count": normalized.frost_days_count,
+            "heatwave_days_count": normalized.heatwave_days_count,
+            "longest_dry_spell_days": normalized.max_consecutive_dry_days,
+            "coldest_night_c": normalized.nasa_power_coldest_night_c,
+            "hottest_day_c": normalized.nasa_power_hottest_day_c,
             "smap_rootzone_moisture": smap_moisture,
             "low_spot_waterlogging_hazard": low_spot_hazard,
+            "irrigation_system": normalized.irrigation_system,
+            "tillage_practice": normalized.tillage_practice,
+            "ambient_temp_c": normalized.in_situ_ambient_temp_c,
+            "ambient_humidity_pct": normalized.in_situ_ambient_humidity_pct,
             "preceding_crop_name": preceding_crop,
             "water_price_usd_m3": normalized.water_price_usd_m3 or 0.08,
             "diesel_price_usd_liter": normalized.diesel_price_usd_liter or 1.15,
@@ -96,6 +123,8 @@ async def generate_three_year_plan(payload: FullFieldIngestionPayload = Body(...
             "fertilizer_p_price_usd_kg": normalized.phosphorus_fertilizer_usd_kg or 1.60,
             "fertilizer_k_price_usd_kg": normalized.potassium_fertilizer_usd_kg or 0.95,
             "labor_hourly_wage_usd": normalized.labor_hourly_wage_usd or 22.0,
+            "crop_market_prices_usd_t": normalized.crop_market_prices_usd_t,
+            "regional_crop_yields_t_ha": normalized.regional_crop_yields_t_ha,
             "preferred_candidate_crops": normalized.whitelisted_crops,
             "excluded_crops": normalized.blacklisted_crops,
         }

@@ -346,6 +346,36 @@ def create_api_router(
         payload = build_analysis_payload(plot)
         datasets = extract_datasets(plot.get("nasa_snapshot"))
         soil_override = plot.get("soil_override") if isinstance(plot.get("soil_override"), dict) else {}
+
+        # Fetch paired ESP32 IoT sensor readings so real-time ground telemetry informs 3-year projections
+        sensor_readings: list[dict[str, Any]] = []
+        try:
+            devices = await device_store.list_plot_devices(plot_id)
+            for dev in devices:
+                sn = dev.get("device_id") or dev.get("serial_number")
+                if not sn:
+                    continue
+                _, readings = await device_store.get_device_readings(str(sn), limit=30)
+                if readings:
+                    sensor_readings.extend(readings)
+        except Exception as exc:
+            logger.debug("IoT readings fetch skipped for plot %s: %s", plot_id, exc)
+
+        # Best-effort fill of market/regional economic datasets if plot snapshot predates them
+        missing_econ = [
+            ds for ds in ("market_prices", "local_prices", "regional_production")
+            if ds not in datasets
+        ]
+        if missing_econ and plot.get("geometry"):
+            try:
+                econ_snap = await asyncio.wait_for(
+                    data_api.fetch_datasets([plot], datasets=",".join(missing_econ)),
+                    timeout=6.0,
+                )
+                datasets = {**datasets, **extract_datasets(econ_snap)}
+            except Exception as exc:
+                logger.debug("Optional economic datasets fetch skipped for plot %s: %s", plot_id, exc)
+
         gaps = summarize_sensor_gaps(datasets, soil_override=soil_override)
         baseline_analysis = evaluate_plot_strategies(
             datasets=datasets,
@@ -356,7 +386,12 @@ def create_api_router(
         explained = explain_plot_insights(baseline_analysis, gaps, plot_label=str(plot.get("label") or "Plot"))
         projection = None
         try:
-            ingestion = build_ingestion_payload(plot, datasets, soil_override)
+            ingestion = build_ingestion_payload(
+                plot,
+                datasets,
+                soil_override,
+                sensor_readings=sensor_readings or None,
+            )
             result = await asyncio.wait_for(analytics.plan_3year(ingestion), timeout=90)
             projection = shape_projection_response(result)
         except Exception as exc:  # noqa: BLE001 — analytics-api is optional; keep the rest working
