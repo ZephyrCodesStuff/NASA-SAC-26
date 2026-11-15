@@ -567,6 +567,63 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
           </div>
         </section>
 
+        {/* Non-cultivable / Invalid Plot Heuristic Banner */}
+        {(() => {
+          const sf = (analysisData?.site_feasibility || null) as {
+            likely_invalid?: boolean;
+            severity?: string;
+            reasons?: string[];
+            worldcover_label?: string | null;
+          } | null;
+          if (!sf?.likely_invalid || !sf.reasons?.length) return null;
+          const isCritical = sf.severity === "critical";
+          return (
+            <div
+              role="alert"
+              className={`rounded-lg border px-4 py-3.5 flex items-start gap-3 ${
+                isCritical
+                  ? "border-red-300 bg-red-50/90 text-red-950"
+                  : "border-amber-300 bg-amber-50/90 text-amber-950"
+              }`}
+            >
+              <AlertTriangle
+                className={`h-5 w-5 shrink-0 mt-0.5 ${
+                  isCritical ? "text-red-600" : "text-amber-600"
+                }`}
+              />
+              <div className="space-y-1.5 text-xs leading-relaxed min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-sm">
+                    {isCritical
+                      ? "Warning: This plot may not be a cultivable field — projections below may be invalid"
+                      : "Caution: Satellite heuristics flagged potential non-cropland conditions"}
+                  </span>
+                  {sf.worldcover_label && (
+                    <Badge
+                      variant="outline"
+                      className={`font-mono text-[10px] ${
+                        isCritical
+                          ? "border-red-300 text-red-800 bg-white/70"
+                          : "border-amber-300 text-amber-800 bg-white/70"
+                      }`}
+                    >
+                      WorldCover: {sf.worldcover_label}
+                    </Badge>
+                  )}
+                </div>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {sf.reasons.map((r, idx) => (
+                    <li key={idx}>{r}</li>
+                  ))}
+                </ul>
+                <p className="text-[11px] opacity-85">
+                  Ceres physics models assume arable soil. Verify land cover, slope, and soil conditions on the ground before acting on any modeled numbers below.
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Monospace Spec Strip (replaces 4 KPI cards) */}
         <div className="border-y border-[#e7e5e0] bg-[#fdfbfa] px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-xs font-mono tabular-nums">
           <span>

@@ -568,3 +568,111 @@ def shape_projection_response(result: dict[str, Any]) -> dict[str, Any]:
             adv["strategies_breakdown"] = breakdowns
         result["gemini_advisory"] = adv
     return result
+
+
+_CRITICAL_WORLDCOVER = {
+    70: "Snow and ice",
+    80: "Permanent water bodies",
+    90: "Herbaceous wetland",
+    100: "Moss and lichen",
+}
+_CAUTION_WORLDCOVER = {
+    10: "Tree cover",
+    20: "Shrubland",
+    50: "Built-up",
+    60: "Bare / sparse vegetation",
+    95: "Mangroves",
+}
+
+
+def assess_plot_feasibility(
+    plot: dict[str, Any],
+    datasets: dict[str, Any],
+    soil_override: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Detect non-cultivable or physically extreme plots (water, urban, alpine, cliff)."""
+    ov = soil_override or {}
+    has_greenhouse = bool(ov.get("greenhouse_available") or plot.get("greenhouse_available"))
+    has_soil_override = any(ov.get(k) is not None for k in ("soil_type", "ph", "soc_pct", "clay_pct"))
+
+    wc_raw = plot.get("worldcover_class")
+    wc_class = int(wc_raw) if wc_raw is not None else None
+    wc_label = plot.get("worldcover_label") or (
+        _CRITICAL_WORLDCOVER.get(wc_class) or _CAUTION_WORLDCOVER.get(wc_class) if wc_class is not None else None
+    )
+
+    soil_vals = _values(datasets.get("soil"))
+    has_soilgrids = any(
+        _first(soil_vals, k) is not None
+        for k in ("clay_pct", "sand_pct", "silt_pct", "ph_h2o", "ph", "soc_g_kg")
+    )
+
+    terr = _values(datasets.get("terrain"))
+    elev_m = _first(terr, "elevation_m.mean")
+    slope_deg = _first(terr, "slope_deg.mean", "field_gradient_deg")
+    slope_pct = round(slope_deg * 1.75, 1) if slope_deg is not None else None
+
+    pwr = _values(datasets.get("power"))
+    pwr_ts = _values(datasets.get("power_timeseries"))
+    t_mean = _first(pwr, "temp_c.mean") or _first(pwr_ts, "temp_c.mean")
+    frost_days = _first(pwr_ts, "frost_days_count", "frost_days")
+
+    critical: list[str] = []
+    warnings: list[str] = []
+
+    if wc_class in _CRITICAL_WORLDCOVER:
+        critical.append(
+            f"ESA WorldCover 10m land cover classifies this polygon as '{wc_label}' (Class {wc_class}), which is non-arable."
+        )
+    elif wc_class in (50, 60) and not has_soilgrids and not has_soil_override and not has_greenhouse:
+        critical.append(
+            f"ESA WorldCover classifies this site as '{wc_label}' (Class {wc_class}) and SoilGrids returned no topsoil data."
+        )
+    elif wc_class in _CAUTION_WORLDCOVER and not has_greenhouse:
+        warnings.append(
+            f"ESA WorldCover 10m land cover indicates '{wc_label}' (Class {wc_class}) rather than open cropland."
+        )
+
+    if not has_soilgrids and not has_soil_override and datasets.get("soil") is not None:
+        msg = "ISRIC SoilGrids returned no soil horizon data at these coordinates (common over water bodies, bare rock, or paved areas)."
+        if wc_class in _CRITICAL_WORLDCOVER or wc_class in (50, 60):
+            if msg not in critical:
+                critical.append(msg)
+        else:
+            warnings.append(msg)
+
+    if slope_pct is not None:
+        if slope_pct > 30.0:
+            critical.append(
+                f"Extreme terrain slope ({slope_pct:.1f}%) exceeds safe mechanized cultivation thresholds."
+            )
+        elif slope_pct > 15.0:
+            warnings.append(
+                f"Steep terrain slope ({slope_pct:.1f}%) introduces severe erosion risk and limits machinery access."
+            )
+
+    if elev_m is not None and elev_m > 2400.0:
+        critical.append(
+            f"High-alpine elevation ({elev_m:.0f} m) sits outside standard open-field arable crop zones."
+        )
+
+    if not has_greenhouse and (
+        (t_mean is not None and t_mean < 2.0) or (frost_days is not None and frost_days > 220)
+    ):
+        parts = []
+        if t_mean is not None:
+            parts.append(f"mean {t_mean:.1f}°C")
+        if frost_days is not None:
+            parts.append(f"{int(frost_days)} frost days/yr")
+        critical.append(
+            f"Extreme cold regime ({', '.join(parts)}) makes open-field arable cropping unviable without a greenhouse."
+        )
+
+    reasons = critical + warnings
+    return {
+        "likely_invalid": bool(reasons),
+        "severity": "critical" if critical else ("warning" if warnings else "ok"),
+        "reasons": reasons,
+        "worldcover_class": wc_class,
+        "worldcover_label": wc_label,
+    }

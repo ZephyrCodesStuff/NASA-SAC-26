@@ -125,6 +125,44 @@ class InsightsTests(unittest.TestCase):
         self.assertEqual(payload["effective_datasets"]["soil"]["values"]["clay_pct"], 42.0)
         self.assertEqual(payload["nasa_snapshot"]["parcels"][0]["datasets"]["soil"]["values"]["clay_pct"], 28.0)
 
+    def test_assess_plot_feasibility_flags_lake_and_alpine(self) -> None:
+        from src.providers.analytics_api import assess_plot_feasibility
+
+        lake = assess_plot_feasibility(
+            {"worldcover_class": 80, "worldcover_label": "Permanent water bodies"},
+            {
+                "soil": {"status": "ok", "values": {}},
+                "terrain": {"status": "ok", "values": {"elevation_m": {"mean": 65.0}, "slope_deg": {"mean": 0.1}}},
+            },
+        )
+        self.assertTrue(lake["likely_invalid"])
+        self.assertEqual(lake["severity"], "critical")
+        self.assertTrue(any("Permanent water bodies" in r for r in lake["reasons"]))
+
+        alpine = assess_plot_feasibility(
+            {"worldcover_class": 60, "worldcover_label": "Bare / sparse vegetation"},
+            {
+                "soil": {"status": "ok", "values": {"clay_pct": 12.0}},
+                "terrain": {"status": "ok", "values": {"elevation_m": {"mean": 2850.0}, "slope_deg": {"mean": 22.0}}},
+                "power": {"status": "ok", "values": {"temp_c": {"mean": -1.5}}},
+            },
+        )
+        self.assertTrue(alpine["likely_invalid"])
+        self.assertEqual(alpine["severity"], "critical")
+        self.assertGreaterEqual(len(alpine["reasons"]), 3)
+
+        arable = assess_plot_feasibility(
+            {"worldcover_class": 40, "worldcover_label": "Cropland"},
+            {
+                "soil": {"status": "ok", "values": {"clay_pct": 22.0, "ph_h2o": 6.8}},
+                "terrain": {"status": "ok", "values": {"elevation_m": {"mean": 240.0}, "slope_deg": {"mean": 1.2}}},
+                "power": {"status": "ok", "values": {"temp_c": {"mean": 13.5}}},
+            },
+        )
+        self.assertFalse(arable["likely_invalid"])
+        self.assertEqual(arable["severity"], "ok")
+        self.assertEqual(arable["reasons"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,7 +24,12 @@ from src.farms import (
     polygons_intersect,
 )
 from src.formulas import evaluate_plot_strategies
-from src.providers.analytics_api import AnalyticsApiClient, build_ingestion_payload, shape_projection_response
+from src.providers.analytics_api import (
+    AnalyticsApiClient,
+    assess_plot_feasibility,
+    build_ingestion_payload,
+    shape_projection_response,
+)
 from src.providers.catasto import CatastoClient, is_in_italy
 from src.providers.data_api import (
     FAST_DATASETS,
@@ -377,6 +382,17 @@ def create_api_router(
                 logger.debug("Optional economic datasets fetch skipped for plot %s: %s", plot_id, exc)
 
         gaps = summarize_sensor_gaps(datasets, soil_override=soil_override)
+        plot_for_check = dict(plot)
+        if not plot_for_check.get("worldcover_class") and plot_for_check.get("geometry"):
+            try:
+                wc_feat = {"type": "Feature", "geometry": plot_for_check["geometry"], "properties": {}}
+                await asyncio.wait_for(worldcover_client.classify_parcels([wc_feat]), timeout=15.0)
+                if wc_feat["properties"].get("worldcover_class") is not None:
+                    plot_for_check["worldcover_class"] = wc_feat["properties"]["worldcover_class"]
+                    plot_for_check["worldcover_label"] = wc_feat["properties"].get("worldcover_label")
+            except Exception as exc:
+                logger.debug("Best-effort WorldCover classification skipped for plot %s: %s", plot_id, exc)
+        site_feasibility = assess_plot_feasibility(plot_for_check, datasets, soil_override=soil_override)
         baseline_analysis = evaluate_plot_strategies(
             datasets=datasets,
             area_ha=float(plot.get("area_ha") or 1.0),
@@ -404,6 +420,7 @@ def create_api_router(
             "explained": explained,
             "gaps": gaps,
             "projection": projection,
+            "site_feasibility": site_feasibility,
         }
 
     # --- Catasto & WorldCover ---

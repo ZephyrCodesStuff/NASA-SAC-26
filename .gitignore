@@ -14,6 +14,7 @@ pocketbase/pb_data/
 
 # analyzer-api stuff
 data/
+**/.cache
 
 # LaTeX build artifacts (keep .tex, .bib, Makefile, and .pdf tracked)
 docs/science/*.aux
