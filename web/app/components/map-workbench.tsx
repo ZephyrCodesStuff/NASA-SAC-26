@@ -797,8 +797,8 @@ export function MapWorkbench() {
         <main className={`flex-1 relative isolate min-w-0 min-h-0 ${mode === "editor" ? "cursor-crosshair" : ""}`}>
           <div ref={mapContainerRef} className="h-full w-full" />
 
-          {/* Mobile Location Search Button / Expandable Input (Top Left next to Zoom) */}
-          <div className={`absolute top-3 left-[54px] md:hidden ${mobileSearchOpen ? "right-3 max-w-xs z-[600]" : "z-[500]"}`}>
+          {/* Mobile Location Search Button / Expandable Input (Top Left) */}
+          <div className={`absolute top-3 left-3 md:hidden ${mobileSearchOpen ? "right-3 max-w-xs z-[600]" : "z-[500]"}`}>
             {mobileSearchOpen ? (
               <LocationSearch
                 onSelect={handleLocationSelect}
