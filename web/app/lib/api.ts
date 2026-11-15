@@ -1,5 +1,5 @@
 export const WEB_API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "https://nasa-api.zeph.work"
+  process.env.NEXT_PUBLIC_API_URL || "https://nasa-api.zeph.work/api"
 ).replace(/\/$/, "");
 
 export interface ApiUser {
