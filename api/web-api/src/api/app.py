@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from src.auth import AuthError, AuthService, derive_pbkdf2_client_hash, is_farm_owner
-from src.devices import DeviceConflictError, DeviceStore
+from src.devices import DeviceConflictError, DeviceNotFoundError, DeviceStore
 from src.explainer import explain_plot_insights
 from src.farms import (
     FarmStore,
@@ -429,6 +429,8 @@ def create_api_router(
                 plot_id=plot_id,
                 name=body.name,
             )
+        except DeviceNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except DeviceConflictError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         return {"status": "claimed", "device": dev}

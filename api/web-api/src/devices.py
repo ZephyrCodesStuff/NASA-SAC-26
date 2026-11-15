@@ -24,6 +24,10 @@ class DeviceConflictError(Exception):
     """Raised when attempting to claim a serial number already assigned to another plot."""
 
 
+class DeviceNotFoundError(Exception):
+    """Raised when attempting to claim a serial number that has never been seen in the database."""
+
+
 class DeviceStore:
     """Persist claimed devices (1 plot at a time) and ingested 3-float sensor readings."""
 
@@ -189,12 +193,16 @@ class DeviceStore:
                             return upd.json()
                         raise PocketBaseError(502 if upd.status_code >= 500 else upd.status_code, upd.text)
                     else:
+                        if latest is None:
+                            raise DeviceNotFoundError(
+                                f"Board {clean_sn} does not exist in the database yet. Power it on and ingest a reading first."
+                            )
                         create_payload: dict[str, Any] = {
                             "device_id": clean_sn,
                             "farm_id": farm_id,
                             "plot_id": plot_id,
                             "name": (name or clean_sn).strip(),
-                            "last_seen": latest.get("ts") if latest else now,
+                            "last_seen": latest.get("ts") or now,
                             "latest_reading": latest,
                         }
                         crt = await http.post(
@@ -205,7 +213,7 @@ class DeviceStore:
                             return crt.json()
                         raise PocketBaseError(502 if crt.status_code >= 500 else crt.status_code, crt.text)
                 raise PocketBaseError(502 if existing.status_code >= 500 else existing.status_code, existing.text)
-            except (DeviceConflictError, PocketBaseError):
+            except (DeviceConflictError, DeviceNotFoundError, PocketBaseError):
                 raise
             except Exception as exc:
                 logger.error("PocketBase claim_device unreachable: %s", exc)
@@ -222,6 +230,10 @@ class DeviceStore:
             )
         matching_readings = [r for r in local["readings"] if r.get("device_id") == clean_sn]
         latest = matching_readings[-1] if matching_readings else None
+        if not cur and latest is None:
+            raise DeviceNotFoundError(
+                f"Board {clean_sn} does not exist in the database yet. Power it on and ingest a reading first."
+            )
         record = {
             "device_id": clean_sn,
             "farm_id": farm_id,
