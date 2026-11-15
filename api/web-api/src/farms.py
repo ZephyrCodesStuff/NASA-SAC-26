@@ -29,6 +29,29 @@ from src.providers.catasto import (
     point_in_geojson_geometry,
 )
 
+def fill_plot_geometry_metrics(plot: Any) -> Any:
+    """Fill a plot's missing `area_ha` / `centroid` from its geometry (custom-drawn plots were saved without them).
+
+    Only the returned record changes; nothing is written back to the store.
+    """
+    if not isinstance(plot, dict) or not isinstance(plot.get("geometry"), dict):
+        return plot
+    geometry = plot["geometry"]
+    try:
+        if not plot.get("area_ha"):
+            area = compute_geometry_area_ha(geometry)
+            if area > 0:
+                plot["area_ha"] = round(area, 4)
+        c = plot.get("centroid")
+        if not (isinstance(c, dict) and c.get("lat") is not None and c.get("lon") is not None):
+            centroid = compute_geometry_centroid(geometry)
+            if centroid:
+                plot["centroid"] = {"lat": round(centroid[0], 6), "lon": round(centroid[1], 6)}
+    except Exception:  # noqa: BLE001 — malformed geometry: leave the record as it is
+        pass
+    return plot
+
+
 DEFAULT_STORE_PATH = Path(
     os.getenv("FARMS_STORE_PATH", str(Path(__file__).resolve().parents[2] / ".cache" / "farms_store.json"))
 )
@@ -193,6 +216,8 @@ def merge_catasto_features_into_plot(
 
         props = feat.get("properties") or {}
         area = float(props.get("area_ha") or 0.0)
+        if area <= 0 and geom:
+            area = compute_geometry_area_ha(geom)
         total_area_ha += area
         c_ref = str(props.get("national_ref") or props.get("cadastral_ref") or "").strip()
         if c_ref:
@@ -204,6 +229,10 @@ def merge_catasto_features_into_plot(
             c_obj = {"lat": float(c_raw[0]), "lon": float(c_raw[1])}
         elif isinstance(c_raw, dict) and "lat" in c_raw and "lon" in c_raw:
             c_obj = {"lat": float(c_raw["lat"]), "lon": float(c_raw["lon"])}
+        if c_obj is None and geom:
+            c_calc = compute_geometry_centroid(geom)
+            if c_calc:
+                c_obj = {"lat": float(c_calc[0]), "lon": float(c_calc[1])}
 
         if c_obj is not None:
             w = area if area > 0 else 1.0
@@ -577,7 +606,7 @@ class FarmStore:
                     headers=self._headers(token),
                 )
                 if resp.status_code in (200, 201):
-                    return resp.json()
+                    return fill_plot_geometry_metrics(resp.json())
                 logger.error("PocketBase create_farm failed (%s): %s", resp.status_code, resp.text)
                 raise PocketBaseError(
                     502 if resp.status_code >= 500 else resp.status_code,
@@ -596,7 +625,7 @@ class FarmStore:
         rec = {"id": f"farm_{uuid.uuid4().hex[:10]}", **payload}
         local["farms"].append(rec)
         self._save_local(local)
-        return rec
+        return fill_plot_geometry_metrics(rec)
 
     async def list_plots(self, farm_id: str, user: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """List saved plots (`user_plots`) for a farm."""
@@ -613,7 +642,7 @@ class FarmStore:
                     headers=self._headers(token),
                 )
                 if resp.status_code == 200:
-                    return resp.json().get("items") or []
+                    return [fill_plot_geometry_metrics(p) for p in resp.json().get("items") or []]
                 logger.error("PocketBase list_plots failed (%s): %s", resp.status_code, resp.text)
                 raise PocketBaseError(
                     502 if resp.status_code >= 500 else resp.status_code,
@@ -629,7 +658,7 @@ class FarmStore:
                     await http.aclose()
 
         local = self._load_local()
-        return [p for p in local["user_plots"] if p.get("farm") == farm_id]
+        return [fill_plot_geometry_metrics(p) for p in local["user_plots"] if p.get("farm") == farm_id]
 
     async def add_plot(
         self,
@@ -653,7 +682,7 @@ class FarmStore:
                     headers=self._headers(token),
                 )
                 if resp.status_code in (200, 201):
-                    return resp.json()
+                    return fill_plot_geometry_metrics(resp.json())
                 logger.error("PocketBase add_plot failed (%s): %s", resp.status_code, resp.text)
                 raise PocketBaseError(
                     502 if resp.status_code >= 500 else resp.status_code,
@@ -672,7 +701,7 @@ class FarmStore:
         rec = {"id": f"plot_{uuid.uuid4().hex[:10]}", **payload}
         local["user_plots"].append(rec)
         self._save_local(local)
-        return rec
+        return fill_plot_geometry_metrics(rec)
 
     async def remove_plot(self, plot_id: str, user: dict[str, Any] | None = None) -> bool:
         """Delete a plot from `user_plots`."""
@@ -731,7 +760,7 @@ class FarmStore:
                     headers=self._headers(token),
                 )
                 if resp.status_code == 200:
-                    return resp.json()
+                    return fill_plot_geometry_metrics(resp.json())
                 logger.error("PocketBase update_plot failed (%s): %s", resp.status_code, resp.text)
                 raise PocketBaseError(
                     502 if resp.status_code >= 500 else resp.status_code,
@@ -752,7 +781,7 @@ class FarmStore:
                 updated = {**p, **patch}
                 local["user_plots"][idx] = updated
                 self._save_local(local)
-                return updated
+                return fill_plot_geometry_metrics(updated)
         return None
 
     async def get_plot_with_farm(
@@ -790,7 +819,7 @@ class FarmStore:
                     )
                     if f_resp.status_code == 200:
                         farm_rec = f_resp.json()
-                return plot_rec, farm_rec
+                return fill_plot_geometry_metrics(plot_rec), farm_rec
             except PocketBaseError:
                 raise
             except Exception as exc:
@@ -805,4 +834,4 @@ class FarmStore:
         if not plot_rec:
             return None, None
         farm_rec = next((f for f in local["farms"] if f.get("id") == plot_rec.get("farm")), None)
-        return plot_rec, farm_rec
+        return fill_plot_geometry_metrics(plot_rec), farm_rec
