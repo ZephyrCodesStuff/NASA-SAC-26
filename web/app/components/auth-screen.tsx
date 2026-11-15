@@ -269,7 +269,7 @@ export function AuthScreen() {
           </h1>
           <p className="text-sm text-[#6b675f] leading-relaxed">
             Select official government cadastral parcels or draw any field boundary worldwide,
-            inspect 24-period seasonal water and erosion balances, and pair live ESP32 soil probes
+            inspect 24-period seasonal water and erosion balances, and pair live IoT Embedded soil probes
             against NASA Earth observations.
           </p>
 
@@ -297,7 +297,7 @@ export function AuthScreen() {
           <div className="border-y border-[#e7e5e0] py-3 flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-[#6b675f]">
             <span>24 × 15-day periods</span>
             <span>Gov. Cadastre &amp; Field Boundaries</span>
-            <span>Live ESP32 Ground Truth</span>
+            <span>Live IoT Device Ground Truth</span>
           </div>
         </div>
 

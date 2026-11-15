@@ -889,7 +889,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
             <section className="space-y-3">
               <div className="flex items-baseline justify-between border-b border-[#e7e5e0] pb-1.5">
                 <h2 className="text-[11px] font-mono uppercase tracking-wider text-[#6b675f]">
-                  Ground telemetry · ESP32 field sensors
+                  Ground telemetry · IoT Embedded field sensors
                 </h2>
                 <span className="text-[10px] font-mono text-[#6b675f]">
                   {plotDevices.length > 0 ? `${plotDevices.length} board(s) paired` : "Optional ground truth"}
@@ -1035,7 +1035,7 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
                       <span>
                         {latestReading
                           ? `Last reading ${latestReading.ts} UTC`
-                          : "Waiting for ESP32 readings…"}
+                          : "Waiting for IoT device readings…"}
                       </span>
                     </div>
                   </div>
