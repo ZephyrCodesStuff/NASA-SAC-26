@@ -1,28 +1,72 @@
-\section{Scientific Assumptions, Excluded Metrics, and Field Verification}
+\section{Scientific Assumptions, Calibration Parameters, and Field Verification}
 \label{sec:limitations}
 
 \subsection{Explicit Physical Modeling Assumptions}
-Transparency requires stating where Ceres' lumped annual/half-year equations simplify real agroecosystem dynamics:
+Ceres' lumped monthly and annual equations simplify real agroecosystem dynamics in the following ways:
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Seasonal Temporal Resolution}: \texttt{PlanOptimizerEngine} resolves water and nitrogen across representative warm/cool half-year windows rather than daily finite-difference soil-water Richards profiles or dynamic phenology GDD curves. Acute multi-day drought occurring within a single critical flowering week can injure yields beyond what seasonal effective precipitation indicates.
-  \item \textbf{Empirical RUSLE Parameterization}: Renard--Freimund rainfall erosivity $R$ uses annual rainfall totals rather than 30-minute storm kinetic energy ($EI_{30}$), and slope length $\lambda$ is estimated from parcel area under an isotropic square-plot geometry ($\sqrt{10^4 A_{\mathrm{ha}}}$) with support practice $P = 1.0$. Contour plowing, grass waterways, or terraced micro-topography lower real soil loss relative to baseline estimates.
-  \item \textbf{Hargreaves--Samani vs.\ Penman--Monteith Normals}: Upstream monthly partitioning from NASA POWER 1991--2020 normals relies on Eq.~52 (temperature amplitude + $R_a$)~\cite{allen1998fao56}, which can slightly overestimate $ET_0$ in hyper-humid coastal zones or underestimate $ET_0$ under persistent advective winds compared to daily Penman--Monteith.
-  \item \textbf{Catalog Scope and Linear Economics}: The crop optimizer currently evaluates twelve benchmark species and assumes linear farm-gate pricing independent of local cooperative delivery contracts, post-harvest cold storage, or acute seasonal price shocks.
+  \item \textbf{Monthly Temporal Resolution}: Water is balanced monthly over each crop's calendar, not with daily soil-water profiles or dynamic phenology. A short drought during a critical flowering week can reduce yields more than the monthly balance indicates. The seasonal FAO-33 $K_y$ also ignores the higher sensitivity of flowering compared with vegetative stages.
+  \item \textbf{Calendar Uncertainty}: Gridded crop calendars ($0.5^{\circ}$) represent typical regional practice; farmer-reported sowing and harvest dates should always override them.
+  \item \textbf{Empirical RUSLE Parameterization}: Erosivity comes from a 1~km interpolated map (or, as a fallback, a US-fitted regression on annual rainfall). Slope length is estimated from parcel area under a square-plot geometry, and support practice $P = 1.0$. Contour plowing, grass waterways or terracing reduce real soil loss relative to these estimates.
+  \item \textbf{Reference Evapotranspiration}: Monthly Penman--Monteith on $0.5^{\circ}$ NASA POWER grids smooths local wind and humidity; the Hargreaves--Samani fallback tends to over-predict under high humidity and under-predict under strong wind~\cite{allen1998fao56}.
+  \item \textbf{Independent Multiplicative Stresses}: Yield stresses are multiplied as if independent, and are applied relative to a modelled reference field to avoid double counting with statistical yields.
+  \item \textbf{Nitrogen}: Fertilizer recovery efficiency, residue nitrogen release and losses are represented with single seasonal coefficients. Nitrogen losses use IPCC Tier-1 factors, which are inventory averages, not field predictions.
+  \item \textbf{Catalog Scope and Linear Economics}: The optimizer evaluates twelve benchmark species and assumes linear farm-gate pricing, independent of cooperative contracts, storage or seasonal price shocks.
 \end{itemize}
 
-\subsection{Metrics Intentionally Excluded as Scientifically Unverifiable}
-To preserve strict scientific defensibility, Ceres deliberately avoids inventing pseudo-precise outputs where physical data is missing:
+\subsection{Calibration Parameters Without a Direct Literature Source}
+Table~\ref{tab:calibration} lists every numeric parameter that is not taken directly from a cited method. These values are design choices or provisional calibrations. Results that depend on them are reported with their sensitivity (strategy ranking re-run with each parameter at its range limits), and they are priorities for local calibration.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Calibration parameters and their status.}
+  \label{tab:calibration}
+  \begin{tabular}{@{}p{4.2cm}p{2.3cm}p{2.4cm}p{6.2cm}@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Default} & \textbf{Used in} & \textbf{Status / evidence} \\
+    \midrule
+    Fertilizer N recovery $\mathrm{RE}_N$ & $0.40$ (range $0.3$--$0.6$) & $N_{\mathrm{synth}}$ & On-farm US maize $\approx 0.37$~\cite{cassman2002agroecosystems}; calibrate regionally \\
+    Legume residue N release $f_{\mathrm{rel}}$ & catalog & $N_{\mathrm{credit}}$ & No source yet; use regional extension tables \\
+    Cover-crop scavenged N $N_{\mathrm{scav}}$ & catalog & $N_{\mathrm{synth}}$ & No source yet \\
+    Humification $k_1$ (above / below ground) & catalog & SOC & To be taken from AMG-type parameterizations \\
+    Extra-root carbon fraction & $0.65$ & $A$ & Lower bound of the $65$--$100\%$ range in the literature \\
+    Carbonate coefficient in $k_2$ & $0.3$ & $k_2$ & Verify against R{\'e}my \& Marin-Lafl{\`e}che (1974) \\
+    Temperature floor in $f(T)$ & $T \ge 6^{\circ}\mathrm{C}$ & $k_2$, $N_{\mathrm{min}}$ & Design choice \\
+    Family yield drag $\mu_{\mathrm{family}}$ & $0.88$ & $Y_t$ & No source; replace with crop-specific values \\
+    pH attenuation & $0.14$ per unit & $\mu_{\mathrm{pH}}$ & No source \\
+    pH lockout fallback & $\pm 1.6$ units & filtering & Only where no ECOCROP absolute range \\
+    Flood-tolerance threshold & $\ge 2.0$ (1--5) & filtering & No source \\
+    Compaction increments, reliefs, bounds & Section~\ref{sec:soil-physics} & $\mathrm{PSI}_t$ & Heuristic; indicative only \\
+    Slope-length bounds & $22.13$--$150~\mathrm{m}$ & $LS$ & Geometric assumption \\
+    Risk and soil-health index weights & see code & strategy selection & Design choice; reported with results \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Metrics Intentionally Excluded or Labelled}
 \begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{No Synthetic Sensor Claims}: Baseline subsoil compaction without a penetrometer log is labeled explicitly as modeled from texture and machinery passes, never presented as a physical measurement.
-  \item \textbf{No Arbitrary Punitive Fines}: Earlier prototype versions assigned synthetic monetary fines (e.g., flat USD penalties per violated family break) with no econometric basis. Ceres replaces arbitrary fines with biophysical yield drag ($\mu_{\mathrm{family}} = 0.88$) and hard phytosanitary sequence exclusions (e.g., once-in-3-years Solanaceae break).
-  \item \textbf{LLM Output Containment}: Generative advisory text is strictly bounded to interpreting verified JSON simulation results; it cannot adjust numbers, invent yields, or override biophysical exclusions.
+  \item \textbf{No Synthetic Sensor Claims}: Subsoil compaction without a penetrometer log is labelled as modeled from texture and machinery passes, never presented as a measurement.
+  \item \textbf{No Monetary Fines}: Earlier prototypes assigned flat USD penalties per violated family break. These are replaced by hard phytosanitary exclusions and the yield drag $\mu_{\mathrm{family}}$, which is itself listed as a calibration parameter in Table~\ref{tab:calibration}.
+  \item \textbf{LLM Output Containment}: Generative advisory text only interprets verified JSON simulation results; it cannot adjust numbers, invent yields, or override biophysical exclusions.
 \end{enumerate}
 
-\subsection{Human-in-the-Loop Verification Checklist}
-Every strategy report surfaces a field-verification checklist (``Where Satellite Data Needs Local Eyes'') encouraging farmers and local agronomists to confirm parameters that coarse 250~m--0.5$^{\circ}$ remote sensing cannot resolve:
+\subsection{Demonstration Regions: Turin (Italy) and Istanbul (T{\"u}rkiye)}
+For the live demonstration parcels, the following inputs have the largest effect on results and should be supplied or checked before the demo:
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Topsoil $\mathrm{pH}$ \& Lab NPK}: Verify SoilGrids $\mathrm{pH}$ predictions with composite 0--20~cm soil samples before high-value horticultural planting or liming.
-  \item \textbf{Tillage Pan Compaction}: Probe field diagonals with a spade or cone penetrometer after harvest to distinguish modeled compaction from site-specific traffic pans.
+  \item \textbf{Irrigation method}: many farms around Turin use gravity-fed surface irrigation from canals ($e_a = 0.60$). Declaring sprinkler or drip where it is not used would overstate delivered water by $25$--$50\%$.
+  \item \textbf{Crop calendar}: autumn-sown cereals and rapeseed are common in both regions. Farmer-reported sowing and harvest months should override the gridded calendar.
+  \item \textbf{Carbonate}: run an HCl effervescence test (or use LUCAS data for Italian parcels) wherever $\mathrm{pH} \ge 7.5$, because carbonate changes $k_2$ and therefore the soil-carbon trajectory.
+  \item \textbf{Reference yields}: use ISTAT data for the Province of Turin and TurkStat data for Istanbul province rather than national averages, which mix very different growing regions.
+  \item \textbf{Weather}: multi-year records from regional networks (e.g., the Piedmont agrometeorological network, the Turkish State Meteorological Service) can replace NASA POWER normals as Tier-1 data when they span at least 10 years.
+  \item \textbf{Regulatory limits}: Nitrates Directive vulnerable-zone limits apply to parts of the Po plain.
+\end{itemize}
+
+\subsection{Human-in-the-Loop Verification Checklist}
+Every strategy report includes a field-verification checklist (``Where Satellite Data Needs Local Eyes'') asking farmers and local agronomists to confirm parameters that coarse 250~m--0.5$^{\circ}$ remote sensing cannot resolve:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Topsoil $\mathrm{pH}$, Carbonate \& Lab NPK}: Verify SoilGrids $\mathrm{pH}$ with composite 0--20~cm samples before high-value horticultural planting or liming; test for free carbonate where $\mathrm{pH} \ge 7.5$.
+  \item \textbf{Tillage Pan Compaction}: Probe field diagonals with a spade or cone penetrometer after harvest; the modeled compaction trend is a heuristic.
   \item \textbf{Micro-Drainage \& Low Spots}: Confirm surface ponding, subsurface tile drainage capacity, and local wind-exposure microclimates during early establishment.
-  \item \textbf{Local Rotation History \& Contracts}: Record any omitted off-system crops from the past three years, confirm local buyer contracts/prices, and verify seasonal irrigation allocation permits before committing seed orders.
+  \item \textbf{Irrigation Method \& Allocation}: Confirm the irrigation system and the seasonal allocation permit, since both set the water actually delivered.
+  \item \textbf{Local Rotation History, Calendar \& Contracts}: Record crops of the past five years and usual sowing/harvest months, confirm buyer contracts and prices, and check regional fertilization limits before committing seed orders.
 \end{itemize}

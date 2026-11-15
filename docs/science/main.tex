@@ -13,6 +13,7 @@
 \usepackage{hyperref}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{microtype}
+\setlength{\emergencystretch}{3em}
 \usepackage{fancyhdr}
 
 \definecolor{ceresgreen}{HTML}{1B5E20}
@@ -41,13 +42,13 @@
   \textbf{Scientific Methodology, Physical Equations, and Uncertainty Boundaries of the 3-Year Crop Rotation Analytics Engine}
 }
 \author{Ceres Engineering \& Agronomic Modeling Documentation}
-\date{Version 1.0 --- November 2026}
+\date{Version 1.1 --- November 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-\textbf{Ceres} is an open-source agronomic decision-support platform developed for the NASA Space Apps Challenge 2026 to help farmers evaluate 3-year crop rotations worldwide. Its core architectural invariant is \emph{deterministic physics first, generative language models strictly for explanation}: every hydrologic, soil carbon, nitrogen, erosion, compaction, and economic output is computed deterministically in Python from peer-reviewed equations before any natural-language summary is generated. This technical note documents the exact mathematical formulations implemented in \texttt{analytics-api} and the upstream Earth-observation ingestion pipeline in \texttt{web-api}, records parameter sources and unit normalizations, and states explicit physical and data limitations alongside a farmer-facing field verification protocol.
+\textbf{Ceres} is an open-source agronomic decision-support platform developed for the NASA Space Apps Challenge 2026 to help farmers evaluate 3-year crop rotations worldwide. Its core architectural invariant is \emph{deterministic physics first, generative language models strictly for explanation}: every hydrologic, soil carbon, nitrogen, erosion, compaction, and economic output is computed deterministically in Python before any natural-language summary is generated. Wherever possible the equations come from published methods (FAO-56, FAO-33, RUSLE, H{\'e}nin--Dupuis, Bolinder, IPCC); every parameter without a direct literature source is listed explicitly as a calibration parameter (Table~\ref{tab:calibration}), and heuristic components are labelled as such. This technical note documents the mathematical formulations implemented in \texttt{analytics-api} and the upstream Earth-observation ingestion pipeline in \texttt{web-api}, records parameter sources and unit normalizations, and states physical and data limitations alongside a farmer-facing field verification protocol. Version~1.1 replaces the half-year water balance with a monthly crop-calendar balance, corrects the FAO-33 yield response, nitrogen-fixation and fertilizer-recovery terms, and documents regional data sources for the Turin and Istanbul demonstration sites.
 \end{abstract}
 
 \tableofcontents

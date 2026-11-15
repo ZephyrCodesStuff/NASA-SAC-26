@@ -165,11 +165,12 @@ DATA LAYERING & GROUND TRUTH (USER DATA LAYERED ON TOP OF NASA SATELLITE BASELIN
 
 FIELD & WEATHER OVERVIEW (TRANSLATE IN PLAIN RELATABLE TERMS):
 - Field Cadastre: {parcel.get('cadastral_id', 'Field-01')} ({parcel.get('area_hectares', 1.0)} ha)
-- Soil Texture: {parcel.get('soil_type', 'Loam')} | Elevation: {parcel.get('elevation_m', 150)} m | Slope: {parcel.get('slope_pct', 2.0)}%
-- NASA Evaporative Sun/Air Demand (ET0): {climate.get('annual_et0_mm', 1080)} mm/year
+- Soil Texture: {parcel.get('soil_type', 'Loam')} | Elevation: {parcel.get('elevation_m', 150)} m | Slope: {parcel.get('slope_pct', 2.0)}% (max {parcel.get('slope_max_pct', parcel.get('slope_pct', 2.0))}%)
+- NASA Evaporative Sun/Air Demand (ET0): {climate.get('annual_et0_mm', 1080)} mm/year ({climate.get('et0_method_used', 'FAO-56 PM')})
+- Irrigation Infrastructure: {climate.get('irrigation_method', 'sprinkler')} (efficiency e_a = {climate.get('irrigation_efficiency_ea', 0.75):.2f})
 - NASA Rainfall Measured (GPM): {climate.get('annual_precip_mm', 640)} mm/year
 - NASA Observed Climate Extremes (past 365d): {climate.get('frost_days_count', 0)} frost days (<=0°C), {climate.get('heatwave_days_count', 0)} heatwave days (>=35°C), longest dry spell {climate.get('longest_dry_spell_days', 0)} days
-- Soil pH: {climate.get('soil_ph', 6.7)} | Rootzone Moisture: {climate.get('smap_rootzone_moisture', 0.26)} m³/m³
+- Soil pH: {climate.get('soil_ph', 6.7)} | CaCO3: {climate.get('caco3_g_kg', 'Unmeasured')} g/kg (calcareous flag: {climate.get('calcareous_flag', False)}) | Rootzone Moisture: {climate.get('smap_rootzone_moisture', 0.26)} m³/m³
 - Paired IoT Canopy Air (if present): {climate.get('in_situ_ambient_temp_c', 'N/A')} °C, {climate.get('in_situ_ambient_humidity_pct', 'N/A')}% RH
 - Low-Spot Water Ponding Hazard: {climate.get('low_spot_hazard', False)}
 
@@ -378,12 +379,16 @@ TRANSLATION & FORMATTING GUIDELINES:
         )
 
         field_checklist = [
-            "Dig a simple spade test hole (30 cm deep) to inspect earthworm activity and check for hardpan layers.",
-            "Set tractor and combine tire pressures to 12-15 PSI before field entry to prevent deep soil packing.",
-            "Verify live rhizobia inoculant on all legume seed bags before planting (store in cool, dark place).",
-            "Walk field boundaries and drainage ditches after the first heavy rain to ensure water runs off without pooling.",
-            "Calibrate seed drill meters and sprayer nozzles with clean water to avoid costly over-application.",
-            "Take a quick mid-season soil moisture check at shovel depth during peak summer flowering."
+            (
+                f"Test topsoil pH (currently {climate.get('soil_ph', 6.7):.1f}) and perform a dilute-HCl effervescence fizz test for free CaCO3 carbonates "
+                f"(especially critical because SoilGrids omits carbonate and pH >= 7.5 slows humus breakdown), plus estimate surface stone/gravel % (CF)."
+                if climate.get("calcareous_flag") or (climate.get("soil_ph", 6.7) >= 7.5)
+                else f"Confirm lab topsoil pH (currently {climate.get('soil_ph', 6.7):.1f}), organic matter %, and gravel/stone volume % (CF) across 0-30 cm."
+            ),
+            "Dig a 30 cm spade hole or push a cone penetrometer to check plowpan depth (~20-35 cm): modeled compaction (~290 PSI / 2 MPa critical root barrier) is a soil/machinery heuristic.",
+            f"Verify installed irrigation method ('{climate.get('irrigation_method', 'sprinkler')}', application efficiency e_a = {climate.get('irrigation_efficiency_ea', 0.75):.2f}) and seasonal pumping permit / water abstraction cap.",
+            "Confirm full 5-year crop & break history, local sowing/harvest dates, straw/residue export %, and regional legal nitrogen caps (e.g., 170 kg N/ha/yr in EU Nitrate Vulnerable Zones).",
+            "Verify live rhizobia inoculant viability on legume seed bags and inspect field drainage outlets after heavy rainfall.",
         ]
 
         exec_summary = (

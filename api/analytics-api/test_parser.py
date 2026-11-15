@@ -678,6 +678,151 @@ class TestFieldInputParser(unittest.TestCase):
         self.assertIn("User In-Situ Ground Probe", prov["rootzone_moisture"])
         self.assertIn("User Lab Ground Truth", prov["soil_organic_carbon"])
 
+    def test_v11_rain_gauge_ten_year_threshold(self):
+        """Short (<10 yr) on-farm rain-gauge records stay monitoring-only; >=10 yr replaces normals."""
+        base_kwargs = dict(
+            parcel_info=ParcelInfoInput(parcel_id="RG-TEST", area_hectares=10.0),
+            harvest_history=HarvestAndCropHistoryInput(
+                historical_seasons=[
+                    SeasonalCropRecord(
+                        year=2024,
+                        crop_name="Corn (Maize)",
+                        botanical_family="Poaceae",
+                        yield_harvested_tons_ha=9.0,
+                        planting_date="2024-04-15",
+                        harvest_date="2024-09-25",
+                    )
+                ]
+            ),
+            economic_prices=EconomicPricesInput(diesel_fuel_price_usd_liter=1.2, irrigation_water_price_usd_m3=0.05),
+            nasa_data=NasaDataPayload(gpm_imerg=GpmImergPayload(annual_rainfall_mm=640.0)),
+        )
+        short_payload = FullFieldIngestionPayload(
+            **base_kwargs,
+            local_user_data=LocalUserDataInput(on_farm_annual_rainfall_mm=980.0, on_farm_rain_gauge_years=3),
+        )
+        n_short = FieldIngestionParser.parse_and_validate(short_payload)
+        self.assertEqual(n_short.effective_rainfall_annual_mm, 640.0)
+        self.assertEqual(n_short.rain_gauge_monitoring_only_mm, 980.0)
+        self.assertIn("monitoring only", n_short.data_layering_provenance["annual_rainfall"])
+
+        extracted_cal = FieldIngestionParser._extract_history_calendars([
+            SeasonalCropRecord(year=2024, crop_name="Corn (Maize)", planting_date="2024-04-15", harvest_date="2024-09-25"),
+            SeasonalCropRecord(year=2023, crop_name="Processing Tomatoes", planting_date="2023-05-01", harvest_date="2023-08-20"),
+            SeasonalCropRecord(year=2022, crop_name="Bell Peppers", planting_date="2022-05-10", harvest_date="2022-09-05"),
+        ])
+        self.assertIn("corn", extracted_cal)
+        self.assertIn("processing_tomatoes", extracted_cal)
+        self.assertIn("bell_peppers", extracted_cal)
+        self.assertEqual(extracted_cal["corn"]["sowing_month"], 4)
+        self.assertEqual(extracted_cal["corn"]["harvest_month"], 9)
+
+        long_payload = FullFieldIngestionPayload(
+            **base_kwargs,
+            local_user_data=LocalUserDataInput(on_farm_annual_rainfall_mm=980.0, on_farm_rain_gauge_years=12),
+        )
+        n_long = FieldIngestionParser.parse_and_validate(long_payload)
+        self.assertEqual(n_long.effective_rainfall_annual_mm, 980.0)
+        self.assertIsNone(n_long.rain_gauge_monitoring_only_mm)
+
+    def test_v11_elemental_npk_conversion_and_product_prices(self):
+        """Converts Urea/TSP/KCl product $/t and oxide P2O5/K2O $/kg to elemental $/kg N, P, K."""
+        sample_history = [SeasonalCropRecord(year=2024, crop_name="Corn (Maize)", yield_harvested_tons_ha=9.0)]
+        prod_payload = FullFieldIngestionPayload(
+            parcel_info=ParcelInfoInput(parcel_id="FERT-1", area_hectares=5.0),
+            harvest_history=HarvestAndCropHistoryInput(historical_seasons=sample_history),
+            economic_prices=EconomicPricesInput(
+                diesel_fuel_price_usd_liter=1.2,
+                irrigation_water_price_usd_m3=0.05,
+                urea_price_usd_ton=460.0,
+                tsp_price_usd_ton=402.0,
+                kcl_price_usd_ton=498.0,
+            ),
+        )
+        n_prod = FieldIngestionParser.parse_and_validate(prod_payload)
+        self.assertAlmostEqual(n_prod.elemental_n_price_usd_kg, 1.0, places=3)
+        self.assertAlmostEqual(n_prod.elemental_p_price_usd_kg, 2.0, places=3)
+        self.assertAlmostEqual(n_prod.elemental_k_price_usd_kg, 1.0, places=3)
+
+        oxide_payload = FullFieldIngestionPayload(
+            parcel_info=ParcelInfoInput(parcel_id="FERT-2", area_hectares=5.0),
+            harvest_history=HarvestAndCropHistoryInput(historical_seasons=sample_history),
+            economic_prices=EconomicPricesInput(
+                diesel_fuel_price_usd_liter=1.2,
+                irrigation_water_price_usd_m3=0.05,
+                phosphorus_price_usd_kg=1.65,
+                potassium_price_usd_kg=0.95,
+                fertilizer_price_basis="oxide",
+            ),
+        )
+        n_ox = FieldIngestionParser.parse_and_validate(oxide_payload)
+        self.assertAlmostEqual(n_ox.elemental_p_price_usd_kg, 1.65 / 0.4364, places=3)
+        self.assertAlmostEqual(n_ox.elemental_k_price_usd_kg, 0.95 / 0.8301, places=3)
+
+    def test_v11_monthly_pm_vs_hargreaves_fallback_and_calcareous_flag(self):
+        """Tests PM monthly ET0 vs Hargreaves fallback and pH >= 7.5 unmeasured CaCO3 warning."""
+        sample_history = [SeasonalCropRecord(year=2024, crop_name="Corn (Maize)", yield_harvested_tons_ha=9.0)]
+        pm_normals = {
+            str(m): {
+                "t2m_c": 14.0 + (8.0 if 5 <= m <= 8 else -3.0),
+                "t2m_max_c": 20.0 + (9.0 if 5 <= m <= 8 else -3.0),
+                "t2m_min_c": 8.0 + (7.0 if 5 <= m <= 8 else -3.0),
+                "solar_radiation_mj_m2": 18.0 if 5 <= m <= 8 else 9.0,
+                "wind_speed_2m_ms": 2.2,
+                "dew_point_c": 9.0,
+                "precip_mm": 65.0,
+            }
+            for m in range(1, 13)
+        }
+        hs_normals = {
+            str(m): {
+                "t2m_c": 15.0,
+                "t2m_max_c": 21.0,
+                "t2m_min_c": 9.0,
+                "precip_mm": 55.0,
+            }
+            for m in range(1, 13)
+        }
+        p_pm = FullFieldIngestionPayload(
+            parcel_info=ParcelInfoInput(parcel_id="PM-1", latitude=45.0, longitude=7.6, area_hectares=10.0),
+            harvest_history=HarvestAndCropHistoryInput(historical_seasons=sample_history),
+            economic_prices=EconomicPricesInput(diesel_fuel_price_usd_liter=1.2, irrigation_water_price_usd_m3=0.05),
+            nasa_data=NasaDataPayload(
+                nasa_power=NasaPowerPayload(monthly_normals=pm_normals),
+                soilgrids=SoilGridsPayload(
+                    raw_official_response={
+                        "properties": {
+                            "layers": [
+                                {"name": "soc", "depths": [{"range": {"top_depth": 0, "bottom_depth": 5}, "values": {"mean": 180}}]},
+                                {"name": "cfvo", "depths": [{"range": {"top_depth": 0, "bottom_depth": 5}, "values": {"mean": 150}}]},
+                                {"name": "nitrogen", "depths": [{"range": {"top_depth": 0, "bottom_depth": 5}, "values": {"mean": 160}}]},
+                                {"name": "phh2o", "depths": [{"range": {"top_depth": 0, "bottom_depth": 5}, "values": {"mean": 79}}]},
+                            ]
+                        }
+                    }
+                ),
+            ),
+        )
+        n_pm = FieldIngestionParser.parse_and_validate(p_pm)
+        self.assertIn("Penman-Monteith", n_pm.et0_method_used)
+        self.assertTrue(n_pm.calcareous_flag)
+        self.assertEqual(n_pm.soilgrids_cfvo_pct, 15.0)
+        self.assertAlmostEqual(n_pm.soilgrids_total_nitrogen_g_kg, 1.6, places=2)
+        self.assertIn("potentially calcareous", n_pm.data_layering_provenance["soil_carbonate"])
+
+        p_hs = FullFieldIngestionPayload(
+            parcel_info=ParcelInfoInput(parcel_id="HS-1", latitude=45.0, longitude=7.6, area_hectares=10.0),
+            harvest_history=HarvestAndCropHistoryInput(historical_seasons=sample_history),
+            economic_prices=EconomicPricesInput(diesel_fuel_price_usd_liter=1.2, irrigation_water_price_usd_m3=0.05),
+            nasa_data=NasaDataPayload(nasa_power=NasaPowerPayload(monthly_normals=hs_normals)),
+            local_user_data=LocalUserDataInput(lab_caco3_g_kg=120.0, irrigation_method="drip"),
+        )
+        n_hs = FieldIngestionParser.parse_and_validate(p_hs)
+        self.assertIn("Hargreaves", n_hs.et0_method_used)
+        self.assertEqual(n_hs.calibrated_caco3_g_kg, 120.0)
+        self.assertEqual(n_hs.irrigation_method, "drip")
+        self.assertEqual(n_hs.irrigation_efficiency_ea, 0.90)
+
 
 if __name__ == "__main__":
     unittest.main()

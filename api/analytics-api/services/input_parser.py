@@ -26,8 +26,11 @@ Parses, validates, harmonizes units, and audits raw agricultural datasets:
 
 import math
 import logging
+from datetime import date
 from typing import Dict, Any, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
+
+from projection_api.services.soil_physics import SoilPhysicsEngine
 
 from projection_api.models.input_parser_schemas import (
     FullFieldIngestionPayload,
@@ -331,6 +334,8 @@ class ParsedFieldNormalized(BaseModel):
     # 1. Parcel Core & Soil Type
     parcel_id: str
     field_name: str
+    country_code: str = "US"
+    state_or_province: Optional[str] = None
     latitude: float
     longitude: float
     area_hectares: float
@@ -359,6 +364,10 @@ class ParsedFieldNormalized(BaseModel):
     nitrogen_fertilizer_usd_kg: float
     phosphorus_fertilizer_usd_kg: float
     potassium_fertilizer_usd_kg: float
+    elemental_n_price_usd_kg: float = 1.35
+    elemental_p_price_usd_kg: float = 3.7809
+    elemental_k_price_usd_kg: float = 1.1444
+    fertilizer_price_basis: str = "oxide"
     labor_hourly_wage_usd: float
     custom_seed_prices: Dict[str, float]
     crop_market_prices_usd_t: Dict[str, float] = Field(default_factory=dict)
@@ -446,6 +455,7 @@ class ParsedFieldNormalized(BaseModel):
     soilgrids_clay_pct: Optional[float] = None
     soilgrids_bulk_density_g_cm3: Optional[float] = None
     soilgrids_total_nitrogen_g_kg: Optional[float] = None
+    soilgrids_cfvo_pct: Optional[float] = None
     grace_groundwater_trend: str
     nasa_power_coldest_night_c: Optional[float] = None
     nasa_power_hottest_day_c: Optional[float] = None
@@ -453,6 +463,9 @@ class ParsedFieldNormalized(BaseModel):
     warm_season_precip_mm: Optional[float] = None
     cool_season_et0_mm: Optional[float] = None
     cool_season_precip_mm: Optional[float] = None
+    monthly_climatology: Optional[Dict[int, Dict[str, Any]]] = None
+    et0_method_used: str = "NASA POWER Precomputed / Benchmark"
+    ggcmi_crop_calendar: Optional[Dict[str, Dict[str, int]]] = None
 
     # 8. Long-Term Weather Shift Projections
     climate_scenario_name: str
@@ -468,14 +481,23 @@ class ParsedFieldNormalized(BaseModel):
     calibrated_soc_pct: Optional[float] = None
     calibrated_compaction_psi: Optional[float] = None
     calibrated_soil_moisture_vol_pct: Optional[float] = None
+    calibrated_caco3_g_kg: Optional[float] = None
+    field_effervescence_hcl_positive: Optional[bool] = None
+    calcareous_flag: bool = False
     in_situ_ambient_temp_c: Optional[float] = None
     in_situ_ambient_humidity_pct: Optional[float] = None
     effective_rainfall_annual_mm: float = 620.0
+    rain_gauge_monitoring_only_mm: Optional[float] = None
     effective_et0_annual_mm: float = 1200.0
     effective_temp_mean_c: float = 18.5
     compaction_level_tag: str
     irrigation_system: str
+    irrigation_method: str = "sprinkler"
+    irrigation_efficiency_ea: float = 0.75
     tillage_practice: str
+    straw_export_fraction: Optional[float] = None
+    crop_calendars: Dict[str, Dict[str, int]] = Field(default_factory=dict)
+    max_legal_n_kg_ha: Optional[float] = None
     is_organic: bool
     whitelisted_crops: Optional[List[str]] = None
     blacklisted_crops: List[str] = Field(default_factory=list)
@@ -483,6 +505,8 @@ class ParsedFieldNormalized(BaseModel):
     # 10. Elevation & Terrain
     elevation_mean_m: float
     slope_mean_pct: float
+    slope_max_pct: Optional[float] = None
+    gloreda_r_factor: Optional[float] = None
     slope_aspect: str
     waterlogging_depression_risk: bool
     erosion_susceptibility_rating: str
@@ -515,6 +539,8 @@ class FieldIngestionParser:
         p = payload.parcel_info
         parcel_id = p.parcel_id
         field_name = p.field_name or f"Parcel-{parcel_id}"
+        country_code = p.country_code or "US"
+        state_or_province = p.state_or_province
 
         lat = p.latitude
         lon = p.longitude
@@ -558,6 +584,7 @@ class FieldIngestionParser:
         observed_pests = list(set(pests))
 
         detailed_seasons = [h.model_dump() for h in history]
+        history_crop_calendars = cls._extract_history_calendars(history)
         completeness_points += min(10.0, history_count * 2.0)
         audit_logs.append(f"Parsed {history_count} historical cultivation years spanning {history_span}.")
 
@@ -636,9 +663,15 @@ class FieldIngestionParser:
         diesel_price = econ.diesel_fuel_price_usd_liter
         water_price = econ.irrigation_water_price_usd_m3
         electricity_price = econ.electricity_pumping_tariff_usd_kwh or 0.12
-        n_price = econ.nitrogen_price_usd_kg or 1.35
-        p_price = econ.phosphorus_price_usd_kg or 1.65
-        k_price = econ.potassium_price_usd_kg or 0.95
+        (
+            n_price,
+            p_price,
+            k_price,
+            elem_n_price,
+            elem_p_price,
+            elem_k_price,
+            fert_basis,
+        ) = cls._resolve_elemental_prices(econ)
         labor_wage = econ.labor_hourly_wage_usd or 22.0
         custom_seed_prices = econ.seed_prices_usd_per_ha or {}
         crop_market_prices = econ.crop_market_prices_usd_t or {}
@@ -690,10 +723,16 @@ class FieldIngestionParser:
         sg_clay_pct: Optional[float] = None
         sg_bdod: Optional[float] = None
         sg_total_n_g_kg: Optional[float] = None
+        sg_cfvo_pct: Optional[float] = None
+        sg_caco3_g_kg: Optional[float] = None
+        monthly_climatology: Optional[Dict[int, Dict[str, Any]]] = None
+        et0_method_used = "NASA POWER Precomputed / Benchmark"
+        ggcmi_crop_calendar: Optional[Dict[str, Dict[str, int]]] = None
 
         nasa = payload.nasa_data
         if nasa:
             completeness_points += 10.0
+            ggcmi_crop_calendar = nasa.ggcmi_crop_calendar
 
             # 5A. NASA POWER (Extract full daily weather series from official formats)
             if nasa.nasa_power:
@@ -730,6 +769,15 @@ class FieldIngestionParser:
                                 max_consecutive_dry_days = cur_dry
                         else:
                             cur_dry = 0
+
+                    t_mins = [w.t2m_min_c for w in daily_weather if w.t2m_min_c is not None]
+                    t_maxs = [w.t2m_max_c for w in daily_weather if w.t2m_max_c is not None]
+                    if t_mins:
+                        coldest_night_c = round(min(t_mins), 2)
+                    if t_maxs:
+                        hottest_day_c = round(max(t_maxs), 2)
+                    if nasa.nasa_power.fao56_et0_annual_mm is not None:
+                        et0 = nasa.nasa_power.fao56_et0_annual_mm
                 else:
                     # Fallback to scalar inputs if timeseries absent
                     t_mean = nasa.nasa_power.t2m_mean_c if nasa.nasa_power.t2m_mean_c is not None else 18.5
@@ -764,6 +812,23 @@ class FieldIngestionParser:
                 else:
                     rain_ann = nasa.gpm_imerg.annual_rainfall_mm or 620.0
                     rain_grow = nasa.gpm_imerg.growing_season_rainfall_mm or round(rain_ann * 0.65, 1)
+
+            # Build 12-month agroclimatology (FAO-56 PM primary, Hargreaves-Samani fallback)
+            if nasa.nasa_power:
+                raw_monthly = cls._build_monthly_weather_normals(nasa.nasa_power, daily_weather, daily_rainfall)
+                if raw_monthly:
+                    monthly_climatology, et0_method_used = SoilPhysicsEngine.build_monthly_climate_series(
+                        monthly_raw=raw_monthly,
+                        latitude_deg=lat,
+                        elevation_m=p.elevation_m or 200.0,
+                    )
+                    if nasa.nasa_power.fao56_et0_annual_mm is None or nasa.nasa_power.monthly_normals:
+                        et0 = round(sum(m["et0_mm"] for m in monthly_climatology.values()), 1)
+                    audit_logs.append(
+                        f"Computed 12-month ET0 ({et0:.1f} mm/yr) via {et0_method_used}."
+                    )
+                elif nasa.nasa_power.fao56_et0_annual_mm is not None:
+                    et0_method_used = "NASA POWER Precomputed Scalar"
 
             # 5C. NASA SMAP (Extract daily surface & rootzone moisture)
             if nasa.smap_moisture:
@@ -817,6 +882,8 @@ class FieldIngestionParser:
                     sg_clay_pct = top_layer.clay_pct
                     sg_bdod = top_layer.bulk_density_g_cm3
                     sg_total_n_g_kg = top_layer.total_nitrogen_g_kg
+                    sg_cfvo_pct = top_layer.coarse_fragments_vol_pct
+                    sg_caco3_g_kg = top_layer.caco3_g_kg if top_layer.caco3_g_kg is not None else nasa.soilgrids.caco3_g_kg
                     audit_logs.append(f"Extracted {len(soil_depth_layers)} depth-stratified horizon layers from SoilGrids 2.0.")
                 else:
                     soil_soc = nasa.soilgrids.soil_organic_carbon_pct or 2.15
@@ -826,6 +893,7 @@ class FieldIngestionParser:
                     sg_clay_pct = nasa.soilgrids.clay_percentage
                     sg_bdod = nasa.soilgrids.bulk_density_g_cm3
                     sg_total_n_g_kg = nasa.soilgrids.total_nitrogen_g_kg
+                    sg_caco3_g_kg = nasa.soilgrids.caco3_g_kg
                 soil_tex = nasa.soilgrids.texture_class or "Clay Loam"
                 raw_soilgrids_soc = soil_soc
                 raw_soilgrids_ph = soil_ph
@@ -890,12 +958,20 @@ class FieldIngestionParser:
         calib_soc = None
         calib_comp_psi = None
         calib_moist = None
+        calib_caco3_g_kg = sg_caco3_g_kg
+        hcl_positive: Optional[bool] = None
         calib_amb_temp: Optional[float] = None
         calib_amb_hum: Optional[float] = None
         effective_rain = rain_ann
+        rain_gauge_monitoring_only: Optional[float] = None
         effective_temp = t_mean
         effective_et0 = et0
         comp_tag = "Unmeasured (modeled from bulk density & traffic)"
+        irrig_method = "sprinkler"
+        irrig_eff_ea = 0.75
+        straw_export_frac: Optional[float] = None
+        max_legal_n: Optional[float] = None
+        merged_crop_calendars: Dict[str, Dict[str, int]] = dict(history_crop_calendars)
         dated_sensor_list: List[DatedInSituSensorReading] = []
         earliest_ts = None
         latest_ts = None
@@ -904,7 +980,12 @@ class FieldIngestionParser:
         if usr:
             completeness_points += 10.0
             irrig_sys = str(usr.irrigation_system.value if hasattr(usr.irrigation_system, 'value') else usr.irrigation_system)
+            irrig_method, irrig_eff_ea = cls._resolve_irrigation_method_efficiency(usr.irrigation_method, irrig_sys)
             tillage = str(usr.tillage_practice.value if hasattr(usr.tillage_practice, 'value') else usr.tillage_practice)
+            straw_export_frac = usr.straw_export_fraction
+            max_legal_n = usr.max_legal_n_kg_ha
+            if usr.crop_calendars:
+                merged_crop_calendars.update(usr.crop_calendars)
             is_org = usr.is_organic_certified
             whitelist = usr.preferred_candidate_crops
             blacklist = usr.excluded_crops or []
@@ -985,12 +1066,27 @@ class FieldIngestionParser:
                 calib_comp_psi = usr.penetrometer_compaction_psi
             if usr.in_situ_soil_moisture_vol_pct is not None:
                 calib_moist = round(usr.in_situ_soil_moisture_vol_pct, 1)
+            if usr.lab_caco3_g_kg is not None:
+                calib_caco3_g_kg = round(usr.lab_caco3_g_kg, 1)
+                audit_logs.append(f"User lab CaCO3 equivalent: {calib_caco3_g_kg} g/kg layered into k2 mineralization buffer.")
+            if usr.field_effervescence_hcl_positive is not None:
+                hcl_positive = usr.field_effervescence_hcl_positive
 
             # 8C. On-farm rain gauge & weather station overrides
             if usr.on_farm_annual_rainfall_mm is not None:
-                effective_rain = round(usr.on_farm_annual_rainfall_mm, 1)
-                rain_grow = round(effective_rain * 0.65, 1)
-                audit_logs.append(f"User on-farm rain gauge: {effective_rain} mm layered on top of NASA GPM IMERG ({rain_ann} mm).")
+                if usr.on_farm_rain_gauge_years is not None and usr.on_farm_rain_gauge_years < 10:
+                    rain_gauge_monitoring_only = round(usr.on_farm_annual_rainfall_mm, 1)
+                    audit_logs.append(
+                        f"User on-farm rain gauge ({rain_gauge_monitoring_only} mm over {usr.on_farm_rain_gauge_years} yr < 10 yr threshold) "
+                        f"stored for monitoring only; retained long-term normals ({effective_rain} mm)."
+                    )
+                else:
+                    effective_rain = round(usr.on_farm_annual_rainfall_mm, 1)
+                    rain_grow = round(effective_rain * 0.65, 1)
+                    yrs_note = f"{usr.on_farm_rain_gauge_years} yr verified" if usr.on_farm_rain_gauge_years else "record length unverified"
+                    audit_logs.append(
+                        f"User on-farm rain gauge ({effective_rain} mm, {yrs_note}) layered on top of NASA GPM IMERG ({rain_ann} mm)."
+                    )
             if usr.on_farm_mean_temperature_c is not None:
                 effective_temp = round(usr.on_farm_mean_temperature_c, 2)
                 audit_logs.append(f"User on-farm weather station temp: {effective_temp}°C layered on top of NASA POWER ({t_mean}°C).")
@@ -1019,10 +1115,14 @@ class FieldIngestionParser:
         # 9. ELEVATION MAPS & TOPOGRAPHY
         # ----------------------------------------------------------------------
         topo = payload.elevation_maps
+        slope_max_pct: Optional[float] = None
+        gloreda_r_factor: Optional[float] = None
         if topo:
             completeness_points += 10.0
             elev_mean = topo.elevation_mean_m or 280.0
             slope_mean = topo.slope_mean_pct or 2.2
+            slope_max_pct = topo.slope_max_pct
+            gloreda_r_factor = topo.gloreda_r_factor
             aspect = str(topo.aspect.value if hasattr(topo.aspect, 'value') else topo.aspect)
             waterlogging = bool(topo.waterlogging_depression_present)
             erosion_stat = topo.soil_erosion_susceptibility or ("Low" if slope_mean < 3.0 else "Moderate")
@@ -1037,7 +1137,19 @@ class FieldIngestionParser:
             audit_logs.append(f"User surveyed elevation: {elev_mean}m layered on top of SRTM DEM.")
         if usr and usr.survey_slope_pct is not None:
             slope_mean = round(usr.survey_slope_pct, 2)
+            slope_max_pct = max(slope_max_pct or 0.0, slope_mean) if slope_max_pct is not None else None
             audit_logs.append(f"User surveyed slope: {slope_mean}% layered on top of SRTM DEM.")
+
+        calcareous_flag = bool(
+            (calib_caco3_g_kg is not None and calib_caco3_g_kg > 10.0)
+            or hcl_positive is True
+            or (soil_ph >= 7.5 and calib_caco3_g_kg is None)
+        )
+        if soil_ph >= 7.5 and calib_caco3_g_kg is None:
+            audit_logs.append(
+                f"Topsoil pH {soil_ph:.2f} >= 7.5 indicates potentially calcareous soil (SoilGrids v2.0 omits CaCO3); "
+                "defaulting CaCO3 = 0 g/kg pending lab carbonate or field dilute-HCl verification."
+            )
 
         # ----------------------------------------------------------------------
         # 10. MULTI-SOURCE DATA PROVENANCE & LAYERING AUDIT
@@ -1060,10 +1172,31 @@ class FieldIngestionParser:
             f"User In-Situ Ground Probe ({calib_moist:.1f}%) calibrated on top of NASA SMAP L4 ({smap_root:.1f}%)"
             if calib_moist is not None else f"NASA SMAP L4 Satellite Baseline ({smap_root:.1f}%)"
         )
-        provenance["annual_rainfall"] = (
-            f"User On-Farm Rain Gauge ({effective_rain:.1f} mm) layered on top of NASA GPM IMERG ({rain_ann:.1f} mm)"
-            if (usr and usr.on_farm_annual_rainfall_mm is not None) else f"NASA GPM IMERG Satellite Baseline ({rain_ann:.1f} mm)"
-        )
+        if usr and usr.on_farm_annual_rainfall_mm is not None and (
+            usr.on_farm_rain_gauge_years is None or usr.on_farm_rain_gauge_years >= 10
+        ):
+            yrs_label = f"{usr.on_farm_rain_gauge_years} yr" if usr.on_farm_rain_gauge_years else "record length unspecified"
+            provenance["annual_rainfall"] = (
+                f"User On-Farm Rain Gauge ({effective_rain:.1f} mm; {yrs_label}) layered on top of NASA GPM IMERG ({rain_ann:.1f} mm)"
+            )
+        elif rain_gauge_monitoring_only is not None:
+            provenance["annual_rainfall"] = (
+                f"NASA GPM IMERG / Long-Term Normals retained ({effective_rain:.1f} mm); "
+                f"on-farm gauge ({rain_gauge_monitoring_only:.1f} mm, {usr.on_farm_rain_gauge_years} yr < 10 yr) logged for monitoring only"
+            )
+        else:
+            provenance["annual_rainfall"] = f"NASA GPM IMERG Satellite Baseline ({rain_ann:.1f} mm)"
+
+        provenance["et0_methodology"] = et0_method_used
+        provenance["irrigation_efficiency"] = f"{irrig_method} (e_a = {irrig_eff_ea:.2f})"
+        if calib_caco3_g_kg is not None:
+            provenance["soil_carbonate"] = f"Calibrated CaCO3 = {calib_caco3_g_kg:.1f} g/kg"
+        elif soil_ph >= 7.5:
+            provenance["soil_carbonate"] = (
+                f"Flagged potentially calcareous (pH {soil_ph:.2f} >= 7.5; SoilGrids omits CaCO3 -> assume 0 g/kg pending HCl/lab check)"
+            )
+        else:
+            provenance["soil_carbonate"] = "Non-calcareous assumption (0 g/kg CaCO3)"
         provenance["temperature_and_et0"] = (
             f"User On-Farm Weather Station ({effective_temp:.1f}°C, {effective_et0:.0f} mm ET0) calibrated on top of NASA POWER"
             if (usr and (usr.on_farm_mean_temperature_c is not None or usr.on_farm_annual_et0_mm is not None))
@@ -1084,6 +1217,8 @@ class FieldIngestionParser:
         return ParsedFieldNormalized(
             parcel_id=parcel_id,
             field_name=field_name,
+            country_code=country_code,
+            state_or_province=state_or_province,
             latitude=lat,
             longitude=lon,
             area_hectares=area_ha,
@@ -1108,6 +1243,10 @@ class FieldIngestionParser:
             nitrogen_fertilizer_usd_kg=n_price,
             phosphorus_fertilizer_usd_kg=p_price,
             potassium_fertilizer_usd_kg=k_price,
+            elemental_n_price_usd_kg=elem_n_price,
+            elemental_p_price_usd_kg=elem_p_price,
+            elemental_k_price_usd_kg=elem_k_price,
+            fertilizer_price_basis=fert_basis,
             labor_hourly_wage_usd=labor_wage,
             custom_seed_prices=custom_seed_prices,
             crop_market_prices_usd_t=crop_market_prices,
@@ -1160,6 +1299,7 @@ class FieldIngestionParser:
             soilgrids_clay_pct=sg_clay_pct,
             soilgrids_bulk_density_g_cm3=sg_bdod,
             soilgrids_total_nitrogen_g_kg=sg_total_n_g_kg,
+            soilgrids_cfvo_pct=sg_cfvo_pct,
             grace_groundwater_trend=grace_trend,
             nasa_power_coldest_night_c=coldest_night_c,
             nasa_power_hottest_day_c=hottest_day_c,
@@ -1167,6 +1307,9 @@ class FieldIngestionParser:
             warm_season_precip_mm=warm_season_precip_mm,
             cool_season_et0_mm=cool_season_et0_mm,
             cool_season_precip_mm=cool_season_precip_mm,
+            monthly_climatology=monthly_climatology,
+            et0_method_used=et0_method_used,
+            ggcmi_crop_calendar=ggcmi_crop_calendar,
             climate_scenario_name=scenario_name,
             has_custom_climate_projections=has_lt,
             projected_temp_rise_c=temp_rise,
@@ -1178,19 +1321,30 @@ class FieldIngestionParser:
             calibrated_soc_pct=calib_soc,
             calibrated_compaction_psi=calib_comp_psi,
             calibrated_soil_moisture_vol_pct=calib_moist,
+            calibrated_caco3_g_kg=calib_caco3_g_kg,
+            field_effervescence_hcl_positive=hcl_positive,
+            calcareous_flag=calcareous_flag,
             in_situ_ambient_temp_c=calib_amb_temp,
             in_situ_ambient_humidity_pct=calib_amb_hum,
             effective_rainfall_annual_mm=effective_rain,
+            rain_gauge_monitoring_only_mm=rain_gauge_monitoring_only,
             effective_et0_annual_mm=effective_et0,
             effective_temp_mean_c=effective_temp,
             compaction_level_tag=comp_tag,
             irrigation_system=irrig_sys,
+            irrigation_method=irrig_method,
+            irrigation_efficiency_ea=irrig_eff_ea,
             tillage_practice=tillage,
+            straw_export_fraction=straw_export_frac,
+            crop_calendars=merged_crop_calendars,
+            max_legal_n_kg_ha=max_legal_n,
             is_organic=is_org,
             whitelisted_crops=whitelist,
             blacklisted_crops=blacklist,
             elevation_mean_m=elev_mean,
             slope_mean_pct=slope_mean,
+            slope_max_pct=slope_max_pct,
+            gloreda_r_factor=gloreda_r_factor,
             slope_aspect=aspect,
             waterlogging_depression_risk=waterlogging,
             erosion_susceptibility_rating=erosion_stat,
@@ -1391,13 +1545,18 @@ class FieldIngestionParser:
 
                 result_layers = []
                 for d_key, vals in depth_map.items():
-                    # ISRIC units: soc is dg/kg (divide by 100 for %), clay/sand/silt is g/kg (divide by 10 for %), ph is pH*10
+                    # ISRIC units: soc is dg/kg (divide by 100 for %), clay/sand/silt is g/kg (divide by 10 for %),
+                    # ph is pH*10, bdod is cg/cm3 (divide by 100 for g/cm3), cfvo is cm3/dm3 (divide by 10 for vol%),
+                    # nitrogen is cg/kg (divide by 100 for g/kg)
                     soc_pct = round(vals.get("soc", 0) / 100.0, 2) if "soc" in vals else None
                     clay_pct = round(vals.get("clay", 0) / 10.0, 1) if "clay" in vals else None
                     sand_pct = round(vals.get("sand", 0) / 10.0, 1) if "sand" in vals else None
                     silt_pct = round(vals.get("silt", 0) / 10.0, 1) if "silt" in vals else None
                     ph_val = round(vals.get("phh2o", 0) / 10.0, 2) if "phh2o" in vals else None
                     bd_val = round(vals.get("bdod", 0) / 100.0, 2) if "bdod" in vals else None
+                    n_val = round(vals.get("nitrogen", 0) / 100.0, 3) if "nitrogen" in vals else None
+                    cfvo_val = round(vals.get("cfvo", 0) / 10.0, 1) if "cfvo" in vals else None
+                    caco3_val = round(vals.get("caco3", 0), 1) if "caco3" in vals else None
 
                     result_layers.append(
                         SoilGridsDepthLayer(
@@ -1409,7 +1568,10 @@ class FieldIngestionParser:
                             silt_pct=silt_pct,
                             soil_organic_carbon_pct=soc_pct,
                             soil_ph_h2o=ph_val,
-                            bulk_density_g_cm3=bd_val
+                            bulk_density_g_cm3=bd_val,
+                            total_nitrogen_g_kg=n_val,
+                            coarse_fragments_vol_pct=cfvo_val,
+                            caco3_g_kg=caco3_val,
                         )
                     )
                 if result_layers:
@@ -1463,3 +1625,177 @@ class FieldIngestionParser:
         elif any(c in name_lower for c in ["cotton"]):
             return "Malvaceae (Mallows)"
         return "General Agronomic Family"
+
+    @staticmethod
+    def _resolve_elemental_prices(econ: Any) -> Tuple[float, float, float, float, float, float, str]:
+        """Converts oxide/product fertilizer prices cleanly to elemental N, P, K ($/kg)."""
+        basis = (getattr(econ, "fertilizer_price_basis", None) or "oxide").lower()
+
+        if getattr(econ, "urea_price_usd_ton", None) is not None:
+            n_price = round(econ.urea_price_usd_ton / 460.0, 4)
+            elem_n = n_price
+        else:
+            n_price = econ.nitrogen_price_usd_kg if econ.nitrogen_price_usd_kg is not None else 1.35
+            elem_n = n_price
+
+        if getattr(econ, "tsp_price_usd_ton", None) is not None:
+            elem_p = round(econ.tsp_price_usd_ton / 201.0, 4)
+            p_price = econ.phosphorus_price_usd_kg if econ.phosphorus_price_usd_kg is not None else round(elem_p * 0.4364, 4)
+        else:
+            p_price = econ.phosphorus_price_usd_kg if econ.phosphorus_price_usd_kg is not None else 1.65
+            elem_p = round(p_price, 4) if basis == "elemental" else round(p_price / 0.4364, 4)
+
+        if getattr(econ, "kcl_price_usd_ton", None) is not None:
+            elem_k = round(econ.kcl_price_usd_ton / 498.0, 4)
+            k_price = econ.potassium_price_usd_kg if econ.potassium_price_usd_kg is not None else round(elem_k * 0.8301, 4)
+        else:
+            k_price = econ.potassium_price_usd_kg if econ.potassium_price_usd_kg is not None else 0.95
+            elem_k = round(k_price, 4) if basis == "elemental" else round(k_price / 0.8301, 4)
+
+        return n_price, p_price, k_price, elem_n, elem_p, elem_k, basis
+
+    @staticmethod
+    def _resolve_irrigation_method_efficiency(
+        explicit_method: Optional[str],
+        irrig_system_label: str,
+    ) -> Tuple[str, float]:
+        """Maps installed irrigation technology to canonical method and FAO-56 application efficiency."""
+        if explicit_method:
+            m = explicit_method.strip().lower()
+            if "drip" in m or "trickle" in m or "subsurface" in m:
+                return "drip", 0.90
+            if "surface" in m or "flood" in m or "furrow" in m or "basin" in m:
+                return "surface", 0.60
+            if "rain" in m or "none" in m:
+                return "rainfed", 0.75
+            return "sprinkler", 0.75
+
+        s = (irrig_system_label or "").lower()
+        if "drip" in s or "subsurface" in s:
+            return "drip", 0.90
+        if "flood" in s or "furrow" in s or "surface" in s:
+            return "surface", 0.60
+        if "rain" in s or "none" in s:
+            return "rainfed", 0.75
+        return "sprinkler", 0.75
+
+    @staticmethod
+    def _extract_history_calendars(history: List[Any]) -> Dict[str, Dict[str, int]]:
+        """Builds Tier 1 sowing/harvest DOY calendars from grower harvest history dates."""
+        name_to_key = {
+            "corn": "corn", "maize": "corn",
+            "soybean": "soybeans", "soy": "soybeans",
+            "wheat": "winter_wheat",
+            "alfalfa": "alfalfa", "clover": "alfalfa",
+            "tomato": "processing_tomatoes",
+            "sunflower": "sunflowers",
+            "sorghum": "grain_sorghum",
+            "peas": "field_peas", "pea": "field_peas",
+            "canola": "canola", "rapeseed": "canola",
+            "radish": "daikon_radish_cover", "daikon": "daikon_radish_cover",
+            "bell pepper": "bell_peppers", "pepper": "bell_peppers",
+            "spinach": "spinach",
+        }
+        calendars: Dict[str, Dict[str, int]] = {}
+        for h in history:
+            if not getattr(h, "planting_date", None) or not getattr(h, "harvest_date", None):
+                continue
+            try:
+                p_dt = date.fromisoformat(str(h.planting_date)[:10])
+                h_dt = date.fromisoformat(str(h.harvest_date)[:10])
+            except ValueError:
+                continue
+            crop_lower = (h.crop_name or "").lower()
+            matched_key = next((k for pat, k in name_to_key.items() if pat in crop_lower), None)
+            if matched_key:
+                calendars[matched_key] = {
+                    "sowing_doy": p_dt.timetuple().tm_yday,
+                    "harvest_doy": h_dt.timetuple().tm_yday,
+                    "sowing_month": p_dt.month,
+                    "harvest_month": h_dt.month,
+                }
+        return calendars
+
+    @classmethod
+    def _build_monthly_weather_normals(
+        cls,
+        power: Any,
+        daily_weather: List[DatedDailyWeatherRecord],
+        daily_rainfall: List[DatedPrecipitationObservation],
+    ) -> Optional[Dict[int, Dict[str, Any]]]:
+        """Extracts 12-month normals from NASA POWER monthly_normals or multi-month daily timeseries."""
+        if getattr(power, "monthly_normals", None):
+            norm_out: Dict[int, Dict[str, Any]] = {}
+            for k, v in power.monthly_normals.items():
+                try:
+                    m_idx = int(k)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= m_idx <= 12 and isinstance(v, dict):
+                    norm_out[m_idx] = dict(v)
+            if len(norm_out) == 12:
+                return norm_out
+
+        if not daily_weather:
+            return None
+
+        by_month: Dict[int, Dict[str, List[float]]] = {m: {} for m in range(1, 13)}
+        year_month_precip: Dict[Tuple[int, int], float] = {}
+        for w in daily_weather:
+            try:
+                dt = date.fromisoformat(str(w.date)[:10])
+            except ValueError:
+                continue
+            m = dt.month
+            bucket = by_month[m]
+            for attr, key in [
+                ("t2m_c", "t2m_c"),
+                ("t2m_max_c", "t2m_max_c"),
+                ("t2m_min_c", "t2m_min_c"),
+                ("solar_radiation_mj_m2", "solar_radiation_mj_m2"),
+                ("relative_humidity_pct", "relative_humidity_pct"),
+                ("wind_speed_2m_ms", "wind_speed_2m_ms"),
+                ("dew_point_c", "dew_point_c"),
+                ("surface_pressure_kpa", "surface_pressure_kpa"),
+            ]:
+                val = getattr(w, attr, None)
+                if val is not None:
+                    bucket.setdefault(key, []).append(float(val))
+            if w.precipitation_mm is not None:
+                ym = (dt.year, m)
+                year_month_precip[ym] = year_month_precip.get(ym, 0.0) + float(w.precipitation_mm)
+
+        # Incorporate GPM IMERG monthly rain sums if available
+        gpm_ym: Dict[Tuple[int, int], float] = {}
+        for r in daily_rainfall:
+            try:
+                dt = date.fromisoformat(str(r.date)[:10])
+            except ValueError:
+                continue
+            ym = (dt.year, dt.month)
+            gpm_ym[ym] = gpm_ym.get(ym, 0.0) + float(r.precipitation_mm)
+
+        observed_months = [m for m in range(1, 13) if by_month[m]]
+        if len(observed_months) < 10:
+            return None
+
+        result: Dict[int, Dict[str, Any]] = {}
+        for m in range(1, 13):
+            b = by_month[m]
+            if not b:
+                # Interpolate missing month from neighbors if 10-11 months observed
+                prev_m = ((m - 2) % 12) + 1
+                next_m = (m % 12) + 1
+                b = by_month.get(prev_m) or by_month.get(next_m) or {}
+            m_dict: Dict[str, Any] = {}
+            for key, vals in b.items():
+                if vals:
+                    m_dict[key] = round(sum(vals) / len(vals), 3)
+            gpm_vals = [v for (yr, mo), v in gpm_ym.items() if mo == m]
+            pwr_vals = [v for (yr, mo), v in year_month_precip.items() if mo == m]
+            if gpm_vals:
+                m_dict["precip_mm"] = round(sum(gpm_vals) / len(gpm_vals), 2)
+            elif pwr_vals:
+                m_dict["precip_mm"] = round(sum(pwr_vals) / len(pwr_vals), 2)
+            result[m] = m_dict
+        return result

@@ -37,9 +37,15 @@ class AnnualGroundImpact(BaseModel):
     nitrogen_balance_kg_ha: float = Field(..., description="Net soil nitrogen (+ fixed credit or - uptake extraction)")
     p2o5_balance_kg_ha: float
     k2o_balance_kg_ha: float
+    phosphorus_balance_kg_ha: Optional[float] = Field(default=None, description="Elemental phosphorus balance (kg P/ha)")
+    potassium_balance_kg_ha: Optional[float] = Field(default=None, description="Elemental potassium balance (kg K/ha)")
     biological_n_fixed_kg_ha: float = 0.0
     synthetic_n_applied_kg_ha: float = 0.0
     legume_n_credit_used_kg_ha: float = 0.0
+    soil_mineralized_n_kg_ha: float = 0.0
+    nitrogen_surplus_kg_ha: float = 0.0
+    nitrogen_leaching_kg_ha: float = 0.0
+    direct_n2o_n_kg_ha: float = 0.0
 
     # Soil Physics & Organic Carbon (Henin-Dupuis)
     soc_pct_start: float
@@ -47,16 +53,22 @@ class AnnualGroundImpact(BaseModel):
     soc_change_pct: float = Field(..., description="Delta SOC % (humification of residue vs mineralization)")
     carbon_input_tons_ha: float = Field(..., description="IPCC dry matter carbon input (AG + BG roots)")
 
-    # Soil Compaction Mechanics (ASAE S313.3 Cone Index)
+    # Soil Compaction Mechanics (ASAE S313.3 Cone Index heuristic)
     compaction_psi_start: float
     compaction_psi_end: float
     compaction_change_psi: float = Field(..., description="Traffic compaction accumulation vs taproot bio-drill relief")
+    compaction_is_heuristic: bool = Field(default=True, description="True unless calibrated with field penetrometer/bulk-density")
 
-    # Agro-Hydrology (FAO-56 Dual Crop Coefficient)
+    # Agro-Hydrology (FAO-56 Single Crop Coefficient + Monthly Bucket)
     water_demand_etc_mm: float
+    actual_et_eta_mm: Optional[float] = Field(default=None, description="Actual seasonal crop evapotranspiration ETa (mm)")
+    relative_et_deficit: float = Field(default=0.0, description="Seasonal relative ET deficit 1 - ETa/ETc")
+    fao33_outside_calibrated_range: bool = Field(default=False, description="True if 1 - ETa/ETc > 0.50 (FAO-33 empirical bound)")
     effective_precipitation_mm: float
     irrigation_water_applied_mm: float
     irrigation_volume_m3: float
+    irrigation_method: Optional[str] = Field(default=None, description="surface, sprinkler, or drip")
+    irrigation_efficiency_ea: Optional[float] = Field(default=None, description="Application efficiency e_a (0.60, 0.75, or 0.90)")
     water_stress_coefficient_ks: float = Field(1.0, description="1.0 = no water stress, <1.0 = transpiration reduction")
 
     # Soil Conservation & Ecological Health
@@ -91,6 +103,9 @@ class ThreeYearCumulativeMetrics(BaseModel):
     net_compaction_change_psi: float
     total_irrigation_volume_m3: float
     average_annual_erosion_tons_ha: float
+    total_nitrogen_surplus_kg_ha: float = 0.0
+    total_nitrogen_leaching_kg_ha: float = 0.0
+    total_direct_n2o_n_kg_ha: float = 0.0
 
     # Composite Strategy Indices
     cumulative_soil_health_score: float = Field(..., description="0 - 100 regenerative soil health index")
@@ -159,5 +174,13 @@ class ThreeYearPlanResponse(BaseModel):
     strategies: Dict[str, ThreeYearCultivationPlan] = Field(
         ...,
         description="Keys: most_income, best_soil_health, least_effort, highest_roi, least_crop_loss_risk"
+    )
+    calibration_and_assumptions: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Uncalibrated empirical assumptions, soil/water provenance warnings, and model limits"
+    )
+    parcel_is_constrained: bool = Field(
+        default=False,
+        description="True when strict biophysical filters admit fewer than 3 distinct crops without lowering biophysical walls"
     )
     gemini_advisory: GeminiAdvisoryReport

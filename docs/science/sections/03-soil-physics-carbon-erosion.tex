@@ -1,46 +1,80 @@
 \section{Soil Physics: Carbon, Nitrogen, Erosion, and Compaction}
 \label{sec:soil-physics}
 
-\subsection{Soil Organic Carbon (H{\'e}nin--Dupuis / Mary--Gu{\'e}rif / Bolinder)}
-Topsoil organic carbon evolution in the upper $0.30~\mathrm{m}$ arable horizon follows the classic first-order mass-balance differential equation of H{\'e}nin and Dupuis~\cite{henin1945essai}:
+\subsection{Soil Organic Carbon (H{\'e}nin--Dupuis with R{\'e}my--Marin-Lafl{\`e}che Mineralization)}
+\paragraph{Model.} Topsoil organic carbon in the upper $0.30~\mathrm{m}$ follows the first-order mass balance of H{\'e}nin and Dupuis~\cite{henin1945essai}:
 \begin{equation}
-  \frac{\mathrm{d}C}{\mathrm{d}t} = k_1 A - k_2 C,
+  \frac{\mathrm{d}C}{\mathrm{d}t} = k_1 A - k_2 C .
 \end{equation}
-where initial carbon stock $C_0$ ($\mathrm{t\,C\,ha^{-1}}$) is computed from topsoil bulk density $\rho_b$ ($\mathrm{g\,cm^{-3}}$) and organic carbon concentration $\mathrm{SOC}_0$ ($\%$):
+With $k_1$, $A$ and $k_2$ held constant within a year, the equation is integrated exactly over each annual step, so no clamping of $\Delta C$ is needed:
 \begin{equation}
-  C_0 = 100 \cdot \rho_b \cdot 0.30 \cdot \mathrm{SOC}_0.
+  C_{t+1} = C_t\, e^{-k_2} + \frac{k_1 A}{k_2}\bigl(1 - e^{-k_2}\bigr).
 \end{equation}
 
-The annual mineralization rate constant $k_2$ ($\mathrm{yr^{-1}}$) implements the Mary--Gu{\'e}rif temperature and clay-protection parameterization~\cite{mary1994soil}, scaled by tillage intensity factor $f_{\mathrm{till}} \in \{0.50, 0.70, 1.00\}$ (perennial/no-till, strip-till, conventional tillage):
+\paragraph{Initial stock.} The initial stock $C_0$ ($\mathrm{t\,C\,ha^{-1}}$) is summed over the SoilGrids or local layers $l$ within $0$--$30~\mathrm{cm}$, using bulk density $\rho_{b,l}$ ($\mathrm{g\,cm^{-3}}$), organic carbon $\mathrm{SOC}_l$ ($\%$), layer thickness $\Delta z_l$ ($\mathrm{cm}$) and volumetric coarse-fragment fraction $\mathrm{CF}_l$ (SoilGrids \texttt{cfvo}/1000):
 \begin{equation}
-  k_2 = f_{\mathrm{till}} \cdot \max\!\left(0.012,\; \frac{1.2 \max(6.0, T_{\mathrm{mean}}) - 6.0}{10\,\mathrm{Clay}_{\%} + 200}\right).
+  C_0 = \sum_{l} \rho_{b,l}\, \mathrm{SOC}_l\, \Delta z_l\, (1 - \mathrm{CF}_l).
 \end{equation}
-Fresh biomass carbon inputs $A$ ($\mathrm{t\,C\,ha^{-1}\,yr^{-1}}$) follow Bolinder et al.~\cite{bolinder2007approach} Tier-2 allometric allocation using simulated harvested yield $Y$ ($\mathrm{t\,ha^{-1}}$), dry-matter fraction $f_{\mathrm{DM}}$ ($0.14$ for high-moisture horticultural crops such as tomatoes, bell peppers, and spinach; $0.86$ for grains, oilseeds, and dry forage), harvest index $\mathrm{HI}$, shoot-to-root ratio, and humification coefficient $k_1$:
-\begin{equation}
-  C_{\mathrm{prod}} = Y \cdot f_{\mathrm{DM}} \cdot 0.45, \qquad
-  A = C_{\mathrm{stubble}} + C_{\mathrm{roots}} + C_{\mathrm{exudates}} + C_{\mathrm{cover}},
-\end{equation}
-integrated over an annual step ($\Delta C = k_1 A - k_2 C_t$, bounded to $[-3.5, +4.5]~\mathrm{t\,C\,ha^{-1}\,yr^{-1}}$) and converted back to topsoil $\mathrm{SOC}_\%$ after each cropping year.
+For a single $30~\mathrm{cm}$ layer without stones this equals the Version~1.0 expression $100\,\rho_b\,0.30\,\mathrm{SOC}_0$.
 
-\subsection{Biological Nitrogen Fixation and Seasonal N Budget}
-Ceres computes nitrogen dynamics separately for leguminous and non-leguminous species:
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Legumes (Herridge \& Peoples Tier-2 BNF~\cite{herridge2008global})}: Total crop nitrogen uptake $N_{\mathrm{plant}} = 1.35 \, Y \, u_N$ (including non-harvested roots and nodules, where $u_N$ is harvested $\mathrm{kg~N~t^{-1}}$) yields biologically fixed nitrogen $N_{\mathrm{fix}} = N_{\mathrm{plant}} \cdot \mathrm{\%Ndfa}$. Net soil balance is $N_{\mathrm{fix}} - N_{\mathrm{harvest}} + N_{\mathrm{credit}}$, with synthetic fertilizer demand set to $0~\mathrm{kg~N~ha^{-1}}$.
-  \item \textbf{Non-Legumes (Residual Carryover + Applied Synthetic N)}: Available carry-over combines any preceding legume nitrogen credit ($N_{\mathrm{leg,credit}}$), taproot cover-crop scavenged nitrogen ($N_{\mathrm{scav}}$), and $30\%$ of the mineralized topsoil nitrogen pool (capped at $45\%$ of crop uptake demand). Required synthetic nitrogen is then:
-  \begin{equation}
-    N_{\mathrm{synth}} = \max\!\bigl(0,\; N_{\mathrm{demand}} - N_{\mathrm{leg,used}} - N_{\mathrm{scav}} - N_{\mathrm{min,used}}\bigr),
-  \end{equation}
-  with annual net soil-N balance tracked as $\Delta N = \max\!\bigl(-80,\; N_{\mathrm{synth}} + N_{\mathrm{leg,used}} + N_{\mathrm{scav}} - N_{\mathrm{demand}}\bigr)$~($\mathrm{kg~N\,ha^{-1}}$).
-\end{itemize}
+\paragraph{Mineralization rate.} The annual mineralization constant $k_2$ ($\mathrm{yr^{-1}}$) follows the R{\'e}my and Marin-Lafl{\`e}che (1974) expression used by Mary and Gu{\'e}rif~\cite{mary1994soil}, with mean annual air temperature $T$ ($^{\circ}\mathrm{C}$), clay content $A_{\mathrm{cl}} = 10\,\mathrm{Clay}_{\%}$ ($\mathrm{g\,kg^{-1}}$) and calcium carbonate content $\mathrm{Ca}$ ($\mathrm{g\,kg^{-1}}$):
+\begin{equation}
+  k_2 = \frac{1200 \; f(T)}{(A_{\mathrm{cl}} + 200)\,(0.3\,\mathrm{Ca} + 200)}, \qquad f(T) = 0.2\,\bigl(\max(6, T) - 5\bigr).
+\end{equation}
+For non-calcareous soils ($\mathrm{Ca} = 0$) this reduces exactly to the Version~1.0 expression $\bigl(1.2\max(6,T) - 6\bigr)/(10\,\mathrm{Clay}_{\%} + 200)$. Carbonate slows mineralization, so omitting it overestimates $k_2$, and therefore carbon loss, on calcareous soils. SoilGrids does not provide CaCO$_3$. It is taken from a local soil test (Tier~1) or, in the EU (Turin sites), the LUCAS topsoil survey; otherwise $\mathrm{Ca} = 0$ is assumed. Where $\mathrm{pH} \ge 7.5$, the parcel is flagged as possibly calcareous and a field effervescence (HCl) test is requested. The carbonate coefficient ($0.3$) must be checked against the primary source before release. The expression was calibrated for temperate French arable soils, and results for mean annual temperatures above about $20^{\circ}\mathrm{C}$ are flagged as extrapolated.
+
+\paragraph{Tillage.} Version~1.0 multiplied $k_2$ by tillage factors $\{0.50, 0.70, 1.00\}$ that have no source in the cited model. Reduced tillage mainly redistributes carbon within the profile rather than increasing whole-profile stocks~\cite{powlson2014limited}, so no tillage factor is applied ($f_{\mathrm{till}} = 1$). The soil-carbon benefit of perennials and cover crops is represented through their larger carbon inputs $A$.
+
+\subsection{Carbon Inputs (Bolinder et al.)}
+Carbon inputs $A$ ($\mathrm{t\,C\,ha^{-1}\,yr^{-1}}$) follow the allometric approach of Bolinder et al.~\cite{bolinder2007approach}. Harvested fresh yield $Y$ ($\mathrm{t\,ha^{-1}}$) is converted to dry matter with $f_{\mathrm{DM}} = 1 - w$, where $w$ is the moisture content of the harvested product. $f_{\mathrm{DM}} = 0.86$ for grains and oilseeds at commercial moisture; for fresh vegetables $f_{\mathrm{DM}}$ comes from the USDA FoodData Central water content~\cite{usda_fdc} (raw tomato $\approx 0.05$--$0.06$, replacing the value $0.14$ of Version~1.0, which roughly doubled tomato residue inputs). Net primary productivity and its components are, with relative allocation coefficients $R_P, R_S, R_R$ (product, shoot residue, root; $R_P + R_S + R_R = 1$) and a carbon concentration of $0.45$:
+\begin{align}
+  \mathrm{NPP} &= \frac{Y\, f_{\mathrm{DM}}}{R_P}, &
+  C_{\mathrm{shoot}} &= 0.45\, \mathrm{NPP}\, R_S\, (1 - x_{\mathrm{exp}}), \\
+  C_{\mathrm{root}} &= 0.45\, \mathrm{NPP}\, R_R, &
+  C_{\mathrm{extra}} &= 0.65\, C_{\mathrm{root}},
+\end{align}
+\begin{equation}
+  A = C_{\mathrm{shoot}} + C_{\mathrm{root}} + C_{\mathrm{extra}} + C_{\mathrm{cover}},
+\end{equation}
+where $x_{\mathrm{exp}}$ is the fraction of straw exported (Tier~1 input; $0$ by default). Extra-root carbon (rhizodeposition) is commonly assumed to equal $65$--$100\%$ of root biomass; the lower bound is used. Allocation coefficients come from Bolinder et al.~\cite{bolinder2007approach} for cereals, soybean and forages, and from Bolinder et al.~\cite{bolinder2015root} for root crops (potato $0.739{:}0.236{:}0.025$; sugar beet $0.626{:}0.357{:}0.017$). Crops without a published coefficient set are flagged in the catalog. Cover-crop inputs $C_{\mathrm{cover}}$ use the same equations with cover-crop biomass and $R_P = 0$, all biomass being returned. The humification coefficient $k_1$ is specified separately for above-ground and below-ground inputs, because root-derived carbon contributes more to stable organic matter. The catalog values are listed in Table~\ref{tab:calibration}.
+
+\subsection{Nitrogen: Fixation, Mineralization, Fertilizer Requirement and Losses}
+\paragraph{Crop nitrogen uptake.} For every crop, above-ground nitrogen at harvest is $N_{\mathrm{shoot}} = Y\, u_N / \mathrm{NHI}$, with $u_N$ the nitrogen concentration of the harvested product ($\mathrm{kg~N~t^{-1}}$) and $\mathrm{NHI}$ the nitrogen harvest index. For forages the harvested biomass is the shoot ($\mathrm{NHI} = 1$). Nitrogen removed in harvest is $N_{\mathrm{harvest}} = Y\, u_N$.
+
+\paragraph{Legumes (biological fixation).} Following the method used by Herridge, Peoples and co-authors~\cite{herridge2008global,unkovich2008measuring,herridge2022quantifying}, total plant nitrogen includes below-ground nitrogen through a multiplicative factor $f_{\mathrm{BGN}}$ applied to \emph{shoot} nitrogen:
+\begin{equation}
+  N_{\mathrm{plant}} = f_{\mathrm{BGN}}\, N_{\mathrm{shoot}}, \qquad
+  N_{\mathrm{fix}} = \frac{\%\mathrm{Ndfa}}{100}\, N_{\mathrm{plant}},
+\end{equation}
+with $f_{\mathrm{BGN}} = 1.5$ for soybean and $2.0$ for chickpea and pasture/fodder legumes~\cite{unkovich2008measuring}, and crop-specific values for other grain legumes~\cite{herridge2022quantifying}. The proportion of nitrogen derived from the atmosphere, $\%\mathrm{Ndfa}$, is taken per species and region from Peoples et al.~\cite{peoples2021quantifying}. Version~1.0 applied a factor of $1.35$ to \emph{harvested} nitrogen, which omits both crop residues and roots and underestimates fixation. Legumes receive no synthetic nitrogen. Their own soil balance is $N_{\mathrm{fix}} - N_{\mathrm{harvest}}$. The credit passed to the following crop is $N_{\mathrm{credit}} = f_{\mathrm{rel}}\,(N_{\mathrm{plant}} - N_{\mathrm{harvest}})$, where $f_{\mathrm{rel}}$ is the fraction of residue nitrogen released in the next season (Table~\ref{tab:calibration}). It is counted only in the next crop's budget, not in the legume's own balance.
+
+\paragraph{Soil mineralization.} Nitrogen mineralized from soil organic matter is derived from the carbon model rather than from fixed percentages. With the topsoil C:N ratio from local analysis or SoilGrids (\texttt{soc}/\texttt{nitrogen}):
+\begin{equation}
+  N_{\mathrm{min,yr}} = 1000\, \frac{k_2\, C_t}{(C{:}N)} \quad (\mathrm{kg~N\,ha^{-1}\,yr^{-1}}), \qquad
+  N_{\mathrm{min,season}} = N_{\mathrm{min,yr}}\, \frac{\sum_{m \in \mathrm{crop}} f_m\, \max(0, T_m - 5)}{\sum_{m=1}^{12} \max(0, T_m - 5)},
+\end{equation}
+which uses the same temperature dependence as $k_2$ to apportion annual mineralization to the crop's months. This replaces the uncited $30\%$ and $45\%$ factors of Version~1.0.
+
+\paragraph{Synthetic fertilizer requirement.} For non-legumes, the nitrogen that must reach the crop from fertilizer is the uptake not covered by soil and rotation supply. Because only part of applied fertilizer nitrogen is recovered by the crop, the application rate is divided by the fertilizer recovery efficiency $\mathrm{RE}_N$:
+\begin{equation}
+  N_{\mathrm{synth}} = \frac{\max\!\bigl(0,\; N_{\mathrm{shoot}} - N_{\mathrm{min,season}} - N_{\mathrm{credit}} - N_{\mathrm{scav}}\bigr)}{\mathrm{RE}_N},
+\end{equation}
+with $\mathrm{RE}_N = 0.40$ by default. On-farm measurements in US maize average about $0.37$~\cite{cassman2002agroecosystems}, and well-timed split applications or fertigation can justify higher values (Table~\ref{tab:calibration}). Version~1.0 implicitly assumed $\mathrm{RE}_N = 1$, which understated both fertilizer cost and nitrogen losses. Applications are additionally capped by any regional legal limit (e.g., Nitrates Directive vulnerable zones in Piedmont).
+
+\paragraph{Balance and losses.} The annual field nitrogen surplus is $N_{\mathrm{surplus}} = N_{\mathrm{synth}} + N_{\mathrm{fix}} - N_{\mathrm{harvest}}$ ($\mathrm{kg~N\,ha^{-1}}$). Following the IPCC 2019 Tier-1 method~\cite{ipcc2019n2o}, direct N$_2$O emissions are
+\begin{equation}
+  \mathrm{N_2O\text{-}N} = EF_{1,\mathrm{synth}}\, N_{\mathrm{synth}} + EF_{1,\mathrm{other}}\,\bigl(N_{\mathrm{residue}} + N_{\mathrm{min,yr}}\bigr),
+\end{equation}
+where $N_{\mathrm{residue}}$ is the nitrogen in returned residues ($N_{\mathrm{plant}} - N_{\mathrm{harvest}}$ for legumes, $N_{\mathrm{shoot}} - N_{\mathrm{harvest}}$ otherwise, minus any exported straw), with $EF_{1,\mathrm{synth}} = 0.016$ and $EF_{1,\mathrm{other}} = 0.006$ in wet climates and $EF_1 = 0.005$ in dry climates. Leaching and runoff losses in wet climates are $\mathrm{Frac_{LEACH}} = 0.24$ of the same inputs. Wet/dry classification follows the IPCC climate zones. These outputs are reported as environmental indicators and enter the soil-health strategy score; they do not change yields.
 
 \subsection{Topsoil Erosion via RUSLE}
-Annual sheet and rill soil loss $E$ ($\mathrm{t\,ha^{-1}\,yr^{-1}}$) is computed from the Revised Universal Soil Loss Equation (RUSLE)~\cite{renard1997rusle}:
+Annual sheet and rill soil loss $E$ ($\mathrm{t\,ha^{-1}\,yr^{-1}}$) is computed from the Revised Universal Soil Loss Equation~\cite{renard1997rusle}:
 \begin{equation}
   E = R \cdot K \cdot LS \cdot C \cdot P,
 \end{equation}
-using four physically parameterized factors and a conservative support baseline ($P = 1.0$, unless specific structural practices are encoded):
+with support practice $P = 1.0$ unless structural practices are declared.
 \begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{Rainfall Erosivity $R$ ($\mathrm{MJ\,mm\,ha^{-1}\,h^{-1}\,yr^{-1}}$)} via Renard \& Freimund~\cite{renard1994using} from mean annual precipitation $P_{\mathrm{ann}}$ ($\mathrm{mm}$):
+  \item \textbf{Rainfall erosivity $R$ ($\mathrm{MJ\,mm\,ha^{-1}\,h^{-1}\,yr^{-1}}$).} Primary source: the Global Rainfall Erosivity Database map at 30~arc-seconds ($\approx 1~\mathrm{km}$)~\cite{panagos2017global}, built from sub-hourly and hourly pluviograph records and sampled at the parcel centroid. This covers both demonstration regions. Fallback: the Renard--Freimund regression on mean annual precipitation $P_{\mathrm{ann}}$ (mm)~\cite{renard1994using}, which was fitted to US data and is flagged as a transferred estimate when used elsewhere:
   \begin{equation}
     R =
     \begin{cases}
@@ -48,17 +82,29 @@ using four physically parameterized factors and a conservative support baseline 
       587.8 - 1.219 \, P_{\mathrm{ann}} + 0.004105 \, P_{\mathrm{ann}}^{2}, & P_{\mathrm{ann}} > 850~\mathrm{mm}.
     \end{cases}
   \end{equation}
-  \item \textbf{Soil Erodibility $K$ ($\mathrm{t\,ha\,h\,ha^{-1}\,MJ^{-1}\,mm^{-1}}$)} via the EPIC formulation of Williams~\cite{williams1995epic} using SoilGrids/local sand ($\mathrm{SAN}$), silt ($\mathrm{SIL}$), clay ($\mathrm{CLA}$), and organic carbon ($\mathrm{SOC}_\%$):
+  \item \textbf{Soil erodibility $K$ ($\mathrm{t\,ha\,h\,ha^{-1}\,MJ^{-1}\,mm^{-1}}$).} EPIC formulation~\cite{williams1995epic}, with sand $\mathrm{SAN}$, silt $\mathrm{SIL}$, clay $\mathrm{CLA}$ (\%), organic carbon $\mathrm{OC}$ (\%) and $\mathrm{SN_1} = 1 - \mathrm{SAN}/100$:
   \begin{equation}
-    K = 0.1317 \cdot f_{\mathrm{csand}} \cdot f_{\mathrm{cl\text{-}si}} \cdot f_{\mathrm{orgc}} \cdot f_{\mathrm{hisand}},
+  \begin{aligned}
+    K = 0.1317 &\left[0.2 + 0.3\, e^{-0.256\,\mathrm{SAN}\,(1 - \mathrm{SIL}/100)}\right]
+    \left[\frac{\mathrm{SIL}}{\mathrm{CLA} + \mathrm{SIL}}\right]^{0.3} \\
+    &\times \left[1 - \frac{0.25\,\mathrm{OC}}{\mathrm{OC} + e^{3.72 - 2.95\,\mathrm{OC}}}\right]
+    \left[1 - \frac{0.7\,\mathrm{SN_1}}{\mathrm{SN_1} + e^{-5.51 + 22.9\,\mathrm{SN_1}}}\right],
+  \end{aligned}
   \end{equation}
   where $0.1317$ converts US customary units to SI.
-  \item \textbf{Topographic Factor $LS$} via Moore \& Burch~\cite{moore1986physical}: slope angle $\theta = \arctan(\mathrm{slope}_{\%}/100)$ and effective slope flow path $\lambda = \max\bigl(22.13,\, \min(150.0,\, 0.5\sqrt{10^4 A_{\mathrm{ha}}})\bigr)$~($\mathrm{m}$) give:
+  \item \textbf{Topographic factor $LS$} via Moore \& Burch~\cite{moore1986physical}, with slope angle $\theta = \arctan(\mathrm{slope}_{\%}/100)$ and effective slope length $\lambda = \max\bigl(22.13,\, \min(150,\, 0.5\sqrt{10^4 A_{\mathrm{ha}}})\bigr)$~(m) standing in for the specific catchment area of the original formulation:
   \begin{equation}
     LS = \left(\frac{\lambda}{22.13}\right)^{0.4} \left(\frac{\sin\theta}{0.0896}\right)^{1.3}.
   \end{equation}
-  \item \textbf{Crop Cover-Management Factor $C$}: Assigned per crop profile ($C \in [0.02, 0.36]$, lowest for perennial alfalfa and winter cover/wheat, highest for wide-row tillage crops).
+  For hillside parcels (e.g., the Turin hills), the maximum slope from the NASADEM/Copernicus DEM should be used rather than the parcel mean.
+  \item \textbf{Cover-management factor $C$.} Per-crop values, and their reduction for cover crops, crop residues and reduced tillage, follow the European cover-management assessment of Panagos et al.~\cite{panagos2015cfactor}.
 \end{enumerate}
 
-\subsection{Soil Compaction Heuristic and Bio-Drill Relief}
-Traffic compaction and taproot remediation are tracked in cone penetrometer equivalent units ($\mathrm{PSI}$; $1~\mathrm{MPa} \approx 145.038~\mathrm{PSI}$~\cite{asabe2019s313}). When field penetrometer measurements exist, the baseline starts at the measured $\mathrm{PSI}$; otherwise, a texture-calibrated prior is used and explicitly flagged as unmeasured. Each crop season increments $\mathrm{PSI}$ via an axle-pass curve $(8.0 + 4.0\min(10, N_{\mathrm{passes}}))(1 + \mathrm{Clay}_{\%}/100)$ and applies deep-taproot bio-drilling relief ($\Delta_{\mathrm{biodrill}} \in \{-65, -55, -25, -15\}~\mathrm{PSI}$ for Daikon radish, alfalfa, sunflowers, and canola), bounded to $[120, 380]~\mathrm{PSI}$.
+\subsection{Soil Compaction (Heuristic Indicator)}
+Compaction is tracked in cone-penetrometer units (psi; $1~\mathrm{MPa} \approx 145.038~\mathrm{psi}$~\cite{asabe2019s313}). The baseline is the measured value when a penetrometer log exists; otherwise a texture-based prior is used and labelled \emph{unmeasured}. Year-to-year change is a \textbf{heuristic without literature calibration}:
+\begin{itemize}[leftmargin=1.5em]
+  \item an axle-pass increment of $(8.0 + 4.0\min(10, N_{\mathrm{passes}}))(1 + \mathrm{Clay}_{\%}/100)$ psi;
+  \item deep-taproot relief of $\{-65, -55, -25, -15\}$ psi for daikon radish, alfalfa, sunflower and canola;
+  \item bounds of $[120, 380]$ psi.
+\end{itemize}
+These values are listed in Table~\ref{tab:calibration}. Yield attenuation $\mu_{\mathrm{compaction}}$ starts when resistance exceeds the crop's critical threshold. A resistance of about $2~\mathrm{MPa}$ ($\approx 290~\mathrm{psi}$) is widely used as the value above which root elongation is severely restricted~\cite{bengough2011root}. Because the trajectory is not physically calibrated, compaction outputs are presented as indicative trends, and every report asks for a spade or penetrometer check.

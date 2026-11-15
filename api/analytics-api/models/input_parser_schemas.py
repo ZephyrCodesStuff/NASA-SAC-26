@@ -366,6 +366,25 @@ class EconomicPricesInput(BaseModel):
         gt=0.0,
         description="Cost of K2O fertilizer equivalent ($/kg K2O)"
     )
+    urea_price_usd_ton: Optional[float] = Field(
+        default=None,
+        gt=0.0,
+        description="Urea (46% N) product benchmark price (USD/metric ton)"
+    )
+    tsp_price_usd_ton: Optional[float] = Field(
+        default=None,
+        gt=0.0,
+        description="Triple Superphosphate TSP (46% P2O5 = 20.1% P) product price (USD/metric ton)"
+    )
+    kcl_price_usd_ton: Optional[float] = Field(
+        default=None,
+        gt=0.0,
+        description="Potassium Chloride KCl/MOP (60% K2O = 49.8% K) product price (USD/metric ton)"
+    )
+    fertilizer_price_basis: Optional[str] = Field(
+        default=None,
+        description="Unit basis of nitrogen_price_usd_kg/phosphorus_price_usd_kg/potassium_price_usd_kg: 'elemental', 'oxide', or 'product'"
+    )
     seed_prices_usd_per_ha: Optional[Dict[str, float]] = Field(
         default=None,
         description="Optional seed price mapping per hectare (e.g. {'Corn (Maize)': 280.0, 'Soybeans': 160.0})"
@@ -468,6 +487,8 @@ class SoilGridsDepthLayer(BaseModel):
     bulk_density_g_cm3: Optional[float] = Field(None, ge=0.5, le=2.5, description="Fine earth bulk density (g/cm^3)")
     cation_exchange_capacity_cmol_kg: Optional[float] = Field(None, ge=0.0, description="CEC (cmol(+)/kg)")
     total_nitrogen_g_kg: Optional[float] = Field(None, ge=0.0, description="Total nitrogen (g/kg)")
+    coarse_fragments_vol_pct: Optional[float] = Field(None, ge=0.0, le=100.0, description="Coarse fragments CF (>2mm, vol %)")
+    caco3_g_kg: Optional[float] = Field(None, ge=0.0, le=1000.0, description="Calcium carbonate CaCO3 equivalent (g/kg)")
 
     @model_validator(mode="after")
     def sync_soc_alias(self) -> "SoilGridsDepthLayer":
@@ -532,6 +553,9 @@ class NasaPowerPayload(BaseModel):
     )
     daily_parameters: Optional[Dict[str, Dict[str, float]]] = Field(
         None, description="Dictionary of parameter name to date-value map (e.g. {'T2M': {'20230101': -2.3}})"
+    )
+    monthly_normals: Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="1991-2020 monthly agroclimatology normals keyed by month name ('jan'..'dec') or '1'..'12'"
     )
 
     # Optional pre-computed scalar benchmarks
@@ -666,6 +690,7 @@ class SoilGridsPayload(BaseModel):
     total_nitrogen_g_kg: Optional[float] = Field(None, ge=0.0)
     bulk_density_g_cm3: Optional[float] = Field(None, ge=0.5, le=2.5)
     cation_exchange_capacity_cmol_kg: Optional[float] = Field(None, ge=0.0)
+    caco3_g_kg: Optional[float] = Field(None, ge=0.0, le=1000.0, description="Topsoil CaCO3 equivalent (g/kg)")
 
 
 class GraceGroundwaterPayload(BaseModel):
@@ -731,6 +756,10 @@ class NasaDataPayload(BaseModel):
         None,
         validation_alias=AliasChoices("grace_groundwater", "grace"),
         description="NASA GRACE deep groundwater anomalies"
+    )
+    ggcmi_crop_calendar: Optional[Dict[str, Dict[str, int]]] = Field(
+        None,
+        description="Tier 2 GGCMI Phase 3 / Crop Calendar lookup per crop_key: {'sowing_doy': int, 'harvest_doy': int} or {'sowing_month': int, 'harvest_month': int}"
     )
     appeears_task_id: Optional[str] = Field(None, description="Optional NASA AppEEARS sample extraction reference ID")
 
@@ -832,11 +861,22 @@ class LocalUserDataInput(BaseModel):
     on_farm_annual_rainfall_mm: Optional[float] = Field(
         None, ge=0.0, le=5000.0, description="On-farm rain gauge total annual rainfall (calibrates NASA GPM IMERG)"
     )
+    on_farm_rain_gauge_years: Optional[int] = Field(
+        None, ge=1, le=200, description="Years of continuous on-farm rain-gauge record (>=10 required to override long-term normals)"
+    )
     on_farm_mean_temperature_c: Optional[float] = Field(
         None, ge=-30.0, le=50.0, description="On-farm weather station mean annual temperature (calibrates NASA POWER)"
     )
     on_farm_annual_et0_mm: Optional[float] = Field(
         None, ge=100.0, le=3500.0, description="On-farm calculated reference ET0 (calibrates NASA POWER ET0)"
+    )
+
+    # Lab soil carbonate / HCl verification (v1.1)
+    lab_caco3_g_kg: Optional[float] = Field(
+        None, ge=0.0, le=1000.0, description="Lab-measured calcium carbonate CaCO3 equivalent (g/kg)"
+    )
+    field_effervescence_hcl_positive: Optional[bool] = Field(
+        None, description="Field dilute HCl effervescence test result for free carbonates"
     )
 
     # Topographic survey overrides (layers on top of SRTM DEM)
@@ -863,9 +903,29 @@ class LocalUserDataInput(BaseModel):
         default=IrrigationSystemType.CENTER_PIVOT,
         description="Field irrigation technology installed"
     )
+    irrigation_method: Optional[str] = Field(
+        default=None,
+        description="Canonical irrigation method for FAO-56 application efficiency: 'surface' (0.60), 'sprinkler' (0.75), or 'drip' (0.90)"
+    )
     tillage_practice: Optional[TillagePractice] = Field(
         default=TillagePractice.STRIP_TILL,
         description="Soil management tillage system"
+    )
+    straw_export_fraction: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of aboveground residue/straw exported off-field (0.0 = retained, 1.0 = exported)"
+    )
+    crop_calendars: Optional[Dict[str, Dict[str, int]]] = Field(
+        default=None,
+        description="Tier 1 farmer crop calendars keyed by crop_key: {'sowing_doy': int, 'harvest_doy': int} or {'sowing_month': int, 'harvest_month': int}"
+    )
+    max_legal_n_kg_ha: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=500.0,
+        description="Regional regulatory nitrogen ceiling (kg N/ha/yr, e.g., EU Nitrates Directive 170 kg N/ha)"
     )
     is_organic_certified: bool = Field(default=False, description="Strict organic protocol (disallows synthetic NPK/chem)")
     labor_availability_rating: Optional[str] = Field(
@@ -912,6 +972,9 @@ class ElevationMapsInput(BaseModel):
     )
     soil_erosion_susceptibility: Optional[str] = Field(
         None, description="'Low (Stable Flat)', 'Moderate (Terracing Recommended)', 'High (Washout Risk)'"
+    )
+    gloreda_r_factor: Optional[float] = Field(
+        None, ge=0.0, description="GloREDa rainfall erosivity R-factor (MJ*mm/(ha*h*yr)); primary over Renard-Freimund"
     )
     elevation_raster_url_or_ref: Optional[str] = Field(
         None, description="Optional URL or GeoTIFF reference to SRTM/NASADEM 30m raster"

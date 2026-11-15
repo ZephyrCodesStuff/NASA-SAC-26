@@ -1,59 +1,93 @@
 \section{Agroclimatology \& Field Hydrology}
 \label{sec:hydrology}
 
-\subsection{Extraterrestrial Radiation and Monthly Hargreaves--Samani \texorpdfstring{$ET_0$}{ET0}}
-To evaluate warm- and cool-season crops symmetrically across both hemispheres using NASA POWER 1991--2020 climatology normals, \texttt{web-api} derives monthly reference evapotranspiration ($ET_0$) from latitude~$\phi$ (rad) and monthly mean maximum/minimum air temperatures ($T_{\max,m}, T_{\min,m}$ in $^{\circ}\mathrm{C}$). Following FAO-56 Equation~21~\cite{allen1998fao56}, extraterrestrial radiation $R_a$ ($\mathrm{MJ\,m^{-2}\,day^{-1}}$) on day-of-year $J_m$ (mid-month representative day) is:
+All water-balance quantities are computed on a \emph{monthly} time step over the months each crop actually occupies, using a per-parcel crop calendar (Section~\ref{sec:calendar}). This replaces the fixed warm/cool half-year windows of Version~1.0, which assigned autumn-sown crops (winter wheat, barley, rapeseed) and perennials (alfalfa) to a single half-year and therefore omitted their spring peak water use.
+
+\subsection{Monthly Reference Evapotranspiration \texorpdfstring{$ET_0$}{ET0}}
+\label{sec:et0}
+\paragraph{Primary method: monthly FAO-56 Penman--Monteith.}
+NASA POWER 1991--2020 monthly climatology provides every variable required by the FAO-56 Penman--Monteith equation~\cite{allen1998fao56,nasapower2024}: mean daily maximum and minimum air temperature at 2~m (\texttt{T2M\_MAX}, \texttt{T2M\_MIN}), relative humidity (\texttt{RH2M}), dew-point temperature (\texttt{T2MDEW}), wind speed at 2~m (\texttt{WS2M}) and all-sky shortwave radiation (\texttt{ALLSKY\_SFC\_SW\_DWN}). Monthly $ET_{0,m}$ ($\mathrm{mm\,day^{-1}}$) is therefore computed with FAO-56 Eq.~6:
+\begin{equation}
+  ET_0 = \frac{0.408\,\Delta\,(R_n - G) + \gamma\,\dfrac{900}{T_{\mathrm{mean}} + 273}\, u_2 \,(e_s - e_a)}{\Delta + \gamma\,(1 + 0.34\, u_2)},
+\end{equation}
+with atmospheric pressure $P_{\mathrm{atm}} = 101.3 \bigl(\frac{293 - 0.0065 z}{293}\bigr)^{5.26}$~($\mathrm{kPa}$, Eq.~7), psychrometric constant $\gamma = 0.665\times 10^{-3} P_{\mathrm{atm}}$ (Eq.~8), $e_s = \tfrac{1}{2}[e^{\circ}(T_{\max}) + e^{\circ}(T_{\min})]$ (Eq.~12), and actual vapour pressure from dew point, $e_a = e^{\circ}(T_{\mathrm{dew}})$ (Eq.~14), falling back to $e_a = e_s\,\mathrm{RH}_{\mathrm{mean}}/100$ (Eq.~19) only when dew point is unavailable. Net radiation is $R_n = (1-\alpha)R_s - R_{nl}$ with $\alpha = 0.23$, and net longwave radiation uses the \emph{actual} relative shortwave radiation (FAO-56 Eq.~39):
+\begin{equation}
+  R_{nl} = \sigma \left[\frac{T_{\max,K}^4 + T_{\min,K}^4}{2}\right]\bigl(0.34 - 0.14\sqrt{e_a}\bigr)\left(1.35\,\frac{R_s}{R_{so}} - 0.35\right), \qquad R_{so} = (0.75 + 2\times10^{-5} z)\,R_a,
+\end{equation}
+with $R_s/R_{so}$ limited to $\le 1.0$. Monthly soil heat flux is not neglected: $G_m = 0.07\,(T_{\mathrm{mean},m+1} - T_{\mathrm{mean},m-1})$ (FAO-56 Eq.~43; climatological months are cyclic, so the following month is always known). Extraterrestrial radiation $R_a$ on the mid-month day of year $J_m$ follows FAO-56 Eqs.~21--25:
 \begin{align}
   d_r &= 1 + 0.033 \cos\!\left(\frac{2\pi}{365} J_m\right), &
   \delta &= 0.409 \sin\!\left(\frac{2\pi}{365} J_m - 1.39\right), \\
   \omega_s &= \arccos\!\bigl(\operatorname{clamp}(-\tan\phi \tan\delta,\, -1,\, 1)\bigr), &
   R_a &= \frac{24(60)}{\pi} G_{sc}\, d_r \Bigl(\omega_s \sin\phi\sin\delta + \cos\phi\cos\delta\sin\omega_s\Bigr),
 \end{align}
-where $G_{sc} = 0.0820~\mathrm{MJ\,m^{-2}\,min^{-1}}$. Using FAO-56 Equation~52 (Hargreaves--Samani method~\cite{hargreaves1985reference,allen1998fao56}), monthly daily-mean $ET_{0,m}$ ($\mathrm{mm\,day^{-1}}$) and monthly depth are:
-\begin{equation}
-  ET_{0,m} = 0.0023 \, \bigl(T_{\mathrm{mean},m} + 17.8\bigr) \sqrt{\max\!\bigl(0.1,\, T_{\max,m} - T_{\min,m}\bigr)} \, \bigl(0.408\, R_a\bigr),
-\end{equation}
-where $T_{\mathrm{mean},m} = \tfrac{1}{2}(T_{\max,m} + T_{\min,m})$ and $0.408\, R_a$ converts radiation to equivalent evaporation depth ($\mathrm{mm\,day^{-1}}$). Integrating across the days $N_m$ in each calendar month partitions annual climate into:
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Warm half-year} ($\mathrm{Apr}$--$\mathrm{Sep}$ for $\phi \ge 0$; $\mathrm{Oct}$--$\mathrm{Mar}$ for $\phi < 0$): $ET_{0,\mathrm{warm}}$ and $P_{\mathrm{warm}}$ ($\mathrm{mm}$).
-  \item \textbf{Cool half-year} ($\mathrm{Oct}$--$\mathrm{Mar}$ for $\phi \ge 0$; $\mathrm{Apr}$--$\mathrm{Sep}$ for $\phi < 0$): $ET_{0,\mathrm{cool}}$ and $P_{\mathrm{cool}}$ ($\mathrm{mm}$).
-\end{itemize}
+where $G_{sc} = 0.0820~\mathrm{MJ\,m^{-2}\,min^{-1}}$ and $\phi$ is latitude (rad). The same kernel is used on a daily step (\texttt{calculate\_\allowbreak fao56\_\allowbreak penman\_\allowbreak monteith\_et0}) when daily series are supplied, with $G \approx 0$ (FAO-56 Eq.~42).
 
-\subsection{Daily FAO-56 Penman--Monteith Reference Kernel}
-When full daily meteorological variables are supplied directly to \texttt{SoilPhysicsEngine}'s daily routine \texttt{calculate\_\allowbreak fao56\_\allowbreak penman\_\allowbreak monteith\_et0} ($T_{\max}, T_{\min}, R_s, u_2, \mathrm{RH}_{\mathrm{mean}}$, elevation $z$, latitude $\phi$, DOY $J$), Ceres computes the full FAO-56 Penman--Monteith grass reference rate~\cite{allen1998fao56}:
+\paragraph{Fallback: Hargreaves--Samani.}
+Only when humidity, wind or radiation are missing is $ET_{0,m}$ estimated with FAO-56 Eq.~52~\cite{hargreaves1985reference,allen1998fao56}:
 \begin{equation}
-  ET_0 = \frac{0.408\,\Delta\,(R_n - G) + \gamma\,\dfrac{900}{T_{\mathrm{mean}} + 273}\, u_2 \,(e_s - e_a)}{\Delta + \gamma\,(1 + 0.34\, u_2)},
+  ET_{0,m} = 0.0023 \, \bigl(T_{\mathrm{mean},m} + 17.8\bigr) \sqrt{\max\!\bigl(0.1,\, T_{\max,m} - T_{\min,m}\bigr)} \, \bigl(0.408\, R_a\bigr).
 \end{equation}
-where $P_{\mathrm{atm}} = 101.3 \bigl(\frac{293 - 0.0065 z}{293}\bigr)^{5.26}$~($\mathrm{kPa}$), psychrometric constant $\gamma = 0.665\times 10^{-3} P_{\mathrm{atm}}$, saturation vapor pressure $e_s = \tfrac{1}{2}[e^{\circ}(T_{\max}) + e^{\circ}(T_{\min})]$, actual vapor pressure $e_a = e_s (\mathrm{RH}_{\mathrm{mean}}/100)$, net radiation $R_n = R_{ns} - R_{nl}$ with albedo $\alpha = 0.23$ and Stefan--Boltzmann clear-sky longwave balance, and daily soil heat flux $G \approx 0$.
+The provenance metadata records which method was used. FAO-56 notes that Eq.~52 tends to over-predict under high relative humidity and under-predict under high wind; both conditions occur at the demonstration sites (humid Po plain near Turin; windy Bosphorus coast near Istanbul), which is why Penman--Monteith is the primary method.
 
-\subsection{Seasonal Crop Water Balance and FAO-33 Yield Stress}
-For a candidate crop $c$ with cycle length $d_c$ (days) assigned to its matching seasonal window ($\mathrm{warm}$ or $\mathrm{cool}$), seasonal crop evapotranspiration $ET_c$ ($\mathrm{mm}$) is evaluated from stage basal coefficients $(K_{cb,\mathrm{ini}}, K_{cb,\mathrm{mid}}, K_{cb,\mathrm{end}})$ weighted over vegetative development:
-\begin{equation}
-  K_{c,\mathrm{avg}} = 0.2\, K_{cb,\mathrm{ini}} + 0.5\, K_{cb,\mathrm{mid}} + 0.3\, K_{cb,\mathrm{end}}, \qquad
-  ET_c = ET_{0,\mathrm{seas}} \cdot \min\!\left(1.0,\; \frac{d_c}{d_{\mathrm{ref}}}\right) \cdot K_{c,\mathrm{avg}},
-\end{equation}
-with seasonal window reference length $d_{\mathrm{ref}} = 210~\mathrm{days}$ for cool-season/winter crops and $d_{\mathrm{ref}} = 160~\mathrm{days}$ for warm-season crops. Effective seasonal rainfall is approximated following USDA-SCS empirical effectiveness:
-\begin{equation}
-  P_{\mathrm{eff}} = \max\!\bigl(0,\; 0.75\, P_{\mathrm{seas}} - 10\bigr).
-\end{equation}
+\subsection{Crop Calendar and Monthly Crop Coefficients}
+\label{sec:calendar}
+\paragraph{Calendar.} Sowing and harvest months for each crop are resolved with the same three-tier precedence as other parameters: farmer-reported dates (Tier~1), otherwise the GGCMI Phase~3 global crop calendar at $0.5^{\circ}$ (planting and maturity day per crop, rainfed and irrigated separately)~\cite{jagermeyr2021calendar}, otherwise catalog defaults. A crop occupies month $m$ with fraction $f_m \in [0,1]$ (partial first and last months).
 
-Root-zone available water storage uses the texture-specific field capacity $\theta_{\mathrm{fc}}$, permanent wilting point $\theta_{\mathrm{wp}}$, maximum rooting depth $Z_r$ ($\mathrm{m}$), and FAO-56 depletion fraction $p$~\cite{allen1998fao56}:
+\paragraph{Single crop coefficient curve.} Crop evapotranspiration uses the FAO-56 \emph{single} crop coefficient $K_c$ (Table~12), not the basal coefficient $K_{cb}$, because the lumped monthly balance does not model soil evaporation separately. Stage lengths $L_{\mathrm{ini}}, L_{\mathrm{dev}}, L_{\mathrm{mid}}, L_{\mathrm{late}}$ (days) come from FAO-56 Table~11 scaled to the resolved season length. Following FAO-56, $K_c$ is constant at $K_{c,\mathrm{ini}}$ during the initial stage, rises linearly to $K_{c,\mathrm{mid}}$ during development, is constant during mid-season and falls linearly to $K_{c,\mathrm{end}}$ during late season. The monthly coefficient $K_{c,m}$ is the mean of this daily curve over the crop days in month~$m$. $K_{c,\mathrm{mid}}$ is adjusted for climate with FAO-56 Eq.~62,
+\begin{equation}
+  K_{c,\mathrm{mid}} = K_{c,\mathrm{mid}}^{\mathrm{Tab}} + \bigl[0.04\,(u_2 - 2) - 0.004\,(\mathrm{RH}_{\min} - 45)\bigr]\left(\frac{h}{3}\right)^{0.3},
+\end{equation}
+where $h$ is mean crop height (m) and $\mathrm{RH}_{\min} = 100\, e^{\circ}(T_{\mathrm{dew}})/e^{\circ}(T_{\max})$ during mid-season. Perennial forage (alfalfa) uses the FAO-56 averaged cutting-cycle coefficient for every month of the stand. Monthly crop evapotranspiration is
+\begin{equation}
+  ET_{c,m} = K_{c,m}\, ET_{0,m}\, N_m\, f_m ,
+\end{equation}
+with $N_m$ the number of days in month $m$.
+
+\subsection{Effective Rainfall}
+Monthly effective rainfall uses the USDA-SCS formula as implemented in FAO CROPWAT~\cite{smith1992cropwat}, applied to each \emph{monthly} total $P_m$ (mm):
+\begin{equation}
+  P_{\mathrm{eff},m} =
+  \begin{cases}
+    P_m\,\dfrac{125 - 0.2\,P_m}{125}, & P_m \le 250~\mathrm{mm}, \\[6pt]
+    125 + 0.1\,P_m, & P_m > 250~\mathrm{mm}.
+  \end{cases}
+\end{equation}
+Version~1.0 used $\max(0, 0.75\,P_{\mathrm{seas}} - 10)$ on half-year totals. That expression is not the USDA-SCS method, and its offset is meaningful only for monthly totals.
+
+\subsection{Monthly Root-Zone Water Balance}
+Total and readily available water follow FAO-56 Eqs.~82--83:
 \begin{equation}
   \mathrm{TAW} = 1000\,(\theta_{\mathrm{fc}} - \theta_{\mathrm{wp}})\, Z_r, \qquad
-  \mathrm{RAW} = p\,\mathrm{TAW}.
+  \mathrm{RAW} = p\,\mathrm{TAW}, \qquad p = p_{\mathrm{Tab}} + 0.04\,(5 - ET_c),
 \end{equation}
-Initial accessible root-zone moisture reserve is weighted ($0.4$) toward either the latest dated ESP32 soil probe volumetric moisture or NASA SMAP volumetric moisture $\theta_0$:
+with rooting depth $Z_r$ and depletion fraction $p_{\mathrm{Tab}}$ from FAO-56 Table~22 ($p$ bounded to $[0.1, 0.8]$; $ET_c$ in $\mathrm{mm\,day^{-1}}$). Field capacity and wilting point are estimated from local or SoilGrids sand, clay and organic matter with the Saxton--Rawls pedotransfer functions~\cite{saxton2006soil}, falling back to FAO-56 Table~19 texture-class midpoints.
+
+Root-zone storage $S$ (mm, $0 \le S \le \mathrm{TAW}$) is carried month by month and across crop years. With start-of-month depletion $D_{r,m} = \mathrm{TAW} - S_{m-1}$, the FAO-56 water-stress coefficient (Eq.~84) is applied to the \emph{root-zone depletion state}, as FAO-56 defines it:
 \begin{equation}
-  W_{\mathrm{init}} = 0.4 \cdot 1000\,\max\!\bigl(0,\; \theta_0 - \theta_{\mathrm{wp}}\bigr)\, Z_r.
-\end{equation}
-Net atmospheric/storage deficit before supplemental irrigation is $D_{\mathrm{net}} = \max(0,\; ET_c - P_{\mathrm{eff}} - W_{\mathrm{init}})$. When irrigation is enabled, applied gross irrigation is capped by legal annual quota ($I_{\mathrm{cap}} = Q_{\mathrm{yr}} / (10 A_{\mathrm{ha}})$) at application efficiency $\eta_{\mathrm{irr}} = 0.85$, yielding delivered net irrigation $I_{\mathrm{net}} = \min(D_{\mathrm{net}},\, \eta_{\mathrm{irr}} I_{\mathrm{cap}})$ and unmet water deficit $D_{\mathrm{unmet}} = D_{\mathrm{net}} - I_{\mathrm{net}}$. When $D_{\mathrm{unmet}} > \mathrm{RAW}$, the FAO-56 water-stress coefficient $K_s$ triggers proportional yield reduction via FAO-33 sensitivity factor $K_y$~\cite{doorenbos1979fao33}:
-\begin{equation}
-  K_s =
+  K_{s,m} =
   \begin{cases}
-    1.0, & D_{\mathrm{unmet}} \le \mathrm{RAW}, \\[4pt]
-    \max\!\left(0.30,\; \dfrac{\mathrm{TAW} - D_{\mathrm{unmet}}}{(1 - p)\,\mathrm{TAW}}\right), & D_{\mathrm{unmet}} > \mathrm{RAW},
+    1, & D_{r,m} \le \mathrm{RAW}, \\[4pt]
+    \dfrac{\mathrm{TAW} - D_{r,m}}{(1 - p)\,\mathrm{TAW}}, & D_{r,m} > \mathrm{RAW},
   \end{cases}
   \qquad
-  \Delta Y_{\mathrm{water}} = \min\!\bigl(0.65,\; K_y (1 - K_s)\bigr).
+  ET_{a,m} = \min\!\bigl(K_{s,m}\, ET_{c,m},\; S_{m-1} + P_{\mathrm{eff},m} + I_{\mathrm{net},m}\bigr),
 \end{equation}
-Observed daily climate extremes (\texttt{frost\_days\_count}, \texttt{heatwave\_days\_count}, \texttt{longest\_dry\_spell\_days}) and ESP32 canopy temperature/humidity further modulate cold-kill pruning and heat-stress yield penalties (Section~\ref{sec:optimization}).
+\begin{equation}
+  S_m = \min\!\bigl(\mathrm{TAW},\; S_{m-1} + P_{\mathrm{eff},m} + I_{\mathrm{net},m} - ET_{a,m}\bigr),
+\end{equation}
+water above $\mathrm{TAW}$ being treated as drainage. In months without a crop, the parcel is treated as bare or residue-covered soil with $K_{c} = K_{c,\mathrm{ini}}$ of the following crop, which represents mainly soil evaporation in FAO-56.
+
+\paragraph{Initial state.} Year~1 starts from the state obtained by running the balance through the 12 months preceding sowing with the farmer-reported Year~0 crop. Without crop history, $S_0 = 1000\,\bigl(\min(\theta_0, \theta_{\mathrm{fc}}) - \theta_{\mathrm{wp}}\bigr)^+ Z_r$, with $\theta_0$ the latest probe reading taken within 30 days of sowing, or else the NASA SMAP Level-4 root-zone soil moisture climatology for the month before sowing. The ad-hoc factor $0.4$ of Version~1.0 is removed.
+
+\paragraph{Irrigation.} When irrigation is enabled, net irrigation in month $m$ refills the root zone to the readily-available threshold, $I_{\mathrm{net},m} = \max\bigl(0,\, ET_{c,m} - P_{\mathrm{eff},m} - (S_{m-1} - (\mathrm{TAW} - \mathrm{RAW}))\bigr)$, limited by the remaining annual quota. Gross withdrawal is $I_{\mathrm{gross},m} = I_{\mathrm{net},m}/e_a$. The field application efficiency $e_a$ depends on the irrigation method: $0.60$ for surface (border, furrow, basin), $0.75$ for sprinkler and $0.90$ for drip~\cite{fao_irrigation_efficiency}. The annual cap is $\sum_m I_{\mathrm{gross},m} \le Q_{\mathrm{mm}} = Q_{\mathrm{yr}}/(10\,A_{\mathrm{ha}})$, shared by every crop grown in that calendar year. Gravity-fed surface irrigation from canals is common in the Turin area, so declaring the system type matters: at $e_a = 0.60$ the same quota delivers about 30\% less water to the root zone than the single value $0.85$ used in Version~1.0.
+
+\subsection{Seasonal Yield Response to Water (FAO-33)}
+Water-limited yield follows the FAO-33 seasonal relationship between relative yield and relative evapotranspiration~\cite{doorenbos1979fao33}, evaluated with the seasonal sums of the monthly balance:
+\begin{equation}
+  1 - \frac{Y_a}{Y_m} = K_y \left(1 - \frac{\sum_m ET_{a,m}}{\sum_m ET_{c,m}}\right), \qquad
+  \mu_{\mathrm{water}} = \max\!\left(0,\; 1 - K_y \left(1 - \frac{\sum_m ET_{a,m}}{\sum_m ET_{c,m}}\right)\right),
+\end{equation}
+with crop-specific seasonal $K_y$ from FAO-33. The linear relationship was derived for moderate deficits; when the relative evapotranspiration deficit exceeds $0.5$ the result is flagged as \emph{outside the calibrated range} instead of being silently clamped. Version~1.0 substituted the seasonal unmet demand for the daily depletion state in $K_s$ and then applied $K_y(1-K_s)$, which roughly doubled the predicted loss for moderate deficits; the arbitrary floor ($K_s \ge 0.30$) and cap ($\Delta Y \le 0.65$) that compensated for this are removed.
+
+Observed daily climate extremes (\texttt{frost\_\allowbreak days\_\allowbreak count}, \texttt{heatwave\_\allowbreak days\_\allowbreak count}, \texttt{longest\_\allowbreak dry\_\allowbreak spell\_\allowbreak days}) and ESP32 canopy temperature/humidity further modulate cold-kill pruning and heat-stress yield penalties (Section~\ref{sec:optimization}). A seasonal balance cannot resolve a short drought at flowering; this limitation is stated in Section~\ref{sec:limitations}.

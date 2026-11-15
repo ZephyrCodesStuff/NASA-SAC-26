@@ -405,3 +405,150 @@ def test_http_plan_3year_endpoint_execution():
     assert "strategy_tradeoff_matrix" in advisory
     assert "ground_truth_field_checklist" in advisory
     assert len(advisory["ground_truth_field_checklist"]) >= 4
+    assert "calibration_and_assumptions" in data
+    assert data["calibration_and_assumptions"]["methodology_version"] == "v1.1"
+
+
+# ==============================================================================
+# 6. v1.1 METHODOLOGY VERIFICATION TESTS (W1-W7, C1-C4, N1-N4, E1-E2, K1, F1-F3, Y1)
+# ==============================================================================
+
+def test_v11_crop_calendars_kc_adj_and_irrigation_efficiency():
+    """Tests 3-tier calendar precedence, SH flip, Eq. 62 Kc, USDA-SCS Peff, Saxton-Rawls, and e_a."""
+    corn = MASTER_CROPS_CATALOG["corn"]
+    wheat = MASTER_CROPS_CATALOG["winter_wheat"]
+
+    # Tier 3 SH flip (+6 mo)
+    m_nh, _, src_nh = SoilPhysicsEngine.resolve_crop_calendar(corn, latitude_deg=42.0)
+    m_sh, _, src_sh = SoilPhysicsEngine.resolve_crop_calendar(corn, latitude_deg=-33.0)
+    assert "Northern" in src_nh and "Southern" in src_sh
+    assert {x["month"] for x in m_nh} != {x["month"] for x in m_sh}
+
+    # Tier 1 farmer overrides Tier 2 GGCMI
+    m_t1, _, src_t1 = SoilPhysicsEngine.resolve_crop_calendar(
+        corn, latitude_deg=42.0,
+        farmer_calendars={"corn": {"sowing_month": 5, "harvest_month": 9}},
+        ggcmi_calendars={"corn": {"sowing_month": 4, "harvest_month": 8}},
+    )
+    assert "Tier 1" in src_t1 and m_t1[0]["month"] == 5 and m_t1[-1]["month"] == 9
+
+    # USDA-SCS monthly thresholds <=250 vs >250
+    assert abs(SoilPhysicsEngine.calculate_usda_scs_effective_rainfall_monthly(100.0) - 84.0) < 1e-6
+    assert abs(SoilPhysicsEngine.calculate_usda_scs_effective_rainfall_monthly(300.0) - 155.0) < 1e-6
+
+    # Saxton & Rawls moisture curve
+    wp_sand, fc_sand = SoilPhysicsEngine.calculate_saxton_rawls_moisture(sand_pct=80.0, clay_pct=8.0, soc_pct=1.0)
+    wp_clay, fc_clay = SoilPhysicsEngine.calculate_saxton_rawls_moisture(sand_pct=15.0, clay_pct=45.0, soc_pct=2.0)
+    assert fc_clay > fc_sand and wp_clay > wp_sand
+
+    # Irrigation efficiency ordering: drip (0.90) < sprinkler (0.75) < surface (0.60) gross withdrawal
+    climate, _ = SoilPhysicsEngine.build_monthly_climate_series(annual_et0_mm=1300.0, annual_precip_mm=300.0, mean_temp_c=19.0)
+    loam = SoilPhysicsEngine.get_soil_properties("Loam")
+    res_drip = SoilPhysicsEngine.simulate_monthly_water_balance(corn, loam, climate, has_irrigation=True, irrigation_method="drip")
+    res_sprink = SoilPhysicsEngine.simulate_monthly_water_balance(corn, loam, climate, has_irrigation=True, irrigation_method="sprinkler")
+    res_surf = SoilPhysicsEngine.simulate_monthly_water_balance(corn, loam, climate, has_irrigation=True, irrigation_method="surface")
+    assert res_drip["irrigation_gross_mm"] < res_sprink["irrigation_gross_mm"] < res_surf["irrigation_gross_mm"]
+
+    # Severe rainfed deficit sets FAO-33 > 0.50 warning and allows Ks < 0.30 (no artificial floor)
+    res_dry = SoilPhysicsEngine.simulate_monthly_water_balance(corn, loam, climate, has_irrigation=False)
+    assert res_dry["relative_et_deficit"] > 0.50
+    assert res_dry["fao33_outside_calibrated_range"] is True
+    # Winter wheat crosses Dec->Jan cleanly with year_offset 0 and 1
+    m_ww, _, _ = SoilPhysicsEngine.resolve_crop_calendar(wheat, latitude_deg=45.0)
+    assert any(x["year_offset"] == 1 for x in m_ww)
+
+
+def test_v11_caco3_k2_coarse_fragments_and_no_ftill():
+    """Tests CF correction on C_0, CaCO3 stabilization in k2, tomato DM=0.055, and no f_till."""
+    from projection_api.models.input_parser_schemas import SoilGridsDepthLayer
+    layers = [SoilGridsDepthLayer(depth_interval="0-30cm", top_depth_cm=0, bottom_depth_cm=30, clay_pct=25.0, soil_organic_carbon_pct=2.0, bulk_density_g_cm3=1.30, coarse_fragments_vol_pct=20.0)]
+    c0_cf, _, _, _, cf = SoilPhysicsEngine.calculate_initial_soc_stock(layers)
+    layers_0 = [SoilGridsDepthLayer(depth_interval="0-30cm", top_depth_cm=0, bottom_depth_cm=30, clay_pct=25.0, soil_organic_carbon_pct=2.0, bulk_density_g_cm3=1.30, coarse_fragments_vol_pct=0.0)]
+    c0_nocf, _, _, _, _ = SoilPhysicsEngine.calculate_initial_soc_stock(layers_0)
+    assert abs(cf - 0.20) < 1e-4
+    assert abs(c0_cf - 0.80 * c0_nocf) < 0.1
+
+    corn = MASTER_CROPS_CATALOG["corn"]
+    loam = SoilPhysicsEngine.get_soil_properties("Loam")
+    # Tillage factor no longer alters k2
+    _, _, _, k2_conv = SoilPhysicsEngine.simulate_soc_dynamics(corn, loam, 1.5, mean_annual_temp_c=14.0, tillage_factor=1.0, caco3_g_kg=0.0)
+    _, _, _, k2_notill = SoilPhysicsEngine.simulate_soc_dynamics(corn, loam, 1.5, mean_annual_temp_c=14.0, tillage_factor=0.5, caco3_g_kg=0.0)
+    assert k2_conv == k2_notill
+
+    # CaCO3 slows mineralization k2
+    _, _, _, k2_calc = SoilPhysicsEngine.simulate_soc_dynamics(corn, loam, 1.5, mean_annual_temp_c=14.0, caco3_g_kg=250.0)
+    assert k2_calc < k2_conv
+
+    # Cold high-clay site drops below removed 0.012 floor
+    _, _, _, k2_cold = SoilPhysicsEngine.simulate_soc_dynamics(corn, loam, 2.0, mean_annual_temp_c=6.5, soilgrids_clay_pct=50.0, caco3_g_kg=0.0)
+    assert k2_cold < 0.012
+
+
+def test_v11_coupled_nitrogen_re40_and_ipcc_emissions():
+    """Tests Herridge f_BGN, RE_N=0.40, forward-only legume credit, legal ceiling, and wet vs dry IPCC N2O/leaching."""
+    soy = MASTER_CROPS_CATALOG["soybeans"]
+    corn = MASTER_CROPS_CATALOG["corn"]
+
+    # Legume fixes N via f_BGN and keeps next credit separate from own balance
+    n_soy = SoilPhysicsEngine.calculate_nitrogen_budget_detailed(soy, yield_tons_ha=3.2, c_stock_start_t_ha=60.0, k2_rate=0.02)
+    assert n_soy["synthetic_n_applied_kg_ha"] == 0.0
+    assert n_soy["biological_n_fixed_kg_ha"] > 0.0
+    assert n_soy["next_legume_credit_kg_ha"] > 0.0
+    assert abs(n_soy["net_soil_n_balance_kg_ha"] - (n_soy["biological_n_fixed_kg_ha"] - n_soy["n_harvest_export_kg_ha"])) < 0.2
+
+    # Wet vs dry climate IPCC 2019 leaching and EF1
+    n_wet = SoilPhysicsEngine.calculate_nitrogen_budget_detailed(corn, yield_tons_ha=10.0, c_stock_start_t_ha=50.0, k2_rate=0.02, annual_precip_mm=1100.0, annual_et0_mm=900.0)
+    n_dry = SoilPhysicsEngine.calculate_nitrogen_budget_detailed(corn, yield_tons_ha=10.0, c_stock_start_t_ha=50.0, k2_rate=0.02, annual_precip_mm=450.0, annual_et0_mm=1300.0)
+    assert n_wet["nitrogen_leaching_kg_ha"] > 0.0 and n_dry["nitrogen_leaching_kg_ha"] == 0.0
+    assert n_wet["direct_n2o_n_kg_ha"] > n_dry["direct_n2o_n_kg_ha"]
+
+    # Max legal N ceiling
+    n_cap = SoilPhysicsEngine.calculate_nitrogen_budget_detailed(corn, yield_tons_ha=12.0, c_stock_start_t_ha=30.0, k2_rate=0.01, max_legal_n_kg_ha=170.0)
+    assert n_cap["synthetic_n_applied_kg_ha"] <= 170.0
+
+
+def test_v11_ph_lockout_without_readmission_and_5yr_history_breaks(sample_field_profile):
+    """Strict pH lockout sets parcel_is_constrained=True without widening; 5-yr history blocks Solanaceae."""
+    acidic_field = dict(sample_field_profile, soil_ph=4.4)
+    opt_acid = PlanOptimizerEngine(acidic_field)
+    candidates = opt_acid._filter_candidate_crops()
+    # Below minimum ECOCROP abs_ph_min (4.5): zero crops re-admitted, constrained flag set
+    assert candidates == []
+    assert opt_acid.parcel_is_constrained is True
+
+    # Alkaline parcel (pH 8.6): only Grain Sorghum (8.8) & Alfalfa (8.7) pass (<3 crops -> constrained)
+    alkaline_field = dict(sample_field_profile, soil_ph=8.6)
+    opt_alk = PlanOptimizerEngine(alkaline_field)
+    alk_candidates = opt_alk._filter_candidate_crops()
+    assert 1 <= len(alk_candidates) < 3
+    assert opt_alk.parcel_is_constrained is True
+    for c in alk_candidates:
+        assert c.abs_ph_max is None or 8.6 <= c.abs_ph_max
+    alk_plans = opt_alk.optimize_all_strategies()
+    allowed_ids = {c.crop_id for c in alk_candidates}
+    for plan in alk_plans.values():
+        assert {plan.year_1.crop_id, plan.year_2.crop_id, plan.year_3.crop_id}.issubset(allowed_ids)
+
+    # Tomato grown in Y(-1) -> 2 years prior to Y(1) blocks Solanaceae from Y(1) & Y(2)
+    hist_field = dict(sample_field_profile, past_crops_sequence=["Corn (Maize)", "Soybeans", "Processing Tomatoes", "Winter Wheat"])
+    opt_hist = PlanOptimizerEngine(hist_field)
+    strategies = opt_hist.optimize_all_strategies()
+    for plan in strategies.values():
+        assert plan.year_1.crop_id not in ("processing_tomatoes", "bell_peppers")
+        assert plan.year_2.crop_id not in ("processing_tomatoes", "bell_peppers")
+        assert plan.year_1.compaction_is_heuristic is True
+
+
+def test_v11_relative_stress_yield_and_gloreda_erosion(sample_field_profile):
+    """Tests relative-stress yield scaling without double-penalizing climate, plus GloREDa R and max slope."""
+    ref_field = dict(sample_field_profile, resolved_soil_type="Loam", soil_ph=6.8, baseline_compaction_psi=190.0)
+    opt = PlanOptimizerEngine(ref_field)
+    corn = MASTER_CROPS_CATALOG["corn"]
+    impact, _ = opt._simulate_annual_impact_step(year_idx=1, crop=corn, preceding_crop=MASTER_CROPS_CATALOG["soybeans"], start_soc_pct=2.0, start_compaction_psi=190.0, preceding_legume_credit_kg_ha=40.0)
+    # On neutral Loam following Soybeans, Y should closely match regional reference yield (~9.8 t/ha)
+    assert impact.projected_yield_tons_ha >= corn.reference_yield_tons_ha * 0.90
+
+    soil = SoilPhysicsEngine.get_soil_properties("Silt Loam")
+    e_mean = SoilPhysicsEngine.calculate_rusle_erosion(corn, soil, slope_pct=2.0, annual_precip_mm=700.0, latitude_deg=45.0, longitude_deg=7.6)
+    e_steep = SoilPhysicsEngine.calculate_rusle_erosion(corn, soil, slope_pct=2.0, slope_max_pct=12.0, annual_precip_mm=700.0, latitude_deg=45.0, longitude_deg=7.6)
+    assert e_steep > e_mean * 3.0
