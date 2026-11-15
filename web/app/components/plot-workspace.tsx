@@ -131,6 +131,9 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
     { scope: tabContainerRef, dependencies: [tab] }
   );
   const [loading, setLoading] = useState(true);
+  const [plotReady, setPlotReady] = useState(false);
+  const [analysisReady, setAnalysisReady] = useState(false);
+  const [stageTick, setStageTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const [plot, setPlot] = useState<PlotRecord | null>(null);
@@ -162,11 +165,21 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   const loadAll = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setPlotReady(false);
+    setAnalysisReady(false);
+    setStageTick(0);
     try {
-      const [plotRes, analysisRes] = await Promise.all([
-        webApi.getPlot(plotId, token),
-        webApi.getAnalysisPayload(plotId, token).catch(() => null),
-      ]);
+      const plotPromise = webApi.getPlot(plotId, token).then((res) => {
+        setPlotReady(true);
+        return res;
+      });
+      const analysisPromise = webApi
+        .getAnalysisPayload(plotId, token)
+        .catch(() => null)
+        .finally(() => {
+          setAnalysisReady(true);
+        });
+      const [plotRes, analysisRes] = await Promise.all([plotPromise, analysisPromise]);
       setPlot(plotRes.plot);
       setFarm(plotRes.farm);
       setIsOwner(plotRes.is_owner);
@@ -194,6 +207,71 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setInterval(() => {
+      setStageTick((t) => t + 1);
+    }, 2400);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  const loadingSubtext = useMemo(() => {
+    if (!plotReady) {
+      return "Loading parcel boundary & farm profile…";
+    }
+    if (!analysisReady) {
+      const steps: string[] = [];
+      if (
+        nasa.datasets.weather?.state === "loading" ||
+        nasa.datasets.climate_projection?.state === "loading"
+      ) {
+        steps.push("Fetching NASA POWER climatology & ET₀ normals…");
+      }
+      if (
+        nasa.datasets.soil?.state === "loading" ||
+        nasa.datasets.terrain?.state === "loading" ||
+        nasa.datasets.erosion?.state === "loading"
+      ) {
+        steps.push("Sampling SoilGrids horizons & terrain slope…");
+      }
+      if (
+        nasa.datasets.rainfall?.state === "loading" ||
+        nasa.datasets.soil_moisture?.state === "loading" ||
+        nasa.datasets.evapotranspiration_field?.state === "loading"
+      ) {
+        steps.push("Pulling GPM rainfall, SMAP moisture & OpenET…");
+      }
+      if (
+        nasa.datasets.crop_history?.state === "loading" ||
+        nasa.datasets.crop_health?.state === "loading" ||
+        nasa.datasets.market_prices?.state === "loading"
+      ) {
+        steps.push("Checking crop history, NDVI & market benchmarks…");
+      }
+      steps.push("Running FAO-56 water balance & 3-year rotation solver…");
+      return steps[stageTick % steps.length];
+    }
+    return "Finalizing plot workspace…";
+  }, [plotReady, analysisReady, stageTick, nasa.datasets]);
+
+  const loadingContainerRef = useRef<HTMLDivElement>(null);
+  const loadingSubtextRef = useRef<HTMLParagraphElement>(null);
+  useGSAP(
+    () => {
+      if (!loading || !loadingSubtextRef.current) return;
+      const mm = gsap.matchMedia();
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.fromTo(
+          loadingSubtextRef.current,
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.45, ease: "power2.out", clearProps: "transform,opacity" }
+        );
+      });
+      return () => mm.revert();
+    },
+    { scope: loadingContainerRef, dependencies: [loading, loadingSubtext] }
+  );
 
   const loadDevices = useCallback(async () => {
     try {
@@ -480,9 +558,47 @@ export function PlotWorkspace({ plotId }: { plotId: string }) {
 
   if (loading) {
     return (
-      <div className="h-dvh w-full flex items-center justify-center bg-[#faf9f5] text-[#6b675f] gap-2 text-xs font-mono">
-        <Loader2 className="h-4 w-4 animate-spin text-[#20808d]" />
-        Loading plot workspace…
+      <div
+        ref={loadingContainerRef}
+        className="h-dvh w-full flex flex-col items-center justify-center bg-[#faf9f5] text-[#1f1915] px-6 text-center"
+      >
+        <div className="max-w-sm w-full space-y-3">
+          <div className="inline-flex items-center justify-center gap-2 text-sm font-medium text-[#1f1915]">
+            <Loader2 className="h-4 w-4 animate-spin text-[#20808d] shrink-0" />
+            <span>Loading plot workspace…</span>
+          </div>
+          <div className="min-h-[2.25rem] flex items-center justify-center" role="status" aria-live="polite">
+            <p
+              ref={loadingSubtextRef}
+              key={loadingSubtext}
+              className="text-xs font-mono text-[#6b675f]"
+            >
+              {loadingSubtext}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <div className="h-1 w-full rounded-full bg-[#e7e5e0] overflow-hidden">
+              <div
+                className="h-full bg-[#20808d] transition-[width] duration-500 ease-out"
+                style={{
+                  width: `${Math.min(
+                    95,
+                    Math.max(
+                      12,
+                      (plotReady ? 20 : 8) +
+                        Math.round((nasa.loaded / Math.max(1, nasa.total)) * 55) +
+                        (analysisReady ? 20 : 0)
+                    )
+                  )}%`,
+                }}
+              />
+            </div>
+            <p className="text-[11px] font-mono text-[#8a857c]">
+              Earth observation layers: {nasa.loaded}/{nasa.total} ready
+              {stageTick >= 5 ? " · waiting on external satellite APIs" : ""}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
