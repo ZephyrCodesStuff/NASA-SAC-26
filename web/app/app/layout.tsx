@@ -20,8 +20,8 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "NASA Space Apps 2026 — Crop Rotation Planner",
-  description: "Resilient 3-year crop rotation decision support powered by NASA Earth observations & Catasto.",
+  title: "Ceres — Crop Rotation Planner",
+  description: "Resilient 3-year crop rotation decision support powered by NASA Earth observations & national cadastral data.",
 };
 
 export default function RootLayout({

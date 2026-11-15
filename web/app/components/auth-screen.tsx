@@ -66,7 +66,7 @@ export function AuthScreen() {
           </div>
           <div>
             <p className="font-serif text-base font-semibold tracking-tight">
-              Turin Crop Rotation Planner
+              Ceres · Crop Rotation Planner
             </p>
             <p className="text-[11px] font-mono text-[#6b675f]">
               NASA SPACE APPS CHALLENGE 2026
@@ -76,27 +76,27 @@ export function AuthScreen() {
 
         <div className="my-12 lg:my-0 max-w-xl space-y-5">
           <Badge variant="outline" className="font-mono text-[11px]">
-            FAO-56 · RUSLE · NASA POWER / SMAP · AdE CATASTO
+            FAO-56 · RUSLE · NASA POWER / SMAP · NATIONAL CADASTRES
           </Badge>
           <h1 className="font-serif text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.15]">
             Deterministic 3-year crop rotations, grounded in satellite &amp; field telemetry.
           </h1>
           <p className="text-sm text-[#6b675f] leading-relaxed">
-            Select real cadastral parcels or draw field boundaries around Turin and across Europe,
+            Select official government cadastral parcels or draw any field boundary worldwide,
             inspect 24-period seasonal water and erosion balances, and pair live ESP32 soil probes
             against NASA Earth observations.
           </p>
 
           <div className="border-y border-[#e7e5e0] py-3 flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono text-[#6b675f]">
             <span>24 × 15-day periods</span>
-            <span>Catasto WFS / WMS</span>
+            <span>Gov. Cadastre &amp; Field Boundaries</span>
             <span>Live ESP32 Ground Truth</span>
           </div>
         </div>
 
         <div className="text-[11px] font-mono text-[#6b675f] flex items-center justify-between">
           <span>API: {WEB_API_URL}</span>
-          <span>Deterministic math first · AI for translation</span>
+          <span>Built with 💚 for NASA Space Apps Challenge 2026</span>
         </div>
       </div>
 

@@ -497,7 +497,7 @@ export function MapWorkbench() {
               <Sprout className="h-4 w-4" />
             </div>
             <span className="font-serif text-sm font-semibold tracking-tight hidden sm:inline">
-              Turin Crop Planner
+              Ceres
             </span>
           </div>
 
@@ -679,10 +679,10 @@ export function MapWorkbench() {
               )}
             </div>
 
-            {/* Turin Presets Footer */}
+            {/* Sample Regions Footer */}
             <div className="p-3 border-t border-[#e7e5e0] bg-[#faf9f5] space-y-2">
               <p className="text-[10px] font-mono uppercase tracking-wider text-[#6b675f]">
-                Turin Quick Jump
+                Sample Regions
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TURIN_PRESETS.map((p) => (
