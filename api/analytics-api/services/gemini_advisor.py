@@ -6,12 +6,14 @@ simulation metrics and NASA Earth observations into actionable agronomic guidanc
 
 import os
 import json
+import hashlib
 import logging
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from projection_api.cache import cache_get, cache_set
 from projection_api.models.simulation_models import (
     ThreeYearCultivationPlan, GeminiAdvisoryReport, StrategyPlainLanguageBreakdown
 )
@@ -25,6 +27,14 @@ try:
     GENAI_SDK_AVAILABLE = True
 except ImportError:
     GENAI_SDK_AVAILABLE = False
+
+
+def _advisory_cache_key(parcel: Dict[str, Any], climate: Dict[str, Any], strategies: Dict[str, ThreeYearCultivationPlan]) -> str:
+    blob = json.dumps(
+        [parcel, climate, {k: v.model_dump() for k, v in strategies.items()}],
+        sort_keys=True, default=str,
+    )
+    return "gemini:" + hashlib.sha256(blob.encode()).hexdigest()
 
 
 class GeminiAdvisorEngine:
@@ -45,6 +55,14 @@ class GeminiAdvisorEngine:
         Uses live Gemini AI (gemini-3.1-flash-lite / gemini-3.8-flash) if API key is present;
         otherwise gracefully executes the deterministic agronomic expert engine.
         """
+        cache_key = _advisory_cache_key(parcel_info, climate_baseline, strategies)
+        cached = cache_get(cache_key)
+        if cached is not None:
+            try:
+                return GeminiAdvisoryReport(**cached)
+            except Exception:  # noqa: BLE001 — a corrupt cache entry falls through to recompute
+                pass
+
         # If live API key is present and SDK is available, try live Gemini call
         if self.api_key and GENAI_SDK_AVAILABLE:
             candidate_models = [self.model_name]
@@ -72,13 +90,16 @@ class GeminiAdvisorEngine:
                         parsed_json = json.loads(response.text)
                         report = GeminiAdvisoryReport(**parsed_json)
                         report.model_used = f"google-genai/{target_model}"
+                        cache_set(cache_key, report.model_dump())
                         return report
 
                 except Exception as e:
                     logger.warning(f"Live Gemini API call ({target_model}) failed: {e}. Trying next model...")
 
         # Deterministic Offline Fallback
-        return self._generate_deterministic_fallback(parcel_info, climate_baseline, strategies)
+        report = self._generate_deterministic_fallback(parcel_info, climate_baseline, strategies)
+        cache_set(cache_key, report.model_dump())
+        return report
 
     def _build_grounded_prompt(
         self,
